@@ -235,7 +235,8 @@ tool_restrictions:
 /opt/vizier/
 +-- src/                             # Vizier source (cloned from GitHub)
 +-- venv/                            # Vizier's own environment
-+-- config.yaml                      # API keys, server-wide settings
++-- config.yaml                      # API keys, server-wide settings (see config.example.yaml)
++-- .env                             # API keys and secrets (see .env.example)
 +-- projects.yaml                    # Registered projects
 |
 +-- workspaces/                      # One clone per project
@@ -252,12 +253,36 @@ tool_restrictions:
 |       +-- ...
 |
 +-- reports/                         # EA watches this
-    +-- project-alpha/               # Pasha A writes here
-    |   +-- 2026-02-15-cycle-001.md
-    |   +-- status.json              # Current state summary
-    +-- project-beta/
-        +-- ...
+|   +-- project-alpha/               # Pasha A writes here
+|   |   +-- 2026-02-15-cycle-001.md
+|   |   +-- status.json              # Current state summary
+|   +-- project-beta/
+|       +-- ...
+|
++-- ea/                              # EA's own git repo (commitments, relationships)
+|   +-- commitments/*.yaml
+|   +-- relationships/*.yaml
+|   +-- priorities.yaml
+|   +-- sessions/
+|
++-- security/                        # Sentinel data
+|   +-- events.jsonl
+|   +-- blocklist.yaml
+|   +-- quarantine/
+|
++-- checkout/                        # Sultan's file checkout area
 ```
+
+### Daemon Architecture (D37)
+
+The daemon is a single Python process running an asyncio event loop:
+
+- **aiogram** (Telegram long polling, D36) runs on the event loop
+- **watchdog** dispatches filesystem events to the event loop
+- **Pasha** orchestration logic runs as async handlers on the event loop
+- **Agent invocations** (Worker, Quality Gate, Architect) are launched as **separate Python subprocesses** for crash isolation
+- **Concurrency** is limited by `asyncio.Semaphore(max_concurrent_agents)`
+- **Agent communication** is through the filesystem (specs, reports) -- no IPC needed
 
 ### What gets committed to project repos
 

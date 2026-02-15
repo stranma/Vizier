@@ -162,6 +162,7 @@ This ensures continuity and prevents duplicated or missed work.
 
 **Test-Driven Development Process** -- MANDATORY for all new development:
 
+0. **Run Pre-Implementation Readiness Review (PIRR)** -- Verify specs are ready. See PCC step -2 below. This is NOT optional.
 1. **Create code structure** -- Define classes, functions, constants with proper type annotations
 2. **Write unit tests** -- Test the interface and expected behavior before implementation
 3. **Write implementation** -- Implement the actual functionality to pass tests
@@ -176,9 +177,11 @@ This ensures continuity and prevents duplicated or missed work.
 
 **CRITICAL -- Phase Completion Checklist Integration:**
 - Every implementation plan MUST explicitly include the Phase Completion Checklist steps as part of each phase's deliverables
-- When writing plans (in plan mode), the "Phase Completion Steps" section MUST reference the checklist by name and list all 11 steps (0-10)
+- When writing plans (in plan mode), the "Phase Completion Steps" section MUST reference the checklist by name and list all steps (-2 through 10)
 - When executing a phase, the checklist MUST be run IN FULL before proceeding to the next phase -- do NOT batch them all to the end
 - If a plan does not mention the Phase Completion Checklist, the plan is INCOMPLETE and must be revised
+- Every implementation plan MUST explicitly include the PIRR step as a gate before each phase's implementation
+- If a plan does not mention the Pre-Implementation Readiness Review, the plan is INCOMPLETE and must be revised
 
 ---
 
@@ -198,6 +201,7 @@ ask Claude to "use the [agent-name] agent" and it will delegate automatically.
 
 | PCC Step | Agent File | Task subagent_type | Purpose |
 |----------|-----------|---------------------|---------|
+| PIRR (-2) | `.claude/agents/spec-readiness-reviewer.md` | `general-purpose` | Pre-implementation readiness gate (6 dimensions) |
 | 3a | `.claude/agents/code-quality-validator.md` | `general-purpose` | Lint, format, type check (auto-fixes) |
 | 3b | `.claude/agents/test-coverage-validator.md` | `general-purpose` | Run tests, check coverage |
 | 3c | `.claude/agents/acceptance-criteria-validator.md` | `general-purpose` | Verify acceptance criteria |
@@ -209,6 +213,23 @@ ask Claude to "use the [agent-name] agent" and it will delegate automatically.
 | -- | `.claude/agents/implementation-tracker.md` | `general-purpose` | Verify plan matches reality |
 
 ---
+
+### -2. Pre-Implementation Readiness Review (PIRR)
+**This step runs AFTER plan approval but BEFORE any code is written.**
+
+- Invoke `.claude/agents/spec-readiness-reviewer.md` via Task tool (`subagent_type: "general-purpose"` with the agent's system prompt)
+- The agent reviews six dimensions: Acceptance Criteria Completeness, Spec-Plan Alignment, Prerequisites & Dependencies, Deployment Readiness, Architectural Decision Coverage, Validated Scenario Coverage
+- Each dimension produces PASS, WARN, or FAIL
+
+**Gate rules:**
+- **Any FAIL** -> Block implementation. Fix the plan, specs, or decisions first. Re-run PIRR after fixes.
+- **WARN items** -> Must be acknowledged with written justification before proceeding.
+- **All PASS** -> Proceed to step -1 (create feature branch).
+
+**When to re-run PIRR:**
+- After fixing any FAIL items
+- After significant plan changes mid-phase
+- When resuming a phase after a long pause (to verify prerequisites still hold)
 
 ### -1. Create Feature Branch
 - Always create a dedicated branch before starting implementation
@@ -321,6 +342,7 @@ If a step fails, follow this decision tree:
 
 | Failure | Action |
 |---|---|
+| **Step -2 (PIRR) fails** | Fix the plan, specs, or decisions. Re-run PIRR. Do NOT create feature branch until PIRR passes or all WARN items are acknowledged. |
 | **Steps 3a/3b/3c fail on current phase's code** | Fix the issue, amend commit, re-run from Step 2 |
 | **Step 3c reveals a previous phase's criteria now failing** | File as a separate bug/issue. Fix in current phase only if it's a direct regression |
 | **Step 8 (CI) fails on pre-existing issue** | Document the issue, file separately, do NOT block the current phase |
@@ -392,10 +414,27 @@ If a conflict is found, present it to the user before proceeding:
 
 Do NOT silently override a documented decision. Deliberate pivots are fine -- undocumented ones are not.
 
+### Pre-Implementation Readiness Review (PIRR) -- MANDATORY
+
+After a plan is approved and before any code is written for a phase, run the PIRR:
+
+> Invoke `.claude/agents/spec-readiness-reviewer.md` via Task tool (`subagent_type: "general-purpose"`) to review the six dimensions: Acceptance Criteria Completeness, Spec-Plan Alignment, Prerequisites & Dependencies, Deployment Readiness, Architectural Decision Coverage, Validated Scenario Coverage. Gate on the result: any FAIL blocks implementation; WARN items require written acknowledgment; all PASS proceeds to feature branch creation.
+
+When creating implementation plans (in plan mode), ALWAYS include the PIRR as a gate step before each phase's implementation work.
+
+#### Relationship Between PIRR and Consistency Check
+
+| Check | When It Runs | Question It Answers | What It Catches |
+|-------|-------------|---------------------|-----------------|
+| Consistency Check | During planning | "Does this plan CONTRADICT anything?" | Conflicts with prior decisions, architectural violations, convention mismatches |
+| PIRR | After plan approved, before coding | "Is this plan COMPLETE enough to implement?" | Vague criteria, missing deployment artifacts, unresolved decisions, uncovered scenarios |
+
+They are complementary -- one prevents conflicts, the other prevents gaps. Neither replaces the other.
+
 ### Phase Completion Steps
 
 When creating implementation plans (in plan mode), ALWAYS include a "Phase Completion Steps" section that explicitly states:
 
-> After each phase, execute the Phase Completion Checklist (steps 0-10 from CLAUDE.md): sync remote, pre-commit hygiene, commit & push, parallel validation (`.claude/agents/code-quality-validator.md` + `.claude/agents/test-coverage-validator.md` + `.claude/agents/acceptance-criteria-validator.md` -- all invoked via `subagent_type: "general-purpose"`), Plan agent or `.claude/agents/implementation-tracker.md` for implementation check, `.claude/agents/docs-updater.md` for documentation + changelog, create PR with `.claude/agents/pr-writer.md`, verify CI, code review with `.claude/agents/code-reviewer.md` (NOT `feature-dev:code-reviewer`) or `.claude/agents/review-responder.md`, phase handoff note. Consult the Failure & Rollback Protocol if any step fails. See the Agent Reference table in the PCC section for exact invocation details.
+> After each phase, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md): PIRR (`.claude/agents/spec-readiness-reviewer.md` via `subagent_type: "general-purpose"`) as pre-implementation gate, then sync remote, pre-commit hygiene, commit & push, parallel validation (`.claude/agents/code-quality-validator.md` + `.claude/agents/test-coverage-validator.md` + `.claude/agents/acceptance-criteria-validator.md` -- all invoked via `subagent_type: "general-purpose"`), Plan agent or `.claude/agents/implementation-tracker.md` for implementation check, `.claude/agents/docs-updater.md` for documentation + changelog, create PR with `.claude/agents/pr-writer.md`, verify CI, code review with `.claude/agents/code-reviewer.md` (NOT `feature-dev:code-reviewer`) or `.claude/agents/review-responder.md`, phase handoff note. Consult the Failure & Rollback Protocol if any step fails. See the Agent Reference table in the PCC section for exact invocation details.
 
 This ensures the checklist is visible in the plan and not forgotten during execution.

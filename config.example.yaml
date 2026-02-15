@@ -1,0 +1,64 @@
+# Vizier Server Configuration
+# Copy to /opt/vizier/config.yaml and customize
+
+# --- LLM Providers ---
+# API keys are read from environment variables (see .env.example)
+providers:
+  anthropic:
+    api_key: ${ANTHROPIC_API_KEY}
+  # openai:
+  #   api_key: ${OPENAI_API_KEY}
+
+# --- Model Tier Mapping ---
+# Maps abstract tiers to concrete provider/model pairs (LiteLLM format)
+model_tiers:
+  opus:   anthropic/claude-opus-4-6
+  sonnet: anthropic/claude-sonnet-4-5-20250929
+  haiku:  anthropic/claude-haiku-4-5-20251001
+
+# --- Server Paths ---
+home: /opt/vizier
+workspaces_dir: /opt/vizier/workspaces
+reports_dir: /opt/vizier/reports
+ea_dir: /opt/vizier/ea
+security_dir: /opt/vizier/security
+checkout_dir: /opt/vizier/checkout
+
+# --- Daemon ---
+reconciliation_interval_seconds: 60
+max_concurrent_agents: 4
+agent_timeout_seconds: 300
+
+# --- Telegram ---
+telegram:
+  bot_token: ${TELEGRAM_BOT_TOKEN}
+  sultan_chat_id: ${TELEGRAM_SULTAN_CHAT_ID}
+  mode: polling                            # polling (default) or webhook
+  # webhook_url: https://vizier.example.com/webhook  # Required if mode: webhook
+
+# --- Budget (D33) ---
+budget:
+  monthly_limit_usd: 100
+  alert_threshold_pct: 80                  # Alert Sultan at this % of budget
+  degrade_threshold_pct: 100               # Degrade to cheapest models
+  pause_threshold_pct: 120                 # Pause non-critical work
+
+# --- Logging ---
+logging:
+  level: INFO
+  agent_log_format: jsonl                  # Structured agent logs per project
+
+# --- Security (Sentinel) ---
+sentinel:
+  trusted_domains:
+    - docs.python.org
+    - github.com
+    - stackoverflow.com
+    - pypi.org
+    - docs.anthropic.com
+  blocked_domains: []
+  blocked_file_extensions:
+    - .exe
+    - .sh
+    - .bat
+    - .cmd

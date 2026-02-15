@@ -260,6 +260,26 @@ mindmap
       Pre-commit secret scanning
         Block API keys, tokens, passwords, private keys
         Why: defense in depth, learned from EFM safety server
+    Infrastructure
+      Telegram long polling first
+        Why: zero infrastructure, no domain or TLS needed
+        Webhook later when latency or multi-channel matters
+      asyncio daemon + subprocess per agent
+        Daemon: asyncio event loop for aiogram, watchdog, orchestration
+        Agents: separate Python process per invocation
+        Why: crash isolation, resource limits, true fresh context
+        Concurrency: asyncio.Semaphore gates max concurrent agents
+        Alt rejected: pure asyncio tasks - no crash isolation
+        Alt rejected: ProcessPoolExecutor - over-engineered, agents are I/O-bound
+      Files only for queryable data
+        YAML for commitments, relationships
+        JSONL for agent logs
+        Why: single-user scale, git-trackable, human-readable
+        Alt rejected: SQLite - breaks git-trackability for no benefit at this scale
+      Stub plugin as test fixture
+        tests/fixtures/stub_plugin/
+        Why: test-only code, not a real plugin
+        Plugin discovery tested separately with mocks
     Spec Contract
       Architect writes, Worker consumes
         Worker has bounded read-only exploration
@@ -706,3 +726,58 @@ The stub plugin is minimal but complete: it has a Worker that writes files, a Qu
 **Why:** Security checks should be fast, deterministic, and cheap. LLM-based security would burn tokens on every operation. But novel threats (prompt injection in fetched content) need intelligence — Haiku is cheap enough for on-demand scanning.
 **Dangerous operations requiring Sultan approval:** GitHub Actions changes, force push, branch delete, history rewrite, new dependencies. Sentinel blocks → EA asks Sultan → decision flows back.
 **Lineage:** Directly inspired by EFM's MCP safety server (Tier 1/2/3 system), generalized to cover web access, file relay, and CI/CD.
+
+---
+
+### D36: Telegram long polling first, webhook later
+
+**Context:** aiogram supports both long polling (simpler) and webhook (lower latency, more production-grade). Webhook requires HTTPS endpoint on Hetzner (domain + TLS cert). Long polling works immediately.
+
+**Decision:** Start with long polling. Migrate to webhook when multi-channel or latency requirements justify the infrastructure.
+
+**Why:** Long polling needs zero infrastructure beyond the running daemon. No domain name, no TLS certificate, no reverse proxy. For a single-user system (Sultan), the ~1-2 second latency difference is irrelevant. Webhook can be added later as a config option without architectural changes -- aiogram supports both modes with the same handler code.
+
+**Reconsider when:** Latency becomes noticeable, or when adding webhook-dependent features (e.g., Telegram payment processing, inline mode).
+
+---
+
+### D37: asyncio daemon + subprocess per agent invocation
+
+**Context:** The daemon needs to manage agent lifecycle (Worker, Quality Gate, Architect). Options: (A) all agents as asyncio tasks in one process, (B) subprocess per agent, (C) asyncio + ProcessPoolExecutor.
+
+**Decision:** Daemon runs an asyncio event loop (for aiogram, watchdog, orchestration). Each agent invocation is launched as a **separate Python process** via `asyncio.create_subprocess_exec()`. Communication between daemon and agents is through the filesystem (already the design).
+
+**Why:**
+- **Crash isolation**: If a Worker process crashes, segfaults, or OOMs, the daemon is unaffected. With pure asyncio, a misbehaving agent could bring down the entire daemon (blocking event loop, memory leak, unhandled exception escaping TaskGroup).
+- **Resource limits**: OS-level process boundaries enable per-agent memory limits and timeouts. The daemon kills hung agents after configurable timeout.
+- **True fresh context**: A separate process is the most literal implementation of the Ralph Wiggum pattern -- literally a fresh Python interpreter with zero state from previous invocations.
+- **No external deps**: `asyncio.create_subprocess_exec()` is stdlib. No Celery, no Redis, no task queue infrastructure.
+- **Negligible overhead**: Python startup (~0.5s) is trivial compared to LLM API call duration (seconds to minutes).
+
+**Concurrency limit:** `asyncio.Semaphore(max_concurrent_agents)` gates how many agent subprocesses run simultaneously.
+
+**Trade-off:** Slightly more complex than pure asyncio (~100 lines vs ~50). But the isolation guarantee is worth it for an autonomous system that runs unattended.
+
+---
+
+### D38: Files only for queryable data (commitments, relationships, agent logs)
+
+**Context:** EA maintains commitments, relationships, and agent logs. These need querying (overdue commitments, cost by project, contacts with open items). Options: YAML/JSONL files (current design), SQLite for queryable data, or decide later.
+
+**Decision:** Keep files only. YAML for structured records (commitments, relationships). JSONL for append-only logs (agent invocations). No database.
+
+**Why:** Vizier is a single-user system (one Sultan). The data volumes are small: dozens of commitments, dozens of relationships, thousands of agent log entries per month. Python can load and filter these in milliseconds. Files are git-trackable (EA data lives in its own git repo per ARCHITECTURE.md), human-readable, and debuggable. SQLite would add a dependency and break git-trackability for no performance benefit at this scale.
+
+**Reconsider when:** Agent log analysis becomes slow (>10k entries), or commitment/relationship queries need joins or aggregations that are painful to express as Python list comprehensions.
+
+---
+
+### D39: Stub plugin as test fixture, not a real plugin package
+
+**Context:** Phase 2 needs a minimal plugin (D35) to test Worker and Quality Gate. Options: (A) test fixture in `tests/fixtures/`, (B) real plugin in `plugins/test-stub/`, (C) inline classes in test files.
+
+**Decision:** Place the stub plugin in `tests/fixtures/stub_plugin/` as a test fixture. Register it programmatically in tests (not via entry points).
+
+**Why:** The stub plugin exists only for testing. Making it a real package with pyproject.toml and entry points adds maintenance burden and pollutes the plugin namespace. Test fixtures are the standard location for test-only code. Plugin discovery via entry points is tested separately (unit test for the discovery function with mock entry points). The stub plugin tests the base class interface, not the discovery mechanism.
+
+**Trade-off:** Doesn't exercise the full entry-point discovery path in integration tests. Acceptable because entry-point discovery is a 10-line function with its own unit test.

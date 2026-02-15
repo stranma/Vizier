@@ -59,26 +59,15 @@ Agent code calls `litellm.completion(model=resolved_model, ...)` — the model r
 | **OpenClaw** | Messaging bridge (Telegram, WhatsApp, Slack, Discord) | 145k stars. Battle-tested channel adapters for 12+ platforms. MIT license. |
 | **aiogram 3.x** | Direct Telegram bot (fallback / simpler option) | Async-first, Pydantic types, modern. Better than python-telegram-bot for new projects. |
 
-**Architecture**: Two options (decide during implementation):
+**Decision (D36):** Start with aiogram 3.x in **long polling mode** (no domain/TLS needed). Migrate to webhook or OpenClaw when multi-channel or latency requirements justify the infrastructure.
 
-**Option A: OpenClaw as gateway** (recommended for multi-channel)
-```
-User (WhatsApp/Telegram/Slack)
-  -> OpenClaw (TypeScript, Docker)
-     -> Custom MCP tool or webhook
-        -> Vizier EA (Python)
-```
-OpenClaw handles channel normalization, auth, message formatting. Vizier handles business logic.
-
-**Option B: Direct aiogram** (simpler, Telegram-only)
 ```
 User (Telegram)
-  -> aiogram bot
-     -> Vizier EA (Python)
+  -> aiogram bot (long polling)
+     -> Vizier EA (Python, asyncio event loop)
 ```
-Simpler, no TypeScript dependency. Sufficient if Telegram is the only channel.
 
-**Recommendation**: Start with Option B (aiogram). Migrate to Option A when multi-channel becomes needed.
+OpenClaw remains an option for future multi-channel support (WhatsApp, Slack, Discord).
 
 ### Calendar & Productivity MCP
 

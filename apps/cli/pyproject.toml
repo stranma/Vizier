@@ -9,6 +9,9 @@ dependencies = [
     "rich>=13.0",
 ]
 
+[project.scripts]
+vizier = "vizier.cli:main"
+
 [dependency-groups]
 dev = [
     "pyright>=1.1.390",

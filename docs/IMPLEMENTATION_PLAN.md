@@ -11,7 +11,7 @@
 | 4 | Pasha + Orchestration | Pending | `feature/manager` |
 | 5 | Retrospective | Pending | `feature/retrospective` |
 | 6 | EA + Communication | Pending | `feature/ea` |
-| 7 | Daemon + Multi-project | Pending | `feature/daemon` |
+| 7 | Daemon + Multi-project + Deployment | Pending | `feature/daemon` |
 | 8 | Software Plugin (end-to-end) | Pending | `feature/plugin-software` |
 | 9 | Documents Plugin | Pending | `feature/plugin-documents` |
 
@@ -118,7 +118,8 @@
 - [ ] INTERRUPTED state handling (daemon shutdown → IN_PROGRESS specs → INTERRUPTED → re-queued on restart)
 - [ ] Tool sandbox (enforces plugin's allowed_tools via Sentinel integration)
 - [ ] CLI entry point: `vizier spec create` and `vizier spec ready` for manual testing without EA
-- [ ] Stub plugin `test-stub` for testing (D35): StubWorker (file_read + file_write, commit_to_main), StubQualityGate (check file exists), one criteria (`@criteria/file_exists`), prompt templates
+- [ ] Stub plugin test fixture (D35, D39): `tests/fixtures/stub_plugin/` with StubWorker (file_read + file_write, commit_to_main), StubQualityGate (check file exists), one criteria (`@criteria/file_exists`), prompt templates. Registered programmatically in tests (not via entry points).
+- [ ] Agent subprocess runner (D37): `vizier.core.agent_runner` module that serves as the entry point for agent subprocesses (load spec, load plugin, call litellm, write results, exit)
 
 ### Acceptance Criteria
 - [ ] Worker picks highest-priority READY spec
@@ -169,24 +170,32 @@
 ### Components
 - [ ] Pasha agent (event-driven loop + periodic reconciliation)
 - [ ] Plugin loading on project startup (reads config.yaml, loads correct plugin)
-- [ ] Agent spawning and lifecycle management (plugin-aware)
+- [ ] Agent spawning via subprocess (D37): asyncio subprocess launcher with timeout and crash detection
+- [ ] Agent concurrency limiting (asyncio.Semaphore for max_concurrent_agents)
 - [ ] Progress reporting (status.json, cycle reports)
 - [ ] Escalation logic (blockers -> reports/escalations/)
 - [ ] Worker/Quality Gate pipeline (Worker finishes -> Quality Gate starts)
 - [ ] Graduated retry orchestration (model bumping, Pasha review, Architect re-decomposition at thresholds)
-- [ ] Graceful shutdown (IN_PROGRESS specs → INTERRUPTED)
+- [ ] Graceful shutdown (IN_PROGRESS specs -> INTERRUPTED, kill running agent subprocesses)
+- [ ] Session mode: direct Sultan-Pasha back-and-forth for spec design and architecture discussions
+- [ ] Session summary writing (ea/sessions/YYYY-MM-DD-project.md after session ends)
 
 ### Acceptance Criteria
 - [ ] Pasha loads correct plugin based on project config
 - [ ] Pasha reacts to spec lifecycle events (new DRAFT, DONE, STUCK)
 - [ ] Reconciliation catches missed filesystem events
-- [ ] Pasha spawns Architect for DRAFT specs
-- [ ] Pasha spawns plugin's Worker for READY specs
-- [ ] Pasha spawns plugin's Quality Gate for REVIEW specs
+- [ ] Pasha spawns Architect for DRAFT specs as subprocess
+- [ ] Pasha spawns plugin's Worker for READY specs as subprocess
+- [ ] Pasha spawns plugin's Quality Gate for REVIEW specs as subprocess
+- [ ] Agent subprocess crash is detected and handled (spec marked for retry, not left orphaned)
+- [ ] Agent subprocess timeout triggers kill and retry
+- [ ] Concurrency limit prevents more than N agents running simultaneously
 - [ ] Graduated retry: Pasha reviews at retry 5, triggers Architect re-decomposition at retry 7
 - [ ] Progress reports written to reports/ directory
 - [ ] Blockers escalated to escalations/ directory
-- [ ] Graceful shutdown transitions IN_PROGRESS specs to INTERRUPTED
+- [ ] Graceful shutdown transitions IN_PROGRESS specs to INTERRUPTED and kills running subprocesses
+- [ ] Session mode: Sultan can connect to Pasha for extended conversation with full project context
+- [ ] Session summary written to ea/sessions/ when session ends
 
 ---
 
@@ -218,8 +227,8 @@
 **Goal:** Build the Sultan-facing EA (Vizier), Telegram integration, file relay, and Sentinel's content scanner (for untrusted web/file sources).
 
 ### Components
-- [ ] EA agent (monolithic, powerful, Opus-tier — Claude Code pattern: Python event loop + fresh LLM call per message)
-- [ ] Telegram bot integration (aiogram 3.x)
+- [ ] EA agent (monolithic, powerful, Opus-tier -- Claude Code pattern: Python event loop + fresh LLM call per message)
+- [ ] Telegram bot integration (aiogram 3.x, long polling mode per D36)
 - [ ] Message handling (delegation / status / control / quick query / session / briefing / check-in / file ops / cross-project / direct Q&A / focus mode)
 - [ ] Task routing (Sultan message -> DRAFT spec in target project)
 - [ ] Progress aggregation (multi-project status summaries from reports/)
@@ -233,48 +242,110 @@
 - [ ] File checkout/checkin flow via Telegram (send/receive files)
 - [ ] Inbound file relay (Sultan sends photo/doc -> EA routes to project)
 - [ ] Cross-project coordination (meta-tasks spanning multiple projects)
-- [ ] Focus mode (`/focus Nh` — hold non-emergency notifications)
+- [ ] Focus mode (`/focus Nh` -- hold non-emergency notifications)
 - [ ] Commit approval UI (requires_approval specs -> Telegram Approve/Reject)
 - [ ] Sentinel content scanner (Haiku-tier, on-demand for untrusted web/file content)
 - [ ] Sultan approval queue (dangerous ops -> EA -> Sultan -> decision)
+- [ ] Cost budget enforcement (D33): 80% alert, 100% degrade to cheapest tier, 120% pause non-critical work
+- [ ] Direct Q&A mode (answer Sultan questions from project files without creating specs)
 
 ### Acceptance Criteria
+
+**Core EA functionality:**
 - [ ] EA receives Telegram messages and creates DRAFT specs in correct project
 - [ ] EA handles all message types without architectural routing split
 - [ ] EA watches reports/ and sends relevant updates to Sultan
 - [ ] Escalations trigger immediate Sultan notification
 - [ ] Status queries answered from status.json files across all projects
-- [ ] Session mode connects Sultan directly to project Pasha
 - [ ] Quick queries (`/ask`) route to Pasha and relay response
-- [ ] Commitments tracked with deadlines, linked to projects and contacts
-- [ ] Check-in flow creates relationships and commitments from conversation
-- [ ] File checkout/checkin works via Telegram file transfer
-- [ ] Cross-project tasks create DRAFT specs in multiple projects
-- [ ] Focus mode holds notifications, allows emergencies through
-- [ ] Inbound files from Sultan relayed to target project as spec context
 - [ ] Content scanner evaluates untrusted web content for prompt injection
 - [ ] GitHub Actions changes require Sultan approval via EA
+
+**Commitment and relationship tracking:**
+- [ ] Commitments tracked with deadlines, linked to projects and contacts
+- [ ] EA alerts when commitment deadline approaches and linked project is behind schedule
+- [ ] Relationships stored with contact context, open commitments, last interaction date
+- [ ] EA reminds about overdue follow-ups (promise past threshold)
+
+**Communication modes:**
+- [ ] Session mode connects Sultan directly to project Pasha
+- [ ] EA holds non-urgent updates during active Pasha session
+- [ ] EA reads Pasha session summary after session ends for continuity
+- [ ] Focus mode holds notifications, allows emergencies through
+- [ ] Direct Q&A: Sultan asks factual questions about a project, EA answers from project files without creating specs
+
+**Proactive behaviors:**
+- [ ] Morning briefing includes: priorities, risks, overdue commitments, calendar, cost summary
 - [ ] Cost summary from agent logs included in morning briefing
+- [ ] Deadline warning: EA proactively alerts when project progress vs commitment deadline diverges
+- [ ] Completion notice: EA notifies Sultan when significant specs reach DONE
+
+**Check-in flow:**
+- [ ] `/checkin` triggers structured interview with configurable question sequences
+- [ ] Check-in creates relationship records from mentioned contacts
+- [ ] Check-in creates commitment records from mentioned promises/deadlines
+- [ ] Check-in results persisted to ea/ directory
+
+**File operations:**
+- [ ] File checkout: EA pulls file from git, sends via Telegram, tracks checkout state
+- [ ] File checkin: Sultan uploads file via Telegram, EA commits back to project
+- [ ] Conflict detection: EA warns if checked-out file is stale (project moved ahead)
+- [ ] Inbound files from Sultan relayed to target project as spec context
+
+**Cross-project:**
+- [ ] Cross-project tasks create linked DRAFT specs in multiple projects
+- [ ] Cross-project status: EA reads status.json from all projects and summarizes
+
+**Budget (D33):**
+- [ ] At 80% monthly budget: EA alerts Sultan with projected overage date
+- [ ] At 100% monthly budget: all agents degraded to cheapest model tier
+- [ ] At 120% monthly budget: non-critical work paused, Sultan notified
+- [ ] Sultan can override any budget threshold via EA
 
 ---
 
-## Phase 7: Daemon + Multi-project
+## Phase 7: Daemon + Multi-project + Deployment
 
-**Goal:** Build the server daemon that manages multiple projects.
+**Goal:** Build the server daemon that manages multiple projects, and provide all infrastructure needed to deploy to a Hetzner server.
 
 ### Components
-- [ ] Daemon process (systemd-compatible)
+- [ ] Daemon process (systemd-compatible, asyncio event loop per D37)
 - [ ] Project registration (`vizier register <repo-url>`)
 - [ ] Per-project workspace management (clone, venv setup, plugin installation)
-- [ ] Resource management (concurrent agent limits)
+- [ ] Resource management (concurrent agent limits via asyncio.Semaphore)
 - [ ] CLI commands (init, register, start, stop, status)
+- [ ] Server config loader (reads /opt/vizier/config.yaml, merges with env vars)
+- [ ] Health check endpoint (simple HTTP endpoint for monitoring)
+- [ ] Structured log rotation (agent-log.jsonl rotation by size/date)
+
+### Deployment Infrastructure
+- [ ] Dockerfile (Python 3.11, uv, git, minimal image)
+- [ ] docker-compose.yml (vizier-daemon service, volume mounts for workspaces/reports/ea)
+- [ ] systemd unit file (`vizier.service`, Type=simple, Restart=always)
+- [ ] Server setup script (`scripts/setup_server.sh`): create /opt/vizier/ directory structure, install dependencies, configure systemd
+- [ ] Example .vizier/config.yaml for a target project
+- [ ] EA data git repo initialization (ea/ directory as its own git repo)
+- [ ] Deployment documentation (docs/DEPLOYMENT.md)
 
 ### Acceptance Criteria
+
+**Daemon:**
 - [ ] `vizier register` clones repo, reads .vizier/config.yaml, installs plugin
 - [ ] `vizier start` launches daemon with all registered projects
 - [ ] Multiple projects run concurrently without interference
-- [ ] Resource limits prevent server overload
+- [ ] Resource limits prevent server overload (configurable max_concurrent_agents)
 - [ ] `vizier status` shows all projects and their state
+- [ ] `vizier stop` gracefully shuts down daemon (INTERRUPTED state for active specs)
+- [ ] Daemon auto-restarts on crash (systemd Restart=always)
+- [ ] Health check endpoint responds to HTTP GET with daemon status
+
+**Deployment:**
+- [ ] `docker compose up` starts Vizier daemon with all required volumes
+- [ ] Server setup script creates correct directory structure under /opt/vizier/
+- [ ] systemd unit file starts daemon on boot
+- [ ] Agent logs rotate without manual intervention
+- [ ] .env file is loaded for API keys and secrets (never baked into image)
+- [ ] DEPLOYMENT.md documents: server requirements, setup steps, configuration, monitoring
 
 ---
 
