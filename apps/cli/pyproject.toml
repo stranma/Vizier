@@ -1,0 +1,34 @@
+[project]
+name = "vizier-cli"
+version = "0.1.0"
+description = "Autonomous multi-agent work system - CLI application"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "vizier-core",
+    "click>=8.0",
+    "rich>=13.0",
+]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.390",
+    "pytest>=8.3.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.8.0",
+]
+
+[tool.uv.sources]
+"vizier-core" = { workspace = true }
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
+venvPath = "../.."
+venv = ".venv"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["vizier"]
