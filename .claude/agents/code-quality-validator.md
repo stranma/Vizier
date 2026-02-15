@@ -51,4 +51,4 @@ Scan the repository for packages by finding all `pyproject.toml` files in `apps/
 - Use `uv run` to ensure the correct virtual environment
 - Do NOT modify code beyond what ruff auto-fix handles
 - Report specific file:line references for manual fixes
-- If no `.venv` exists, run `uv sync --group dev` first
+- If no `.venv` exists, run `uv sync --all-packages --group dev` first

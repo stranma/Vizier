@@ -210,6 +210,12 @@ ask Claude to "use the [agent-name] agent" and it will delegate automatically.
 
 ---
 
+### -1. Create Feature Branch
+- Always create a dedicated branch before starting implementation
+- Never commit directly to the main/master branch
+- Branch naming: `fix/...`, `feat/...`, `refactor/...` matching the change type
+- If a branch already exists for this work, skip this step
+
 ### 0. Sync with Remote
 - Run `git fetch origin` and check for divergence from the base branch
 - If behind, pull or rebase before proceeding
