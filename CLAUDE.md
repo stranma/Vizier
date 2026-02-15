@@ -67,7 +67,7 @@ vizier/
 ### Dependencies
 
 - Create virtual environment: `uv venv`
-- Install all dependencies: `uv sync --group dev`
+- Install all dependencies: `uv sync --all-packages --group dev`
 
 ### Code Quality
 

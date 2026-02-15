@@ -4,7 +4,7 @@
 
 | Phase | Name | Status | Branch |
 |-------|------|--------|--------|
-| 0 | Project Scaffold | Pending | `main` |
+| 0 | Project Scaffold | Complete | `master` |
 | 1 | Core Runtime + Plugin Framework + Sentinel | Pending | `feature/core-runtime` |
 | 2 | Inner Loop (Worker + Quality Gate) | Pending | `feature/inner-loop` |
 | 3 | Architect | Pending | `feature/architect` |
@@ -32,18 +32,23 @@
 | `plugin-documents` | `plugins/documents/` | Built-in document production plugin |
 
 ### Tasks
-- [ ] Run setup_project.py with Vizier configuration
-- [ ] Configure all packages with uv workspaces
-- [ ] Write CLAUDE.md for the new project
-- [ ] Set up CI workflow (lint, test, typecheck)
-- [ ] Initial git commit
+- [x] Run setup_project.py with Vizier configuration
+- [x] Configure all packages with uv workspaces
+- [x] Write CLAUDE.md for the new project
+- [x] Set up CI workflow (lint, test, typecheck)
+- [x] Initial git commit
+- [x] Write agent system prompt preambles (docs/AGENT_PROMPTS.md)
 
 ### Acceptance Criteria
-- [ ] `uv sync` installs all packages
-- [ ] `uv run pytest` runs (even if no tests yet)
-- [ ] `uv run ruff check .` passes
-- [ ] CLAUDE.md documents the project structure and methodology
-- [ ] Plugin packages are importable from core
+- [x] `uv sync --all-packages` installs all packages (note: `--all-packages` flag required for workspace members)
+- [x] `uv run pytest` runs (even if no tests yet)
+- [x] `uv run ruff check .` passes
+- [x] CLAUDE.md documents the project structure and methodology
+- [x] Plugin packages are importable from core
+
+### Notes
+- `uv sync` (without `--all-packages`) only installs root dependencies. Use `uv sync --all-packages` to install all workspace members.
+- Branch is `master` (not `main`) — CI workflow updated accordingly.
 
 ---
 
