@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 
 import frontmatter
@@ -83,7 +84,7 @@ def update_spec_status(
     if new_status not in allowed:
         raise ValueError(f"Invalid transition: {current} -> {new_status}. Allowed: {allowed}")
 
-    updates = extra_updates or {}
+    updates = dict(extra_updates) if extra_updates else {}
     updates["status"] = new_status
     updates["updated"] = datetime.utcnow()
 
@@ -92,7 +93,7 @@ def update_spec_status(
     for key, value in updates.items():
         if isinstance(value, datetime):
             post.metadata[key] = value.isoformat()
-        elif hasattr(value, "value"):
+        elif isinstance(value, Enum):
             post.metadata[key] = value.value
         else:
             post.metadata[key] = value

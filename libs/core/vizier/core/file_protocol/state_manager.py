@@ -34,10 +34,9 @@ class StateManager:
 
         :returns: Current ProjectState, or a default if file doesn't exist.
         """
-        if not self._state_path.exists():
-            return ProjectState(project=self._root.name)
-
         with FileLock(str(self._lock_path)):
+            if not self._state_path.exists():
+                return ProjectState(project=self._root.name)
             data = json.loads(self._state_path.read_text(encoding="utf-8"))
             return ProjectState.model_validate(data)
 
