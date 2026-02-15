@@ -25,7 +25,7 @@ security_dir: /opt/vizier/security
 checkout_dir: /opt/vizier/checkout
 
 # --- Daemon ---
-reconciliation_interval_seconds: 60
+reconciliation_interval_seconds: 15
 max_concurrent_agents: 4
 agent_timeout_seconds: 300
 

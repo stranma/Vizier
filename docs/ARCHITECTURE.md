@@ -185,6 +185,27 @@ def discover_plugins() -> dict[str, BasePlugin]:
 | `software` | `vizier-plugin-software` | `SoftwareCoder` | `SoftwareQualityGate` |
 | `documents` | `vizier-plugin-documents` | `DocumentWriter` | `DocumentReviewer` |
 
+### Plugin MCP Exposure (D43)
+
+Plugins can optionally expose lightweight capabilities as MCP tools via FastMCP. This allows the EA to handle quick queries ("are the tests passing?") without routing through the full spec lifecycle.
+
+```python
+class SoftwarePlugin(BasePlugin):
+    def get_mcp_tools(self) -> list[MCPTool]:
+        return [
+            MCPTool(name="run_tests", description="Run project tests", handler=self._run_tests),
+            MCPTool(name="lint_check", description="Check lint status", handler=self._lint_check),
+            MCPTool(name="test_coverage", description="Get test coverage", handler=self._test_coverage),
+        ]
+```
+
+**Discovery:** EA queries each registered project's plugin for MCP tools at startup. Tools are namespaced by project: `project-alpha.run_tests`.
+
+**Constraints:**
+- MCP tools are read-only by convention (they report status, not modify code)
+- Complex work still goes through the spec lifecycle
+- Sentinel applies the same tool-call enforcement to MCP tool invocations
+
 ### Third-party / Custom Plugins
 
 Users can create project-specific plugins:
@@ -284,6 +305,26 @@ The daemon is a single Python process running an asyncio event loop:
 - **Concurrency** is limited by `asyncio.Semaphore(max_concurrent_agents)`
 - **Agent communication** is through the filesystem (specs, reports) -- no IPC needed
 
+### Dead-Man Switch
+
+The daemon writes a `heartbeat.json` file on every reconciliation cycle (default: every 15 seconds):
+
+```json
+{
+  "timestamp": "2026-02-15T10:30:15Z",
+  "pid": 12345,
+  "projects_active": 3,
+  "agents_running": 2
+}
+```
+
+An external monitor (cron job, systemd watchdog, or simple script) checks if `heartbeat.json` is stale (older than 3x the reconciliation interval). If stale, the monitor can:
+1. Alert the Sultan via a backup channel (email, SMS)
+2. Attempt daemon restart via systemd
+3. Log the outage for post-mortem
+
+This is deliberately external to the daemon -- if the daemon is frozen, it cannot monitor itself.
+
 ### What gets committed to project repos
 
 | File | In git? | Why |
@@ -329,7 +370,7 @@ model_tiers:
 
 ## Event Model
 
-All events are filesystem-based. No message queue infrastructure required. **Events are an optimization; the filesystem is the source of truth.** Periodic reconciliation (scan all specs, rebuild state from disk) ensures missed events don't cause stuck state.
+All events are filesystem-based. No message queue infrastructure required. **Events are an optimization; the filesystem is the source of truth.** Periodic reconciliation (scan all specs, rebuild state from disk, default 15s interval) ensures missed events don't cause stuck state.
 
 | Event | Trigger | Mechanism |
 |-------|---------|-----------|
@@ -339,6 +380,18 @@ All events are filesystem-based. No message queue infrastructure required. **Eve
 | Progress report | Pasha writes to `reports/` | Filesystem watch (EA) |
 | Human message | Telegram/Slack incoming | EA's bot framework |
 | Quality rejection | Quality Gate writes feedback | Filesystem watch |
+
+### Spec State-Age Monitoring
+
+During each reconciliation cycle, Pasha checks `time_in_state` for every active spec (the difference between current time and the spec's `updated` timestamp). This detects silently stuck specs -- specs that remain in a state longer than expected without any event triggering escalation.
+
+| State | Expected Duration | Action if Exceeded |
+|-------|------------------|--------------------|
+| IN_PROGRESS | Plugin-configurable (default: 30 min) | Log warning, check if agent subprocess is alive |
+| REVIEW | Plugin-configurable (default: 15 min) | Log warning, verify Quality Gate was spawned |
+| READY | Plugin-configurable (default: 60 min) | Queue starvation alert to EA |
+
+State-age thresholds are configurable per-plugin because different domains have different expected durations (a software spec may take 10 minutes; a document spec may take 60 minutes).
 
 ## Communication Model — Three Layers
 
@@ -404,6 +457,67 @@ last_contact: 2026-02-10
 **Priorities** (derived from deadlines, commitments, project risk):
 - EA continuously ranks what needs human attention
 - Morning briefing = top priorities + risks + reminders
+
+### EA Prompt Assembly (D42)
+
+The EA uses JIT (just-in-time) prompt assembly to keep context window usage efficient while maintaining the monolithic design (D21).
+
+**Always loaded (~2,500 tokens):**
+- Court context + EA identity preamble
+- `priorities.yaml` content (current Sultan priorities)
+- Active commitments summary (overdue + upcoming deadlines)
+- Project registry + Pasha communication protocol
+- Delegation + status instructions
+
+**JIT modules (loaded by deterministic classifier based on incoming message):**
+- Check-in protocol (~1,000 tokens) -- triggered by `/checkin`
+- File checkout/checkin (~800 tokens) -- triggered by file-related keywords
+- Calendar integration (~600 tokens) -- triggered by meeting/calendar keywords
+- Cross-project coordination (~500 tokens) -- triggered by multi-project references
+- Budget enforcement (~400 tokens) -- triggered by cost/budget keywords
+- Morning briefing format (~500 tokens) -- triggered by scheduled briefing time
+- Proactive behaviors (~500 tokens) -- triggered by scheduled proactive check
+
+The classifier is deterministic (regex + keyword + slash command detection), not LLM-based. This means zero routing cost and consistent, testable behavior.
+
+### Behavioral Anchor: priorities.yaml
+
+The Sultan maintains a `priorities.yaml` file that EA reads on every LLM invocation. This provides a stable behavioral anchor -- the EA always knows the Sultan's current priorities, even across fresh LLM calls.
+
+```yaml
+# /opt/vizier/ea/priorities.yaml
+current_focus: "Ship dashboard before board meeting Thursday"
+priority_order:
+  - project: project-alpha
+    reason: "Board meeting demo, deadline March 13"
+    urgency: critical
+  - project: project-beta
+    reason: "Client deliverable, flexible deadline"
+    urgency: normal
+standing_instructions:
+  - "Always mention cost summary in morning briefings"
+  - "Escalate anything blocking project-alpha immediately"
+  - "Do not interrupt during focus mode unless emergency"
+```
+
+This file is Sultan-editable (via Telegram command `/priorities` or direct file edit) and EA-readable. It acts as the Sultan's standing orders to the Vizier.
+
+### Telegram Slash Commands
+
+EA supports structured slash commands for common operations:
+
+| Command | Purpose | Example |
+|---------|---------|---------|
+| `/status` | Project status summary | `/status project-alpha` |
+| `/ask` | Quick query to project Pasha | `/ask project-alpha what framework are we using?` |
+| `/checkin` | Start structured check-in interview | `/checkin` |
+| `/focus` | Enter focus mode (hold notifications) | `/focus 2h` |
+| `/session` | Start deep Pasha session | `/session project-alpha` |
+| `/approve` | Approve pending operation | `/approve spec-042` |
+| `/budget` | View cost summary | `/budget` or `/budget project-alpha` |
+| `/priorities` | View/edit priorities | `/priorities` |
+
+Slash commands are handled by the JIT classifier and load the appropriate prompt module.
 
 ### EA Data Location
 
@@ -579,6 +693,76 @@ Sentinel detects: Worker wants to modify .github/workflows/tests.yml
   → EA writes decision back
   → Sentinel unblocks (or keeps blocked)
 ```
+
+## Progressive Autonomy Rollout (D44)
+
+Vizier deploys through four stages of increasing autonomy. Each stage has measurable graduation criteria and requires Sultan approval to advance.
+
+| Stage | Name | EA Behavior | Worker Behavior |
+|-------|------|-------------|-----------------|
+| 1 | Shadow | Proposes all actions, Sultan approves | No Workers run |
+| 2 | Gated | Creates specs, Sultan approves before Worker starts | Workers run after approval |
+| 3 | Supervised | Autonomous execution, EA surfaces all completions | Full autonomous cycle |
+| 4 | Autonomous | EA filters what to surface, full autonomy | Full autonomous cycle |
+
+**Configuration:**
+
+```yaml
+# /opt/vizier/config.yaml
+autonomy:
+  stage: 2  # gated
+  auto_approve_plugins: []  # empty = all need approval
+  stage_history:
+    - stage: 1
+      entered: 2026-03-01
+      graduated: 2026-03-15
+      reason: "50 proposals, 2% override rate"
+```
+
+**Graduation criteria are measurable, not subjective:** Each stage has specific thresholds (proposal accuracy, spec completion rate, rejection rate, cost adherence) that must be met before the Sultan is asked about advancing.
+
+## Observability
+
+Vizier uses two complementary observability layers, each serving a different audience:
+
+### Layer 1: Structured JSONL Logs (D28)
+
+**Audience:** EA (for morning briefings), Sultan (via EA), Retrospective (for pattern analysis).
+
+Every agent invocation produces a structured log entry appended to `reports/<project>/agent-log.jsonl`:
+
+```json
+{
+  "timestamp": "2026-02-15T10:05:00Z",
+  "agent": "worker",
+  "spec_id": "001-auth/002-jwt",
+  "model": "sonnet",
+  "tokens_in": 4200,
+  "tokens_out": 1800,
+  "duration_ms": 12500,
+  "cost_usd": 0.042,
+  "result": "REVIEW",
+  "project": "project-alpha"
+}
+```
+
+This layer is always active and has zero external dependencies. EA uses it for cost summaries, budget enforcement (D33), and trend analysis in morning briefings.
+
+### Layer 2: Langfuse Traces (D45)
+
+**Audience:** Developer/Sultan debugging agent behavior.
+
+Self-hosted Langfuse provides trace-level visibility: which prompt was sent, what the LLM returned, how long each step took, where failures occurred. Integrated via LiteLLM's native callback support:
+
+```python
+import litellm
+litellm.success_callback = ["langfuse"]
+litellm.failure_callback = ["langfuse"]
+```
+
+Langfuse runs as a Docker Compose service alongside the Vizier daemon. It is optional -- the system works fully without it (JSONL logs are the primary layer).
+
+**Key capabilities:** Prompt versioning, per-trace cost breakdown, latency analysis, failure debugging, A/B comparison of prompt versions.
 
 ## Open Questions
 

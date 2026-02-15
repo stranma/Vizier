@@ -21,7 +21,14 @@ mindmap
         Why: instant pickup on state changes
         Reconciliation: periodic scan verifies state from disk
           Events are optimization, disk is truth
+          Default 15s interval, compensates for Windows reliability
           Why: watchdog can miss events under load
+        Atomic writes via os.replace D40
+          Write-then-rename for all spec writes
+          Why: prevents half-written files on crash
+        Spec state-age monitoring
+          Pasha checks time_in_state during reconciliation
+          Why: detects silently stuck specs
         Alt rejected: polling loop - wasteful, burns tokens on idle checks
         Alt rejected: message queue Redis/NATS - unnecessary infrastructure
       Filesystem as message bus
@@ -39,6 +46,16 @@ mindmap
           Why: Grand Vizier was the most capable person, not a receptionist
           Why: fresh LLM call per message, no accumulated state
           Why: internal modularity via handler functions, not agent split
+          JIT prompt assembly D42
+            Always-loaded core ~2500 tokens + conditional modules
+            Deterministic classifier, zero routing cost
+          Behavioral anchor: priorities.yaml
+            Sultan-maintained, EA reads on every call
+          MCP plugin discovery D43
+            EA discovers per-project plugin tools at startup
+            Quick queries bypass spec lifecycle
+          Telegram slash commands
+            /status /ask /checkin /focus /session /approve /budget /priorities
           Alt rejected: thin router + handler agents - makes EA dumb
         Owns: commitments, calendar, relationships, priorities
         Proactive: briefings, deadline warnings, meeting prep, reminders
@@ -61,6 +78,7 @@ mindmap
         Model tier set by spec complexity, bumped on retry 3
         Bounded read-only exploration beyond artifact list
         Graduated retry: bump model 3, alert Pasha 5, re-decompose 7, STUCK 10
+          Repeated action detection: 3+ identical tool calls -> escalate
         Completion: clean exit = REVIEW, no magic string
         Alt rejected: persistent Worker with memory - context drift
       Quality Gate - per project, plugin-provided
@@ -110,6 +128,10 @@ mindmap
         Prompt templates Jinja2
         Criteria library with @criteria/ references
         Decomposition patterns for Architect
+      Plugin MCP exposure D43
+        Plugins optionally expose tools via FastMCP
+        Quick queries bypass spec lifecycle
+        Why: simple queries dont need full spec round-trip
       Plugin discovery via entry points
         Why: standard Python mechanism
         Why: supports both built-in and third-party plugins
@@ -123,6 +145,13 @@ mindmap
         Why: single server manages multiple projects
         Alt rejected: per-project standalone - duplicated infrastructure
         Alt rejected: server-only - no project-specific tuning
+      Progressive autonomy D44
+        Shadow -> Gated -> Supervised -> Autonomous
+        Measurable graduation criteria per stage
+        Sultan approval required for each transition
+      Dead-man switch
+        heartbeat.json updated every reconciliation cycle
+        External monitor alerts if stale
       Per-project .vizier/ in git
         constitution, config, specs, learnings committed
         state.json gitignored
@@ -276,6 +305,15 @@ mindmap
         JSONL for agent logs
         Why: single-user scale, git-trackable, human-readable
         Alt rejected: SQLite - breaks git-trackability for no benefit at this scale
+      Observability - two layers
+        Structured JSONL D28 for EA consumption
+        Langfuse D45 for developer debugging
+          Self-hosted, native LiteLLM callback
+          Docker Compose alongside daemon
+      VCR record-replay testing D41
+        Extends litellm mock strategy
+        VIZIER_VCR_MODE: record / replay / off
+        Cassettes in tests/cassettes/
       Stub plugin as test fixture
         tests/fixtures/stub_plugin/
         Why: test-only code, not a real plugin
@@ -441,7 +479,7 @@ mindmap
 
 **Context:** Design review identified that watchdog can miss filesystem events (inotify overflow, crash during processing, no ordering guarantees, Windows falls back to polling). No acknowledgment or replay mechanism exists.
 
-**Decision:** Add periodic reconciliation. On daemon start and periodically (configurable, e.g., every 60 seconds), scan all spec files and rebuild/verify state from disk. Filesystem events are an optimization (instant notification), not the source of truth. If an event is missed, reconciliation catches it on the next cycle.
+**Decision:** Add periodic reconciliation. On daemon start and periodically (configurable, default 15 seconds, recommended 10-30s), scan all spec files and rebuild/verify state from disk. Filesystem events are an optimization (instant notification), not the source of truth. If an event is missed, reconciliation catches it on the next cycle. On Windows, ReadDirectoryChangesW is less reliable than inotify -- shorter intervals compensate.
 
 **Why:** This turns a fragile event-notification system into a robust state-reconciliation system. The fresh-context pattern already assumes agents read from disk — reconciliation just ensures the Pasha's view of spec states is always consistent with reality.
 
@@ -496,6 +534,8 @@ Sentinel intercepts every tool call. Allowlisted calls pass through instantly. D
 | 10 | STUCK |
 
 **Why:** Progressive response catches different failure modes at appropriate cost. Model bumping solves capability issues cheaply. Pasha review catches spec ambiguity. Re-decomposition handles over-scoped specs. Each threshold is a circuit breaker.
+
+**Repeated action detection (BudgetMLAgent):** If a Worker performs an identical tool call 3+ consecutive times, escalate immediately to the next threshold. This catches stuck loops that the diverse-failure retry logic above misses -- a Worker retrying the same failing command is not making progress regardless of which retry count it's on.
 
 **Trade-off:** More complex retry logic (~50 lines vs ~10). But prevents the worst case: spending $100 on a spec that needed re-decomposition at retry 3.
 
@@ -781,3 +821,155 @@ The stub plugin is minimal but complete: it has a Worker that writes files, a Qu
 **Why:** The stub plugin exists only for testing. Making it a real package with pyproject.toml and entry points adds maintenance burden and pollutes the plugin namespace. Test fixtures are the standard location for test-only code. Plugin discovery via entry points is tested separately (unit test for the discovery function with mock entry points). The stub plugin tests the base class interface, not the discovery mechanism.
 
 **Trade-off:** Doesn't exercise the full entry-point discovery path in integration tests. Acceptable because entry-point discovery is a 10-line function with its own unit test.
+
+---
+
+### D40: Atomic writes via os.replace()
+
+**Context:** Spec files are written by multiple agents (Architect, Worker, Quality Gate, Pasha). A crash or power loss during `write_text()` can leave a half-written file on disk. Half-written frontmatter means the file is unparseable, and reconciliation cannot recover the spec state.
+
+**Decision:** All spec file writes use write-then-rename: write to `<path>.tmp`, then `os.replace(tmp, path)`. `os.replace()` is atomic on both POSIX (rename syscall) and Windows (MoveFileEx with MOVEFILE_REPLACE_EXISTING).
+
+**Why:** Atomic writes ensure that the spec file is always either the old version or the new version, never a partial write. The cost is trivial (one extra syscall per write). This is standard practice in database engines, text editors, and configuration managers.
+
+**Trade-off:** A stale `.tmp` file may be left behind if a crash occurs between `write_text` and `os.replace`. This is harmless -- the next successful write overwrites it, and `.tmp` files are not read by any agent.
+
+---
+
+### D41: VCR/Record-Replay testing
+
+**Context:** D34 mandates mocking `litellm.completion()` in all tests. As agent prompts evolve, maintaining canned mock responses becomes a maintenance burden. Record/replay (VCR-style) testing records real LLM responses once and replays them in CI, giving realistic test data without ongoing API costs.
+
+**Decision:** Extend the litellm mock strategy into cassette-based record/replay. Controlled by `VIZIER_VCR_MODE` environment variable:
+
+| Mode | Behavior |
+|------|----------|
+| `record` | Call real LLM, save request/response to cassette file |
+| `replay` | Load cassette, assert request matches, return recorded response |
+| `off` (default) | Standard mock behavior (existing tests unchanged) |
+
+Cassettes stored in `tests/cassettes/`, committed to git. Each cassette is a JSON file keyed by request hash.
+
+**Why:** VCR testing provides realistic LLM responses without ongoing API costs. When prompts change, re-record the affected cassettes (one-time cost). Extends D34 rather than replacing it -- existing mock-based tests remain the default.
+
+**Trade-off:** Cassette files are large (full LLM responses). Acceptable because they're committed to git and only re-recorded when prompts change significantly.
+
+---
+
+### D42: JIT prompt assembly for EA
+
+**Context:** The EA has 13+ responsibilities (D21). Loading the full prompt for every responsibility into every LLM call wastes context window and increases cost. But splitting EA into separate agents was rejected (D21) because it breaks the monolithic design.
+
+**Decision:** Dynamic prompt composition: always-loaded core (~2,500 tokens) plus conditional modules loaded by a deterministic classifier.
+
+**Always loaded (~2,500 tokens):**
+- Court context + EA identity preamble
+- `priorities.yaml` content
+- Active commitments summary
+- Project registry + Pasha communication protocol
+- Delegation + status instructions
+
+**JIT modules (loaded by deterministic classifier):**
+
+| Module | Tokens | Trigger |
+|--------|--------|---------|
+| Check-in protocol | ~1,000 | `/checkin` command |
+| File checkout/checkin | ~800 | File-related keywords |
+| Calendar integration | ~600 | Calendar/meeting keywords |
+| Cross-project coordination | ~500 | Multi-project references |
+| Budget enforcement | ~400 | Budget/cost keywords |
+| Morning briefing format | ~500 | Scheduled briefing trigger |
+| Proactive behaviors | ~500 | Scheduled proactive check |
+
+**Classifier:** Deterministic (regex + keyword + slash command detection), not LLM-based. Zero routing cost. Consistent with D21 (internal modularity, not architectural splitting).
+
+**Why:** A typical EA message needs ~3,000-4,000 tokens of prompt instead of ~7,000+. At Opus-tier pricing, this saves ~40% on input tokens per EA call. The classifier is trivially testable (pure Python regex/keyword matching).
+
+**Trade-off:** Classifier must be maintained as EA capabilities grow. Misclassification means a module isn't loaded and the EA may give a less informed response. Mitigated by keeping the always-loaded core comprehensive enough to handle common cases.
+
+---
+
+### D43: Plugin MCP exposure
+
+**Context:** Plugins define domain-specific capabilities (tools, validation, code generation). Currently, using plugin capabilities requires the full spec lifecycle (DRAFT -> READY -> Worker -> REVIEW -> DONE). Some queries are simple enough that routing through the spec lifecycle is overhead ("run the tests for this file", "check the lint status").
+
+**Decision:** Plugins optionally expose capabilities as MCP tools via FastMCP (already in TECH_STACK.md). EA discovers per-project plugin MCP tools at startup. Quick queries that match exposed tools bypass the spec lifecycle.
+
+**Example:**
+
+```python
+class SoftwarePlugin(BasePlugin):
+    def get_mcp_tools(self) -> list[MCPTool]:
+        return [
+            MCPTool(name="run_tests", description="Run project tests", handler=self._run_tests),
+            MCPTool(name="lint_check", description="Check lint status", handler=self._lint_check),
+        ]
+```
+
+EA can invoke `run_tests` directly when Sultan asks "are the tests passing?" without creating a spec.
+
+**Why:** FastMCP is already in the stack. Plugin MCP exposure is optional (plugins that don't expose tools work exactly as before). This addresses the "simple query overhead" problem without breaking the spec lifecycle for complex work.
+
+**Trade-off:** Plugins now have two interfaces (spec-based for complex work, MCP for quick queries). Acceptable because the MCP interface is optional and read-only by convention.
+
+---
+
+### D44: Progressive autonomy rollout
+
+**Context:** Deploying a fully autonomous agent system from day one is risky. Production agent systems (Shopify Sidekick, claude-chief-of-staff) use staged rollouts where autonomy increases as trust is established.
+
+**Decision:** Four stages with explicit graduation criteria:
+
+| Stage | Name | Behavior | Graduation Criteria |
+|-------|------|----------|---------------------|
+| 1 | Shadow | EA proposes actions, Sultan approves all | 50+ correct proposals, <5% override rate |
+| 2 | Gated | Per-spec Sultan approval before Worker starts | 20+ specs completed without rejection |
+| 3 | Supervised | Autonomous execution, EA surfaces all completions | 50+ specs, <10% rejection rate, cost within budget |
+| 4 | Autonomous | EA filters what to surface, full autonomy | Sultan explicitly approves transition |
+
+**Configuration:**
+
+```yaml
+# /opt/vizier/config.yaml
+autonomy:
+  stage: 2  # gated
+  auto_approve_plugins: []  # empty = all need approval
+  stage_history:
+    - stage: 1
+      entered: 2026-03-01
+      graduated: 2026-03-15
+      reason: "50 proposals, 2% override rate"
+```
+
+Each stage transition requires Sultan approval. Stage history is logged for auditability.
+
+**Why:** Progressive autonomy reduces risk while building trust. The Sultan can see exactly what the system would do (Stage 1) before letting it act. Each stage has measurable graduation criteria, not subjective "feels ready."
+
+**Trade-off:** Slower initial deployment. The system is less useful in Stage 1-2 because it requires more human interaction. But the cost of a bad autonomous action (wrong code committed, wrong message sent) is much higher than the cost of a few weeks of supervised operation.
+
+---
+
+### D45: Langfuse observability
+
+**Context:** D28 provides structured JSONL logging for EA consumption (cost tracking, morning briefings). But developers debugging agent behavior need trace-level visibility: which prompt was sent, what the LLM returned, how long each step took, where failures occurred. JSONL logs are insufficient for this -- they capture outcomes, not process.
+
+**Decision:** Self-hosted Langfuse for agent tracing. Native LiteLLM callback integration (LiteLLM has built-in Langfuse support). Docker Compose deployment alongside the Vizier daemon.
+
+**Two complementary observability layers:**
+
+| Layer | Tool | Audience | Purpose |
+|-------|------|----------|---------|
+| Operational | Structured JSONL (D28) | EA, Sultan | Cost tracking, status summaries, morning briefings |
+| Developer | Langfuse | Developer/Sultan | Prompt debugging, trace analysis, latency profiling |
+
+**Integration:** LiteLLM's `success_callback` and `failure_callback` send trace data to Langfuse automatically. No changes to agent code -- the callback is configured once in the LiteLLM setup.
+
+```python
+import litellm
+litellm.success_callback = ["langfuse"]
+litellm.failure_callback = ["langfuse"]
+```
+
+**Why:** Langfuse is open-source, self-hostable (no data leaves the server), and has native LiteLLM integration. The setup is ~5 lines of Python + a Docker Compose service. It provides prompt versioning, cost breakdown per trace, and latency analysis that JSONL logs cannot.
+
+**Trade-off:** Adds a Docker Compose dependency (Langfuse server + PostgreSQL). Acceptable for a production deployment. Langfuse is optional -- the system works without it (JSONL logs are the primary layer).

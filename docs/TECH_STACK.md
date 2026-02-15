@@ -75,7 +75,7 @@ OpenClaw remains an option for future multi-channel support (WhatsApp, Slack, Di
 |------|---------|-------------|
 | **workspace-mcp** | Google Calendar + Gmail + Docs + Drive (personal) | All-in-one, Python, OAuth 2.1. For Sultan's personal Google account. |
 | **Microsoft 365 MCP Server** | Outlook Calendar + Mail + Files (company) | Graph API-based. For Sultan's company account (algoenergy.cz). EA unifies both calendars. |
-| **FastMCP 3.0** | Build custom MCP servers | Clean API, Jinja2-like simplicity for defining tools. |
+| **FastMCP 3.0** | Build custom MCP servers + plugin MCP exposure (D43) | Clean API, Jinja2-like simplicity for defining tools. Also used by plugins to expose quick-query capabilities to EA without full spec lifecycle. |
 | **telegram-mcp** | AI agent controlling Telegram (send messages, read chats) | Full-featured, Telethon-based. |
 
 ### Infrastructure
@@ -88,6 +88,7 @@ OpenClaw remains an option for future multi-channel support (WhatsApp, Slack, Di
 | **pluggy 1.6 + apluggy** | Plugin framework (optional) | pytest-proven. apluggy adds async support. |
 | **importlib.metadata entry_points** | Plugin discovery | PyPA standard. Works with any build backend. |
 | **structlog** | Structured logging | JSON-formatted agent invocation logs (tokens, cost, duration). Append to `reports/<project>/agent-log.jsonl`. |
+| **Langfuse** (self-hosted) | Agent tracing and observability (D45) | Open-source, self-hostable. Native LiteLLM callback integration. Docker Compose deployment alongside daemon. Complements D28 JSONL logs for developer-level debugging. |
 | **systemd** | Daemon management | Simple unit file, no library needed. `Type=simple`, `Restart=always`. |
 | **uv** | Package management, workspaces | Already using. Monorepo with libs/core, apps/daemon, apps/cli, plugins/*. |
 | **ruff** | Lint + format | Already using. Line length 120, fast. |
@@ -107,6 +108,14 @@ OpenClaw remains an option for future multi-channel support (WhatsApp, Slack, Di
 | **Redis / NATS** | Filesystem watch is sufficient at our scale. Zero infrastructure benefit. |
 | **OpenRouter** | No self-hosting, no custom routing rules. Fine for experiments. |
 | **aisuite** | Development stalled. No streaming, no cost tracking. |
+
+## Testing Tools
+
+| Tool | Purpose | Why this one |
+|------|---------|-------------|
+| **VCR/Record-Replay** (D41) | Cassette-based LLM response recording | Record real LLM responses once, replay in CI. Extends D34 mock strategy with realistic test data. `VIZIER_VCR_MODE` env var: `record` / `replay` / `off` (default). Cassettes in `tests/cassettes/`. |
+| **pytest** | Test framework | Already using. Markers: `slow`, `integration`, `production`. |
+| **pytest-cov** | Code coverage | Already using. `--cov --cov-report=term-missing`. |
 
 ## Open-Source Model Strategy
 
@@ -145,6 +154,7 @@ dependencies = [
     "vizier-core",
     "aiogram>=3.25",          # Telegram bot (EA communication)
     "uvicorn>=0.30",          # ASGI server (if we need HTTP endpoints)
+    "langfuse>=2.0",          # Agent tracing (D45, optional but included for observability)
 ]
 ```
 

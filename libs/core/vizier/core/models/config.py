@@ -25,4 +25,4 @@ class ServerConfig(BaseModel):
 
     model_tiers: ModelTierConfig = Field(default_factory=ModelTierConfig)
     reports_dir: str = "reports"
-    reconciliation_interval_seconds: int = Field(default=60, ge=1)
+    reconciliation_interval_seconds: int = Field(default=15, ge=1)

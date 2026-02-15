@@ -506,15 +506,40 @@ an observer and enforcer, not a participant.
 
 ### Template Rendering
 
-These preambles are the static identity sections. In production, the full system prompt for each agent invocation is assembled as:
+These preambles are the static identity sections. In production, the full system prompt for each agent invocation is assembled differently depending on the agent type.
+
+**Standard agents (Pasha, Architect, Worker, Quality Gate, Retrospective, Sentinel):**
 
 ```
-[Court Context Block]     — The real-world context (small SW company, CEO/CTO)
-[Role Preamble]           — The identity section from this document
-[Project Context]         — constitution.md, learnings.md, config
-[Task Context]            — The specific spec, diff, or event being processed
-[Plugin Prompt]           — Domain-specific instructions from the plugin's Jinja2 template
+[Court Context Block]     -- The real-world context (small SW company, CEO/CTO)
+[Role Preamble]           -- The identity section from this document
+[Project Context]         -- constitution.md, learnings.md, config
+[Task Context]            -- The specific spec, diff, or event being processed
+[Plugin Prompt]           -- Domain-specific instructions from the plugin's Jinja2 template
 ```
+
+All sections are loaded for every invocation. The prompt is static per invocation -- no conditional loading.
+
+**EA (JIT assembly, D42):**
+
+```
+[Court Context Block]     -- The real-world context (always loaded)
+[EA Identity Preamble]    -- The EA identity section (always loaded)
+[priorities.yaml]         -- Sultan's current priorities (always loaded)
+[Active Commitments]      -- Overdue + upcoming deadlines (always loaded)
+[Project Registry]        -- Registered projects + Pasha protocol (always loaded)
+[Core Instructions]       -- Delegation + status handling (always loaded)
+--- JIT modules below (loaded by deterministic classifier) ---
+[Module: Check-in]        -- Only if /checkin detected
+[Module: File Ops]        -- Only if file-related keywords detected
+[Module: Calendar]        -- Only if meeting/calendar keywords detected
+[Module: Cross-project]   -- Only if multi-project references detected
+[Module: Budget]          -- Only if cost/budget keywords detected
+[Module: Briefing]        -- Only if scheduled briefing trigger
+[Module: Proactive]       -- Only if scheduled proactive check
+```
+
+The classifier is deterministic (regex + keyword + slash command detection). Multiple modules can be loaded for a single message if multiple triggers match. The always-loaded core (~2,500 tokens) handles the majority of messages; JIT modules add ~500-1,000 tokens for specialized interactions.
 
 ### Why Metaphors Work in System Prompts
 

@@ -114,7 +114,7 @@ DRAFT -> READY -> IN_PROGRESS -> REVIEW -> DONE
 
 Events (filesystem watch) are an optimization, not the source of truth. The filesystem IS the source of truth.
 
-On daemon start and periodically (configurable, e.g., every 60 seconds), the Pasha scans all spec files and rebuilds state from disk. If a filesystem event was missed (watchdog overflow, crash), reconciliation catches it on the next cycle.
+On daemon start and periodically (configurable, default 15 seconds, recommended 10-30s), the Pasha scans all spec files and rebuilds state from disk. If a filesystem event was missed (watchdog overflow, crash), reconciliation catches it on the next cycle. On Windows, ReadDirectoryChangesW is less reliable than inotify -- shorter intervals compensate.
 
 This means: if a spec file says `status: REVIEW` but the Pasha's in-memory state still shows `IN_PROGRESS`, reconciliation corrects this.
 
@@ -194,6 +194,24 @@ Agents subscribe to specific paths:
 | Quality Gate | `.vizier/specs/**/` | REVIEW status (validate) |
 | Retrospective | `.vizier/specs/**/feedback/` | Rejections, STUCK transitions |
 | EA | `/opt/vizier/reports/**/` | Progress updates, escalations |
+
+## Write Safety -- Atomic File Operations
+
+All spec file writes use the write-then-rename pattern (D40) to prevent half-written files on crash:
+
+```python
+tmp_path = spec_path.with_suffix(".md.tmp")
+tmp_path.write_text(content, encoding="utf-8")
+os.replace(str(tmp_path), str(spec_path))
+```
+
+`os.replace()` is atomic on both POSIX (rename syscall) and Windows (MoveFileEx with MOVEFILE_REPLACE_EXISTING). This guarantees that a spec file is always either the old version or the new version, never a partial write.
+
+**Rules:**
+- Every function that writes a spec file MUST use this pattern (`create_spec`, `update_spec_status`, and any future write operations)
+- `.tmp` files are transient and never read by any agent
+- A stale `.tmp` file (left behind after a crash) is harmless and will be overwritten by the next successful write
+- State.json writes should also use this pattern (implemented separately with file-level locking)
 
 ## Concurrency Rules
 

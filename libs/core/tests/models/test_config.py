@@ -32,7 +32,7 @@ class TestServerConfig:
         config = ServerConfig()
         assert isinstance(config.model_tiers, ModelTierConfig)
         assert config.reports_dir == "reports"
-        assert config.reconciliation_interval_seconds == 60
+        assert config.reconciliation_interval_seconds == 15
 
     def test_custom_values(self) -> None:
         config = ServerConfig(reconciliation_interval_seconds=30, reports_dir="/opt/vizier/reports")

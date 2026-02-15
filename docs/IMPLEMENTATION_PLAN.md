@@ -5,7 +5,7 @@
 | Phase | Name | Status | Branch |
 |-------|------|--------|--------|
 | 0 | Project Scaffold | Complete | `master` |
-| 1 | Core Runtime + Plugin Framework + Sentinel | Pending | `feature/core-runtime` |
+| 1 | Core Runtime + Plugin Framework + Sentinel | Complete | `feature/core-runtime` |
 | 2 | Inner Loop (Worker + Quality Gate) | Pending | `feature/inner-loop` |
 | 3 | Architect | Pending | `feature/architect` |
 | 4 | Pasha + Orchestration | Pending | `feature/manager` |
@@ -57,45 +57,63 @@
 **Goal:** Build the shared infrastructure all agents depend on, including the plugin discovery system, Sentinel's tool-call enforcement, structured logging, and filesystem reconciliation.
 
 ### Components
-- [ ] File protocol implementation (spec CRUD, state management, file locking)
-- [ ] Spec frontmatter parser (YAML frontmatter + markdown body, `@criteria/` snapshotting at creation)
-- [ ] Model router (rules-based tier -> provider/model mapping via LiteLLM library, resolution order)
-- [ ] Agent base class (fresh context pattern, spec reading, output writing, implicit completion on clean exit)
-- [ ] Filesystem watcher (watchdog-based, event dispatch)
-- [ ] Periodic reconciliation (scan all specs, verify/rebuild state from disk — events are optimization, disk is truth)
-- [ ] Structured agent logging (`{agent, spec_id, model, tokens_in, tokens_out, duration_ms, cost_usd, result}` to `reports/<project>/agent-log.jsonl`)
-- [ ] Sentinel policy engine (deterministic):
-  - [ ] Allowlist (auto-approve known-safe tool calls, zero cost)
-  - [ ] Denylist (auto-block known-dangerous tool calls, zero cost)
-  - [ ] Haiku evaluator (assess ambiguous tool calls for safety, ~$0.001/call)
-  - [ ] Secret pattern scanning (regex)
-  - [ ] Git operation classification (safe/dangerous)
-- [ ] Plugin framework:
-  - [ ] `BasePlugin` abstract class
-  - [ ] `BaseWorker` abstract class (allowed_tools, tool_restrictions, git_strategy)
-  - [ ] `BaseQualityGate` abstract class (automated_checks, criteria library)
-  - [ ] Plugin discovery via entry points
-  - [ ] Prompt template renderer (Jinja2 with spec/context injection)
-  - [ ] Criteria library loader (`@criteria/` reference resolution + snapshotting)
-  - [ ] Tool registry with Sentinel enforcement integration
+- [x] File protocol implementation (spec CRUD, state management, file locking, atomic writes via `os.replace()` per D40)
+- [x] Spec frontmatter parser (YAML frontmatter + markdown body, `@criteria/` snapshotting at creation)
+- [x] Model router (rules-based tier -> provider/model mapping via LiteLLM library, resolution order)
+- [x] Agent base class (fresh context pattern, spec reading, output writing, implicit completion on clean exit)
+- [x] Filesystem watcher (watchdog-based, event dispatch)
+- [x] Periodic reconciliation (scan all specs, verify/rebuild state from disk -- events are optimization, disk is truth, default 15s interval per D22)
+- [x] Structured agent logging (`{agent, spec_id, model, tokens_in, tokens_out, duration_ms, cost_usd, result}` to `reports/<project>/agent-log.jsonl`)
+- [x] Sentinel policy engine (deterministic):
+  - [x] Allowlist (auto-approve known-safe tool calls, zero cost)
+  - [x] Denylist (auto-block known-dangerous tool calls, zero cost)
+  - [x] Haiku evaluator (assess ambiguous tool calls for safety, ~$0.001/call)
+  - [x] Secret pattern scanning (regex)
+  - [x] Git operation classification (safe/dangerous)
+- [x] Plugin framework:
+  - [x] `BasePlugin` abstract class
+  - [x] `BaseWorker` abstract class (allowed_tools, tool_restrictions, git_strategy)
+  - [x] `BaseQualityGate` abstract class (automated_checks, criteria library)
+  - [x] Plugin discovery via entry points
+  - [x] Prompt template renderer (Jinja2 with spec/context injection)
+  - [x] Criteria library loader (`@criteria/` reference resolution + snapshotting)
+  - [x] Tool registry with Sentinel enforcement integration
 
 ### Acceptance Criteria
-- [ ] Can create, read, update spec files with correct frontmatter
-- [ ] `@criteria/` references are resolved and snapshotted into spec at creation time
-- [ ] State.json locking works under concurrent access
-- [ ] Model router maps tiers to configured providers with correct resolution order (via `litellm.completion()`)
-- [ ] Filesystem watcher detects spec file changes and dispatches events
-- [ ] Reconciliation scan rebuilds correct state from disk (simulated missed events)
-- [ ] Every agent invocation produces structured log entry with tokens and cost
-- [ ] Sentinel allowlist auto-approves known-safe tool calls
-- [ ] Sentinel denylist auto-blocks known-dangerous tool calls
-- [ ] Sentinel Haiku evaluator correctly identifies bypass attempts (e.g., `python -c "import os; os.system('rm -rf /')"`)
-- [ ] Agent base class enforces fresh-context pattern
-- [ ] Worker completion is implicit (clean exit → REVIEW, no magic string)
-- [ ] Plugin discovery finds installed plugins via entry points
-- [ ] BaseWorker subclass can define tools and restrictions
-- [ ] BaseQualityGate subclass can define automated checks
-- [ ] Jinja2 prompt templates render with spec and context data
+- [x] Can create, read, update spec files with correct frontmatter
+- [x] All spec writes use atomic write-then-rename pattern (D40): no `.tmp` files left after successful operations
+- [x] `@criteria/` references are resolved and snapshotted into spec at creation time
+- [x] State.json locking works under concurrent access
+- [x] Model router maps tiers to configured providers with correct resolution order (via `litellm.completion()`)
+- [x] Filesystem watcher detects spec file changes and dispatches events
+- [x] Reconciliation scan rebuilds correct state from disk (simulated missed events)
+- [x] Every agent invocation produces structured log entry with tokens and cost
+- [x] Sentinel allowlist auto-approves known-safe tool calls
+- [x] Sentinel denylist auto-blocks known-dangerous tool calls
+- [x] Sentinel Haiku evaluator correctly identifies bypass attempts
+- [x] Agent base class enforces fresh-context pattern
+- [x] Worker completion is implicit (clean exit -> REVIEW, no magic string)
+- [x] Plugin discovery finds installed plugins via entry points
+- [x] BaseWorker subclass can define tools and restrictions
+- [x] BaseQualityGate subclass can define automated checks
+- [x] Jinja2 prompt templates render with spec and context data
+
+### Completion Notes
+
+**Completed:** 2026-02-16 | **Branch:** `feature/core-runtime`
+
+Phase 1 was delivered in six sub-phases:
+
+| Sub-phase | Scope | Modules | Tests |
+|-----------|-------|---------|-------|
+| 1a | Pydantic Models (spec, state, config, events, logging) | 5 | 33 |
+| 1b | File Protocol (spec CRUD, state manager with filelock, criteria snapshotting) | 5 | 38 |
+| 1c | Model Router + Logging (tier-based resolution, JSONL agent logging) | 4 | 28 |
+| 1d | Sentinel Policy Engine (allowlist/denylist/Haiku evaluator, secret scanner, git classifier) | 6 | 39 |
+| 1e | Plugin Framework (base ABCs, entry point discovery, Jinja2 templates, criteria loader, tool registry) | 9 | 44 |
+| 1f | Agent + Watcher + Reconciliation (base agent, context, filesystem watcher, reconciler) | 7 | 34 |
+
+**Totals:** 76 files (36 source modules + 39 test files + 1 `__init__.py` update), 216 tests, 99% code coverage, 0 lint/format issues, 0 type errors. All 16 acceptance criteria verified as PASS (plus 1 added for D40 atomic writes = 17 total).
 
 ---
 
@@ -115,11 +133,13 @@
   - [ ] Retry 5: alert Pasha for spec review
   - [ ] Retry 7: Architect re-decomposes
   - [ ] Retry 10: STUCK
+  - [ ] Repeated action detection (D25/BudgetMLAgent): if Worker performs identical tool call 3+ consecutive times, escalate immediately to next threshold
 - [ ] INTERRUPTED state handling (daemon shutdown → IN_PROGRESS specs → INTERRUPTED → re-queued on restart)
 - [ ] Tool sandbox (enforces plugin's allowed_tools via Sentinel integration)
 - [ ] CLI entry point: `vizier spec create` and `vizier spec ready` for manual testing without EA
 - [ ] Stub plugin test fixture (D35, D39): `tests/fixtures/stub_plugin/` with StubWorker (file_read + file_write, commit_to_main), StubQualityGate (check file exists), one criteria (`@criteria/file_exists`), prompt templates. Registered programmatically in tests (not via entry points).
 - [ ] Agent subprocess runner (D37): `vizier.core.agent_runner` module that serves as the entry point for agent subprocesses (load spec, load plugin, call litellm, write results, exit)
+- [ ] VCR test infrastructure (D41): `VIZIER_VCR_MODE` env var (record/replay/off), cassette loader/saver in `tests/cassettes/`, integration with litellm mock
 
 ### Acceptance Criteria
 - [ ] Worker picks highest-priority READY spec
@@ -177,6 +197,8 @@
 - [ ] Worker/Quality Gate pipeline (Worker finishes -> Quality Gate starts)
 - [ ] Graduated retry orchestration (model bumping, Pasha review, Architect re-decomposition at thresholds)
 - [ ] Graceful shutdown (IN_PROGRESS specs -> INTERRUPTED, kill running agent subprocesses)
+- [ ] Spec state-age monitoring: Pasha checks `time_in_state` during reconciliation, detects silently stuck specs, plugin-configurable thresholds
+- [ ] Langfuse integration (D45): configure LiteLLM success/failure callbacks, optional self-hosted Langfuse for trace-level agent debugging
 - [ ] Session mode: direct Sultan-Pasha back-and-forth for spec design and architecture discussions
 - [ ] Session summary writing (ea/sessions/YYYY-MM-DD-project.md after session ends)
 
@@ -194,6 +216,8 @@
 - [ ] Progress reports written to reports/ directory
 - [ ] Blockers escalated to escalations/ directory
 - [ ] Graceful shutdown transitions IN_PROGRESS specs to INTERRUPTED and kills running subprocesses
+- [ ] Spec state-age monitoring: specs stuck in IN_PROGRESS beyond threshold (default 30 min) trigger warning log and agent subprocess health check
+- [ ] Langfuse traces appear for agent invocations when Langfuse is configured (optional, system works without it)
 - [ ] Session mode: Sultan can connect to Pasha for extended conversation with full project context
 - [ ] Session summary written to ea/sessions/ when session ends
 
@@ -228,7 +252,11 @@
 
 ### Components
 - [ ] EA agent (monolithic, powerful, Opus-tier -- Claude Code pattern: Python event loop + fresh LLM call per message)
+- [ ] JIT prompt assembly (D42): always-loaded core (~2,500 tokens) + conditional modules loaded by deterministic classifier (regex + keyword + slash command detection)
+- [ ] priorities.yaml behavioral anchor: Sultan-maintained priorities file, EA reads on every LLM invocation
+- [ ] MCP plugin discovery (D43): EA discovers per-project plugin MCP tools at startup, routes quick queries to plugin tools without spec creation
 - [ ] Telegram bot integration (aiogram 3.x, long polling mode per D36)
+- [ ] Telegram slash commands: `/status`, `/ask`, `/checkin`, `/focus`, `/session`, `/approve`, `/budget`, `/priorities`
 - [ ] Message handling (delegation / status / control / quick query / session / briefing / check-in / file ops / cross-project / direct Q&A / focus mode)
 - [ ] Task routing (Sultan message -> DRAFT spec in target project)
 - [ ] Progress aggregation (multi-project status summaries from reports/)
@@ -254,6 +282,11 @@
 **Core EA functionality:**
 - [ ] EA receives Telegram messages and creates DRAFT specs in correct project
 - [ ] EA handles all message types without architectural routing split
+- [ ] JIT prompt assembly: deterministic classifier correctly loads relevant modules based on message content
+- [ ] JIT prompt assembly: average EA prompt size is ~3,000-4,000 tokens (not ~7,000+ without JIT)
+- [ ] priorities.yaml: EA reads and incorporates Sultan's current priorities in every response
+- [ ] MCP plugin discovery: EA can invoke plugin MCP tools for quick queries without creating specs
+- [ ] Telegram slash commands: all 8 slash commands (`/status`, `/ask`, `/checkin`, `/focus`, `/session`, `/approve`, `/budget`, `/priorities`) are handled correctly
 - [ ] EA watches reports/ and sends relevant updates to Sultan
 - [ ] Escalations trigger immediate Sultan notification
 - [ ] Status queries answered from status.json files across all projects
@@ -319,8 +352,10 @@
 - [ ] Structured log rotation (agent-log.jsonl rotation by size/date)
 
 ### Deployment Infrastructure
+- [ ] Progressive autonomy rollout (D44): four-stage deployment (Shadow -> Gated -> Supervised -> Autonomous), stage config in config.yaml, graduation criteria enforcement, stage history logging
+- [ ] Dead-man switch: daemon writes `heartbeat.json` every reconciliation cycle, external monitor script checks for staleness (3x reconciliation interval), alerts via backup channel
 - [ ] Dockerfile (Python 3.11, uv, git, minimal image)
-- [ ] docker-compose.yml (vizier-daemon service, volume mounts for workspaces/reports/ea)
+- [ ] docker-compose.yml (vizier-daemon service + Langfuse service + PostgreSQL for Langfuse, volume mounts for workspaces/reports/ea)
 - [ ] systemd unit file (`vizier.service`, Type=simple, Restart=always)
 - [ ] Server setup script (`scripts/setup_server.sh`): create /opt/vizier/ directory structure, install dependencies, configure systemd
 - [ ] Example .vizier/config.yaml for a target project
@@ -339,8 +374,20 @@
 - [ ] Daemon auto-restarts on crash (systemd Restart=always)
 - [ ] Health check endpoint responds to HTTP GET with daemon status
 
+**Progressive autonomy (D44):**
+- [ ] Autonomy stage is configurable in config.yaml (default: Stage 1 Shadow)
+- [ ] Stage 1 (Shadow): EA proposes actions but does not execute without Sultan approval
+- [ ] Stage 2 (Gated): Specs require Sultan approval before Worker starts
+- [ ] Stage transitions require explicit Sultan approval via EA
+- [ ] Stage history is logged for auditability
+
+**Dead-man switch:**
+- [ ] heartbeat.json is updated every reconciliation cycle with timestamp, PID, project count, agent count
+- [ ] External monitor script detects stale heartbeat and alerts
+- [ ] Daemon restart recovers heartbeat writing
+
 **Deployment:**
-- [ ] `docker compose up` starts Vizier daemon with all required volumes
+- [ ] `docker compose up` starts Vizier daemon + Langfuse + PostgreSQL with all required volumes
 - [ ] Server setup script creates correct directory structure under /opt/vizier/
 - [ ] systemd unit file starts daemon on boot
 - [ ] Agent logs rotate without manual intervention

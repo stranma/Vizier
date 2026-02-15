@@ -25,11 +25,16 @@ The human's single interface to the entire system. Manages attention, tracks rea
 | Mode | Trigger | Behavior |
 |------|---------|----------|
 | **Delegation** | "Build auth for project-alpha" | Creates DRAFT spec, routes to project, reports when done |
-| **Status** | "How's everything?" | Reads status.json + commitments, summarizes with risk assessment |
+| **Status** | "How's everything?" or `/status` | Reads status.json + commitments, summarizes with risk assessment |
 | **Control** | "Stop work on project-beta auth" | Direct spec status manipulation |
-| **Session** | "Let's work on project-alpha" | Opens direct Pasha session, holds non-urgent updates |
+| **Session** | "Let's work on project-alpha" or `/session` | Opens direct Pasha session, holds non-urgent updates |
 | **Briefing** | Scheduled / on-demand | Morning briefing: priorities, risks, reminders, calendar |
-| **Check-in** | Periodic (configurable) | Structured interview: new events, decisions, blockers, contacts |
+| **Check-in** | `/checkin` (periodic or on-demand) | Structured interview: new events, decisions, blockers, contacts |
+| **Quick Query** | `/ask project-name question` | Routes to Pasha, relays answer without spec creation |
+| **Focus** | `/focus Nh` | Holds non-emergency notifications for N hours |
+| **Approval** | `/approve spec-id` | Approves pending operation in Sultan approval queue |
+| **Budget** | `/budget` or `/budget project-name` | Shows cost summary from agent logs |
+| **Priorities** | `/priorities` | View/edit Sultan's priorities.yaml |
 
 ### Inputs
 - Human messages (Telegram / Slack / CLI)
@@ -61,10 +66,13 @@ The human's single interface to the entire system. Manages attention, tracks rea
 - Filters noise: not every cycle report becomes a human message
 - Escalates blockers and deadline risks immediately
 - Tracks commitments vs. project progress: "Board deck due in 2 days, 60% done"
-- Prepares meeting context: "Call with Novak in 1h — you owe him partnership terms"
+- Prepares meeting context: "Call with Novak in 1h -- you owe him partnership terms"
 - Reminds about forgotten promises: "Response to Novak pending since Feb 10"
 - Reads Pasha session summaries to maintain continuity
 - During Pasha sessions: holds non-urgent updates, stays aware
+- **JIT prompt assembly (D42)**: always-loaded core (~2,500 tokens) + conditional modules loaded by deterministic classifier. Keeps context window efficient without splitting EA into separate agents.
+- **MCP plugin discovery (D43)**: at startup, discovers per-project plugin MCP tools. Routes quick queries (e.g., "are the tests passing?") to plugin tools without creating specs.
+- **Behavioral anchor: priorities.yaml**: reads Sultan's current priorities on every LLM invocation. Provides stable decision context across fresh calls.
 
 ### Proactive Behaviors
 
@@ -124,7 +132,7 @@ When in session mode, the Pasha maintains full project context (constitution, sp
 ### Trigger
 - New DRAFT spec arrives (from EA)
 - Spec status changes (DONE, STUCK, REJECTED)
-- Periodic heartbeat (configurable, e.g., every 5 minutes)
+- Periodic reconciliation (configurable, default 15 seconds)
 
 ### Key Behaviors
 - Maintains project state machine
@@ -133,6 +141,8 @@ When in session mode, the Pasha maintains full project context (constitution, sp
 - Tracks cycle count and overall progress
 - Escalates via reports/escalations/ (EA watches)
 - Does NOT communicate with humans directly
+- **Spec state-age monitoring**: during each reconciliation cycle, checks `time_in_state` for every active spec. Detects silently stuck specs (e.g., IN_PROGRESS for 30+ minutes with no agent subprocess alive). Thresholds are plugin-configurable.
+- **Reconciliation at 15s default** (D22): short intervals compensate for watchdog unreliability on Windows. Reconciliation is cheap (reading file metadata and frontmatter).
 
 ---
 
