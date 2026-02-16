@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path  # noqa: TC003
+from typing import TYPE_CHECKING
 
-import pytest
+if TYPE_CHECKING:
+    import pytest
 
 from vizier.core.secrets.env_file_store import EnvFileSecretStore
 from vizier.core.secrets.startup import (
