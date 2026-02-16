@@ -29,6 +29,9 @@ from vizier.core.models import (
     SpecFrontmatter,
     SpecStatus,
 )
+from vizier.core.pasha.orchestrator import PashaOrchestrator
+from vizier.core.pasha.progress import CycleReport, ProgressReporter, ProjectStatus
+from vizier.core.pasha.subprocess_manager import AgentProcess, SubprocessManager
 from vizier.core.plugins.base_plugin import BasePlugin
 from vizier.core.plugins.base_quality_gate import BaseQualityGate
 from vizier.core.plugins.base_worker import BaseWorker
@@ -49,21 +52,26 @@ __all__ = [
     "AgentContext",
     "AgentLogEntry",
     "AgentLogger",
+    "AgentProcess",
     "AgentRunner",
     "ArchitectRuntime",
     "BaseAgent",
     "BasePlugin",
     "BaseQualityGate",
     "BaseWorker",
+    "CycleReport",
     "EventType",
     "FileEvent",
     "FileSystemWatcher",
     "GraduatedRetry",
     "ModelRouter",
     "ModelTierConfig",
+    "PashaOrchestrator",
     "PolicyDecision",
+    "ProgressReporter",
     "ProjectConfig",
     "ProjectState",
+    "ProjectStatus",
     "PromptTemplateRenderer",
     "QualityGateRuntime",
     "Reconciler",
@@ -80,6 +88,7 @@ __all__ = [
     "SpecStatus",
     "StateManager",
     "SubSpecDefinition",
+    "SubprocessManager",
     "ToolCallRequest",
     "ToolRegistry",
     "VCRMode",
