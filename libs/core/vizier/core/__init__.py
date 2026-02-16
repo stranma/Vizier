@@ -7,6 +7,24 @@ from vizier.core.agent.context import AgentContext
 from vizier.core.agent_runner.runner import AgentRunner, RunResult
 from vizier.core.architect.decomposition import SubSpecDefinition, estimate_complexity, parse_decomposition
 from vizier.core.architect.runtime import ArchitectRuntime
+from vizier.core.ea.budget import BudgetEnforcer, BudgetStatus, BudgetThreshold
+from vizier.core.ea.classifier import MessageCategory, MessageClassifier, PromptModule
+from vizier.core.ea.models import (
+    BriefingConfig,
+    BudgetConfig,
+    CheckinRecord,
+    CheckoutRecord,
+    Commitment,
+    CommitmentStatus,
+    FocusMode,
+    PrioritiesConfig,
+    Priority,
+    PriorityLevel,
+    Relationship,
+)
+from vizier.core.ea.prompt_assembly import PromptAssembler
+from vizier.core.ea.runtime import EARuntime
+from vizier.core.ea.tracking import CommitmentTracker, RelationshipTracker
 from vizier.core.file_protocol.criteria import resolve_criteria_references, snapshot_criteria
 from vizier.core.file_protocol.spec_io import create_spec, list_specs, read_spec, update_spec_status
 from vizier.core.file_protocol.state_manager import StateManager
@@ -41,6 +59,7 @@ from vizier.core.plugins.tool_registry import ToolRegistry
 from vizier.core.quality_gate.runtime import QualityGateRuntime
 from vizier.core.retrospective.analysis import FailurePattern, RetrospectiveAnalysis, SpecMetrics
 from vizier.core.retrospective.runtime import RetrospectiveRuntime
+from vizier.core.sentinel.content_scanner import ContentScanner, ContentScanResult, ContentVerdict
 from vizier.core.sentinel.engine import SentinelEngine
 from vizier.core.sentinel.policies import PolicyDecision, SentinelResult, ToolCallRequest
 from vizier.core.testing.vcr import VCRMode, VizierVCR
@@ -61,23 +80,47 @@ __all__ = [
     "BasePlugin",
     "BaseQualityGate",
     "BaseWorker",
+    "BriefingConfig",
+    "BudgetConfig",
+    "BudgetEnforcer",
+    "BudgetStatus",
+    "BudgetThreshold",
+    "CheckinRecord",
+    "CheckoutRecord",
+    "Commitment",
+    "CommitmentStatus",
+    "CommitmentTracker",
+    "ContentScanResult",
+    "ContentScanner",
+    "ContentVerdict",
     "CycleReport",
+    "EARuntime",
     "EventType",
     "FailurePattern",
     "FileEvent",
     "FileSystemWatcher",
+    "FocusMode",
     "GraduatedRetry",
+    "MessageCategory",
+    "MessageClassifier",
     "ModelRouter",
     "ModelTierConfig",
     "PashaOrchestrator",
     "PolicyDecision",
+    "PrioritiesConfig",
+    "Priority",
+    "PriorityLevel",
     "ProgressReporter",
     "ProjectConfig",
     "ProjectState",
     "ProjectStatus",
+    "PromptAssembler",
+    "PromptModule",
     "PromptTemplateRenderer",
     "QualityGateRuntime",
     "Reconciler",
+    "Relationship",
+    "RelationshipTracker",
     "RetrospectiveAnalysis",
     "RetrospectiveRuntime",
     "RetryAction",
