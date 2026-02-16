@@ -27,6 +27,71 @@ class TestAllowlistPolicy:
             result = self.policy.evaluate(req)
             assert result.decision == PolicyDecision.ALLOW, f"'{cmd}' should be allowed"
 
+    def test_git_blame_allowed(self) -> None:
+        req = ToolCallRequest(tool="bash", command="git blame src/main.py")
+        result = self.policy.evaluate(req)
+        assert result.decision == PolicyDecision.ALLOW
+
+    def test_git_reflog_allowed(self) -> None:
+        req = ToolCallRequest(tool="bash", command="git reflog show HEAD")
+        result = self.policy.evaluate(req)
+        assert result.decision == PolicyDecision.ALLOW
+
+    def test_git_describe_allowed(self) -> None:
+        req = ToolCallRequest(tool="bash", command="git describe --tags")
+        result = self.policy.evaluate(req)
+        assert result.decision == PolicyDecision.ALLOW
+
+    def test_git_shortlog_allowed(self) -> None:
+        req = ToolCallRequest(tool="bash", command="git shortlog -sn")
+        result = self.policy.evaluate(req)
+        assert result.decision == PolicyDecision.ALLOW
+
+    def test_git_rev_list_allowed(self) -> None:
+        req = ToolCallRequest(tool="bash", command="git rev-list --count HEAD")
+        result = self.policy.evaluate(req)
+        assert result.decision == PolicyDecision.ALLOW
+
+    def test_git_stash_push_allowed(self) -> None:
+        req = ToolCallRequest(tool="bash", command="git stash push -m 'wip'")
+        result = self.policy.evaluate(req)
+        assert result.decision == PolicyDecision.ALLOW
+
+    def test_git_stash_pop_allowed(self) -> None:
+        req = ToolCallRequest(tool="bash", command="git stash pop")
+        result = self.policy.evaluate(req)
+        assert result.decision == PolicyDecision.ALLOW
+
+    def test_git_stash_list_allowed(self) -> None:
+        req = ToolCallRequest(tool="bash", command="git stash list")
+        result = self.policy.evaluate(req)
+        assert result.decision == PolicyDecision.ALLOW
+
+    def test_git_fetch_allowed(self) -> None:
+        req = ToolCallRequest(tool="bash", command="git fetch origin")
+        result = self.policy.evaluate(req)
+        assert result.decision == PolicyDecision.ALLOW
+
+    def test_git_pull_allowed(self) -> None:
+        req = ToolCallRequest(tool="bash", command="git pull origin main")
+        result = self.policy.evaluate(req)
+        assert result.decision == PolicyDecision.ALLOW
+
+    def test_git_add_allowed(self) -> None:
+        req = ToolCallRequest(tool="bash", command="git add .")
+        result = self.policy.evaluate(req)
+        assert result.decision == PolicyDecision.ALLOW
+
+    def test_git_remote_allowed(self) -> None:
+        req = ToolCallRequest(tool="bash", command="git remote -v")
+        result = self.policy.evaluate(req)
+        assert result.decision == PolicyDecision.ALLOW
+
+    def test_git_tag_allowed(self) -> None:
+        req = ToolCallRequest(tool="bash", command="git tag v1.0.0")
+        result = self.policy.evaluate(req)
+        assert result.decision == PolicyDecision.ALLOW
+
     def test_safe_test_commands(self) -> None:
         for cmd in ["pytest tests/", "uv run pytest -v", "uv run ruff check .", "uv run ruff format --check ."]:
             req = ToolCallRequest(tool="bash", command=cmd)
