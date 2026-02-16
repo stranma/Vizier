@@ -4,7 +4,7 @@ Provides SoftwareCoder worker, SoftwareQualityGate, and decomposition
 guidance for software engineering tasks.
 """
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 
 from vizier.plugins.software.plugin import SoftwarePlugin
 
