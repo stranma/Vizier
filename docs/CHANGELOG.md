@@ -24,6 +24,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **D22: Reconciliation interval** -- Default changed from 60 seconds to 15 seconds (recommended 10-30s). Shorter intervals compensate for ReadDirectoryChangesW unreliability on Windows.
 - **D25: Repeated action detection** -- If Worker performs identical tool call 3+ consecutive times, escalate immediately to next retry threshold. Catches stuck loops that diverse-failure retry logic misses.
 
+## [0.3.0] - 2026-02-16
+
+Phase 2: Inner Loop (Worker + Quality Gate). Delivered in 6 sub-phases (2a-2f), 34 files, 318 tests.
+
+### Added
+
+- **Worker agent runtime** -- Fresh-context Worker that picks highest-priority READY spec, claims it (READY -> IN_PROGRESS), runs LLM completion, and transitions to REVIEW on clean exit. Supports bounded read-only exploration with logging.
+- **Quality Gate runtime** -- 5-pass Completion Protocol: Pass 1 (hygiene -- debug prints, breakpoints), Pass 2 (mechanical -- plugin automated checks), Pass 3-5 (LLM-assisted review, criteria evaluation, final verdict). Deterministic failures skip LLM passes to save tokens. Writes structured feedback files on rejection.
+- **Graduated retry** -- Configurable retry escalation: retries 1-2 normal with feedback, retry 3 bumps model tier (haiku -> sonnet -> opus), retry 5 alerts Pasha, retry 7 triggers re-decomposition, retry 10 marks STUCK. Repeated action detection (3+ identical calls) triggers immediate escalation.
+- **Spec lifecycle management** -- INTERRUPTED state handling for graceful daemon shutdown (IN_PROGRESS -> INTERRUPTED -> READY on restart). Rejection handling with retry counter and status transitions.
+- **Agent subprocess runner** -- Entry point for agent subprocesses (D37). Loads spec, plugin, creates tool registry with Sentinel, runs Worker or Quality Gate, returns structured RunResult.
+- **VCR test infrastructure** -- Cassette-based record/replay for LLM calls (D41). SHA256 request hashing, JSON cassette storage, `VIZIER_VCR_MODE` env var control.
+- **Stub plugin** -- Test fixture (D35/D39) with StubWorker, StubQualityGate, prompt templates, and `@criteria/file_exists`. Registered programmatically in tests.
+- **CLI spec commands** -- `vizier spec create`, `vizier spec ready`, `vizier spec list` for manual spec management without EA. Auto-generates sequential spec IDs.
+
 ## [0.2.0] - 2026-02-16
 
 Phase 1: Core Runtime + Plugin Framework + Sentinel. Delivered in 6 sub-phases (1a-1f), 76 files, 216 tests, 99% coverage.

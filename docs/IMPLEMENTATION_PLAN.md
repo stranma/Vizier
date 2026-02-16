@@ -6,7 +6,7 @@
 |-------|------|--------|--------|
 | 0 | Project Scaffold | Complete | `master` |
 | 1 | Core Runtime + Plugin Framework + Sentinel | Complete | `feature/core-runtime` |
-| 2 | Inner Loop (Worker + Quality Gate) | Pending | `feature/inner-loop` |
+| 2 | Inner Loop (Worker + Quality Gate) | Complete | `feature/inner-loop` |
 | 3 | Architect | Pending | `feature/architect` |
 | 4 | Pasha + Orchestration | Pending | `feature/manager` |
 | 5 | Retrospective | Pending | `feature/retrospective` |
@@ -122,42 +122,61 @@ Phase 1 was delivered in six sub-phases:
 **Goal:** Build the Ralph-style execution loop. Worker picks a spec, produces artifacts, Quality Gate validates. Uses a stub plugin for testing. Includes CLI entry point for manual spec creation (bypass EA for testing).
 
 ### Components
-- [ ] Worker agent runtime (loads plugin Worker class, runs fresh-context cycle)
-- [ ] Worker bounded read-only exploration (can read any project file, must log reads beyond artifact list, cannot write beyond artifacts)
-- [ ] Quality Gate agent runtime (loads plugin Quality Gate class, runs checks)
-- [ ] Completion Protocol (PCC) implementation in Quality Gate (5-pass structured validation)
-- [ ] Spec lifecycle state machine (READY -> IN_PROGRESS -> REVIEW -> DONE/REJECTED/INTERRUPTED)
-- [ ] Graduated retry logic:
-  - [ ] Retries 1-2: normal with Quality Gate feedback
-  - [ ] Retry 3: bump Worker model tier
-  - [ ] Retry 5: alert Pasha for spec review
-  - [ ] Retry 7: Architect re-decomposes
-  - [ ] Retry 10: STUCK
-  - [ ] Repeated action detection (D25/BudgetMLAgent): if Worker performs identical tool call 3+ consecutive times, escalate immediately to next threshold
-- [ ] INTERRUPTED state handling (daemon shutdown → IN_PROGRESS specs → INTERRUPTED → re-queued on restart)
-- [ ] Tool sandbox (enforces plugin's allowed_tools via Sentinel integration)
-- [ ] CLI entry point: `vizier spec create` and `vizier spec ready` for manual testing without EA
-- [ ] Stub plugin test fixture (D35, D39): `tests/fixtures/stub_plugin/` with StubWorker (file_read + file_write, commit_to_main), StubQualityGate (check file exists), one criteria (`@criteria/file_exists`), prompt templates. Registered programmatically in tests (not via entry points).
-- [ ] Agent subprocess runner (D37): `vizier.core.agent_runner` module that serves as the entry point for agent subprocesses (load spec, load plugin, call litellm, write results, exit)
-- [ ] VCR test infrastructure (D41): `VIZIER_VCR_MODE` env var (record/replay/off), cassette loader/saver in `tests/cassettes/`, integration with litellm mock
+- [x] Worker agent runtime (loads plugin Worker class, runs fresh-context cycle)
+- [x] Worker bounded read-only exploration (can read any project file, must log reads beyond artifact list, cannot write beyond artifacts)
+- [x] Quality Gate agent runtime (loads plugin Quality Gate class, runs checks)
+- [x] Completion Protocol (PCC) implementation in Quality Gate (5-pass structured validation)
+- [x] Spec lifecycle state machine (READY -> IN_PROGRESS -> REVIEW -> DONE/REJECTED/INTERRUPTED)
+- [x] Graduated retry logic:
+  - [x] Retries 1-2: normal with Quality Gate feedback
+  - [x] Retry 3: bump Worker model tier
+  - [x] Retry 5: alert Pasha for spec review
+  - [x] Retry 7: Architect re-decomposes
+  - [x] Retry 10: STUCK
+  - [x] Repeated action detection (D25/BudgetMLAgent): if Worker performs identical tool call 3+ consecutive times, escalate immediately to next threshold
+- [x] INTERRUPTED state handling (daemon shutdown -> IN_PROGRESS specs -> INTERRUPTED -> re-queued on restart)
+- [x] Tool sandbox (enforces plugin's allowed_tools via Sentinel integration)
+- [x] CLI entry point: `vizier spec create` and `vizier spec ready` for manual testing without EA
+- [x] Stub plugin test fixture (D35, D39): `tests/fixtures/stub_plugin/` with StubWorker (file_read + file_write, commit_to_main), StubQualityGate (check file exists), one criteria (`@criteria/file_exists`), prompt templates. Registered programmatically in tests (not via entry points).
+- [x] Agent subprocess runner (D37): `vizier.core.agent_runner` module that serves as the entry point for agent subprocesses (load spec, load plugin, call litellm, write results, exit)
+- [x] VCR test infrastructure (D41): `VIZIER_VCR_MODE` env var (record/replay/off), cassette loader/saver in `tests/cassettes/`, integration with litellm mock
 
 ### Acceptance Criteria
-- [ ] Worker picks highest-priority READY spec
-- [ ] Worker can read files beyond artifact list (read-only), logs what it read
-- [ ] Worker cannot write files outside artifact list (Sentinel enforces)
-- [ ] Worker creates git commit tied to spec using plugin's commit template
-- [ ] Worker completion is implicit (clean exit → REVIEW transition)
-- [ ] Quality Gate runs Completion Protocol: Pass 1-2 (deterministic) before Pass 3-5 (LLM-assisted)
-- [ ] Quality Gate evaluates against snapshotted `@criteria/` from spec creation time
-- [ ] Deterministic pass failures produce REJECTED without burning LLM tokens
-- [ ] Cumulative criteria: parent spec criteria checked when relevant
-- [ ] Graduated retry: model tier bumps at retry 3, Pasha alert at retry 5
-- [ ] INTERRUPTED specs are re-queued as READY on daemon restart
-- [ ] Rejected specs return to Worker with actionable feedback
-- [ ] Spec goes STUCK after max_retries exceeded
-- [ ] Fresh context: Worker has no memory of previous specs
-- [ ] `vizier spec create "task description"` creates a DRAFT spec via CLI
-- [ ] `vizier spec ready <spec-id>` transitions DRAFT to READY for manual testing
+- [x] Worker picks highest-priority READY spec
+- [x] Worker can read files beyond artifact list (read-only), logs what it read
+- [x] Worker cannot write files outside artifact list (Sentinel enforces)
+- [x] Worker creates git commit tied to spec using plugin's commit template
+- [x] Worker completion is implicit (clean exit -> REVIEW transition)
+- [x] Quality Gate runs Completion Protocol: Pass 1-2 (deterministic) before Pass 3-5 (LLM-assisted)
+- [x] Quality Gate evaluates against snapshotted `@criteria/` from spec creation time
+- [x] Deterministic pass failures produce REJECTED without burning LLM tokens
+- [x] Cumulative criteria: parent spec criteria checked when relevant
+- [x] Graduated retry: model tier bumps at retry 3, Pasha alert at retry 5
+- [x] INTERRUPTED specs are re-queued as READY on daemon restart
+- [x] Rejected specs return to Worker with actionable feedback
+- [x] Spec goes STUCK after max_retries exceeded
+- [x] Fresh context: Worker has no memory of previous specs
+- [x] `vizier spec create "task description"` creates a DRAFT spec via CLI
+- [x] `vizier spec ready <spec-id>` transitions DRAFT to READY for manual testing
+
+### Completion Notes
+
+**Completed:** 2026-02-16 | **Branch:** `feature/inner-loop`
+
+Phase 2 was delivered in six sub-phases:
+
+| Sub-phase | Scope | Modules | Tests |
+|-----------|-------|---------|-------|
+| 2a | Stub Plugin + VCR Infrastructure | 4 source + 2 test | 25 |
+| 2b | Worker Agent Runtime | 2 source + 1 test | 11 |
+| 2c | Quality Gate Runtime with 5-pass PCC | 2 source + 1 test | 15 |
+| 2d | Spec Lifecycle + Graduated Retry | 4 source + 2 test | 26 |
+| 2e | Agent Subprocess Runner | 2 source + 1 test | 6 |
+| 2f | CLI Entry Points (spec create/ready/list) | 2 source + 1 test | 11 |
+
+Integration tests: 8 end-to-end tests covering happy path, rejection/retry, stuck, interrupted/requeued, agent runner full cycle, model bump, repeated action detection, and fresh context isolation.
+
+**Totals:** 34 files, 307 core tests + 11 CLI tests = 318 total, 0 lint/format issues, 0 type errors. All 16 acceptance criteria verified as PASS.
 
 ---
 
