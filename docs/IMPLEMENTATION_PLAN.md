@@ -16,6 +16,7 @@
 | 9 | Documents Plugin | Complete | `feat/plugin-documents` |
 | 10 | Scout Agent | Complete | `feat/scout-agent` |
 | 11 | Production Wiring & CD Pipeline | Complete | `feat/production-wiring` |
+| 12 | Docker Deployment | Complete | `feat/docker-deploy` |
 
 ---
 
@@ -689,6 +690,67 @@ Phase 11 wired existing but unused components into the daemon startup flow:
 | Deployment docs | DEPLOYMENT.md | 0 |
 
 Code review (APPROVE, 0 critical): Fixed S3 suggestion (graceful handling of invalid TELEGRAM_SULTAN_CHAT_ID format). 66 daemon tests, 32 CLI tests, 737 core tests -- all passing, 0 lint/pyright errors.
+
+### Phase Completion Steps
+
+After implementation, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md).
+
+---
+
+## Phase 12: Docker Deployment
+
+**Goal:** Switch from bare-metal systemd deployment to Docker. Fix critical bugs in existing Dockerfile and docker-compose.yml that prevented them from working.
+
+### Bugs Fixed
+- **Volume overlay destroyed config files:** `docker-compose.yml` mounted `vizier-config` named volume over `/opt/vizier`, hiding config files on first run
+- **Langfuse dependency blocked startup:** `depends_on: langfuse-db` prevented daemon from starting without PostgreSQL
+- **No healthcheck:** Docker had no way to monitor daemon health
+- **No gh CLI:** Scout agent GitHub searches silently failed
+- **Heartbeat script required file access:** Didn't work from outside container
+
+### Components
+- [x] `scripts/entrypoint.sh` -- init-on-first-run wrapper with exec for PID 1 signal handling
+- [x] `Dockerfile` -- multi-stage build, gh CLI, curl, HEALTHCHECK directive
+- [x] `docker-compose.yml` -- bind mounts for config, named volumes for data, langfuse behind `observability` profile
+- [x] `.github/workflows/deploy.yml` -- GHCR build+push then SSH docker pull+restart
+- [x] `scripts/check_heartbeat.sh` -- HTTP health endpoint instead of file read
+- [x] `scripts/migrate_to_docker.sh` -- one-time systemd-to-Docker migration
+- [x] `docs/DEPLOYMENT.md` -- Docker-first documentation with volume design rationale
+
+### Acceptance Criteria
+- [x] `docker compose up -d` starts only vizier-daemon (not langfuse) by default
+- [x] Config files are accessible via bind mounts from host
+- [x] Named volumes persist runtime data across container restarts
+- [x] HEALTHCHECK directive monitors daemon via HTTP endpoint
+- [x] CD pipeline builds image, pushes to GHCR, deploys via SSH
+- [x] `check_heartbeat.sh` works via HTTP (Docker and bare-metal)
+- [x] Migration script handles systemd stop, config copy, container start
+- [x] gh CLI available in container for Scout agent
+- [x] Entrypoint runs `vizier init` on first boot when config.yaml missing
+
+### Completion Notes
+
+**Completed:** 2026-02-16 | **Branch:** `feat/docker-deploy`
+
+Phase 12 fixed critical bugs in the existing Docker deployment infrastructure and established Docker as the primary deployment method:
+
+| Component | Files Changed | Description |
+|-----------|--------------|-------------|
+| Dockerfile | 1 modified | Added gh CLI (Scout agent), curl (healthcheck), multi-stage build optimization |
+| docker-compose.yml | 1 modified | Fixed volume overlay bug (bind mounts for config), moved Langfuse to `observability` profile |
+| Entrypoint | scripts/entrypoint.sh (new) | Init-on-first-run with exec for PID 1 signal handling |
+| CD Pipeline | .github/workflows/deploy.yml | GHCR build+push then SSH docker pull+restart |
+| Heartbeat Monitor | scripts/check_heartbeat.sh | HTTP health endpoint (Docker and bare-metal compatible) |
+| Migration Script | scripts/migrate_to_docker.sh | One-time systemd-to-Docker migration |
+| Documentation | docs/DEPLOYMENT.md | Rewritten for Docker-first with volume design rationale |
+
+**Key Fixes:**
+- **Volume overlay bug** - Named volume mounted at `/opt/vizier` destroyed config files on first run. Fixed with bind mounts for config files and named volumes for runtime data.
+- **Langfuse blocking startup** - `depends_on: langfuse-db` prevented daemon from starting. Fixed by moving Langfuse to optional `observability` profile.
+- **Missing Scout dependencies** - GitHub searches silently failed without gh CLI. Fixed in Dockerfile.
+- **No health monitoring** - Added HEALTHCHECK directive and HTTP-based heartbeat script.
+
+All 9 acceptance criteria verified as PASS. Docker deployment is now production-ready.
 
 ### Phase Completion Steps
 

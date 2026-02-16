@@ -8,10 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Docker deployment** -- Docker is now the primary deployment method. Multi-stage Dockerfile with gh CLI (for Scout agent), curl (for healthcheck), and entrypoint script that runs `vizier init` on first boot.
+- **Docker Compose rewrite** -- Fixed critical volume overlay bug where `vizier-config` named volume destroyed config files on first run. Config files now use bind mounts from `/opt/vizier/config/`; runtime data uses named volumes. Langfuse services moved behind `observability` profile so `docker compose up -d` starts only the daemon.
+- **CD pipeline with GHCR** -- Deploy workflow now builds Docker image, pushes to GitHub Container Registry with SHA and `latest` tags, then SSHes to server to pull and restart via `docker compose up -d`.
+- **HTTP-based heartbeat monitor** -- `check_heartbeat.sh` now queries the health endpoint via HTTP instead of reading `heartbeat.json` from the filesystem, making it work in both Docker and bare-metal deployments.
+- **Migration script** -- `scripts/migrate_to_docker.sh` handles one-time migration from systemd bare-metal to Docker: stops systemd service, copies config files, pulls image, starts container, verifies health.
+- **Docker entrypoint** -- `scripts/entrypoint.sh` initializes the Vizier directory on first boot and exec's the daemon as PID 1 for proper signal handling.
+
 - **Health check server wired into daemon startup** -- HealthCheckServer is now created and started during `VizierDaemon.run()`, responding at the configured port (default 8080). Stops cleanly on daemon shutdown.
 - **Telegram transport wired into daemon startup** -- TelegramTransport is now created during `VizierDaemon.run()` when a bot token is available (from `config.yaml` or secret store). Skips gracefully with a warning log when no token is configured.
-- **CD pipeline** -- GitHub Actions workflow (`.github/workflows/deploy.yml`) triggers on successful test runs against master, SSHes into the production server, pulls latest code, syncs dependencies, and restarts the service.
-- **Deployment documentation** -- Added CD pipeline setup, heartbeat cron monitoring instructions, and Telegram configuration to `docs/DEPLOYMENT.md`.
 - **Startup status lines** -- `vizier start` now prints health check URL and Telegram configuration status.
 
 - **Scout agent for prior art research** -- New agent that runs on DRAFT specs before the Architect. Searches GitHub repos, PyPI, and npm for existing solutions, then writes a structured `research.md` report. Deterministic keyword classifier triages specs into RESEARCH or SKIP paths (zero LLM cost for bug fixes and refactors). Architect reads the report during decomposition, enabling sub-specs that leverage existing libraries instead of building from scratch.
@@ -35,6 +40,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **priorities.yaml behavioral anchor** -- Sultan-maintained priorities file that EA reads on every LLM invocation for stable decision context.
 
 ### Changed
+
+- **CD pipeline switched to Docker** -- Deploy workflow no longer SSHes to run `git pull` and `systemctl restart`. Instead builds a Docker image, pushes to GHCR, and restarts the container on the server.
+- **Deployment docs rewritten for Docker** -- Docker is now the primary deployment method. Bare-metal instructions replaced with Docker quick start, volume design rationale, and migration guide.
+- **Heartbeat monitor uses HTTP** -- `check_heartbeat.sh` parameters changed from `(vizier_root, max_age)` to `(health_url, max_age)`.
 
 - **Sentinel permissions alignment** -- Broadened denylist to block `git clean` (all variants), `git config`, `git init`, `git restore`, `git worktree`, and `sudo`. Added read-only git commands (`blame`, `reflog`, `describe`, `shortlog`, `rev-list`, `stash`, `fetch`, `pull`, `add`, `remote`, `tag`) to allowlist for zero-cost approval. Aligned git classifier safe/dangerous patterns. Expanded SoftwareCoder `tool_restrictions` to cover `push -f`, `reset --hard`, `clean`, `config`, `init`, `restore`, `rebase -i`, `branch -D`, `checkout .`. Autonomous agents now deny commands that require human confirmation in the IDE.
 - **D22: Reconciliation interval** -- Default changed from 60 seconds to 15 seconds (recommended 10-30s). Shorter intervals compensate for ReadDirectoryChangesW unreliability on Windows.

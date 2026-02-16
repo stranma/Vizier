@@ -6,24 +6,75 @@ on:
     types: [completed]
     branches: [master]
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
-  deploy:
+  build-and-push:
     runs-on: ubuntu-latest
     if: github.event.workflow_run.conclusion == 'success'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push
     environment: production
 
     steps:
-      - name: Deploy to server
+      - name: Checkout (for docker-compose.yml)
+        uses: actions/checkout@v4
+
+      - name: Copy docker-compose.yml to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: vizier
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: docker-compose.yml
+          target: /opt/vizier/
+
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: vizier
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            cd /opt/vizier-repo
-            git fetch origin master
-            git reset --hard origin/master
-            uv sync --all-packages --no-dev
-            sudo systemctl restart vizier
-            sleep 5
-            sudo systemctl is-active vizier
+            docker login ghcr.io -u "${{ github.actor }}" --password-stdin <<< "${{ secrets.GITHUB_TOKEN }}"
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            cd /opt/vizier
+            docker compose up -d
+            for i in $(seq 1 30); do
+              if curl -sf http://localhost:8080/health >/dev/null; then
+                echo "Health check passed"
+                exit 0
+              fi
+              echo "Waiting for health endpoint (attempt $i/30)..."
+              sleep 2
+            done
+            echo "Health check failed after 60 seconds"
+            exit 1
