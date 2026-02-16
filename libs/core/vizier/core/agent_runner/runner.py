@@ -26,6 +26,7 @@ from vizier.core.plugins.discovery import load_plugin
 from vizier.core.plugins.tool_registry import ToolRegistry
 from vizier.core.quality_gate.runtime import QualityGateRuntime
 from vizier.core.retrospective.runtime import RetrospectiveRuntime
+from vizier.core.scout.runtime import ScoutRuntime
 from vizier.core.sentinel.engine import SentinelEngine
 from vizier.core.worker.runtime import WorkerRuntime
 
@@ -203,6 +204,47 @@ class AgentRunner:
         except Exception as e:
             logger.exception("Architect run failed")
             return RunResult(agent_type="architect", spec_id="unknown", error=str(e))
+
+    def run_scout(self, spec_path: str) -> RunResult:
+        """Run a Scout agent to research prior art for a spec.
+
+        :param spec_path: Path to the DRAFT spec file.
+        :returns: RunResult with outcome.
+        """
+        try:
+            context = AgentContext.load_from_disk(self._project_root, spec_path=spec_path)
+            plugin = self._load_plugin(context)
+            if plugin is None:
+                return RunResult(agent_type="scout", spec_id=self._spec_id(context), error="Plugin not found")
+
+            project_config = ProjectConfig(**context.config) if context.config else ProjectConfig()
+            router = ModelRouter(
+                server_config=self._server_config,
+                project_config=project_config,
+                plugin_defaults=plugin.default_model_tiers,
+            )
+
+            log_path = f"reports/{context.config.get('project', 'default')}/agent-log.jsonl"
+            agent_logger = AgentLogger(log_path)
+
+            runtime = ScoutRuntime(
+                context=context,
+                plugin=plugin,
+                model_router=router,
+                logger_instance=agent_logger,
+                llm_callable=self._llm,
+            )
+
+            report = runtime.scout()
+            return RunResult(
+                agent_type="scout",
+                spec_id=self._spec_id(context),
+                result=f"SCOUTED:{report.decision}",
+            )
+
+        except Exception as e:
+            logger.exception("Scout run failed")
+            return RunResult(agent_type="scout", spec_id="unknown", error=str(e))
 
     def run_retrospective(self) -> RunResult:
         """Run a Retrospective agent to analyze failures and generate learnings.

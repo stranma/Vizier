@@ -114,6 +114,33 @@ class TestArchitectRuntime:
         with pytest.raises(RuntimeError, match="requires a spec"):
             runtime.build_prompt()
 
+    def test_build_prompt_includes_research_when_present(self, project_dir: str, draft_spec: str) -> None:
+        from pathlib import Path
+
+        spec_dir = str(Path(draft_spec).parent)
+        research_path = Path(spec_dir) / "research.md"
+        research_path.write_text(
+            "# Prior Art Research: 001-add-auth\n\n## Summary\nFound authlib library.\n\n"
+            "## Recommendation\nUSE_LIBRARY\n",
+            encoding="utf-8",
+        )
+
+        ctx = AgentContext.load_from_disk(project_dir, spec_path=draft_spec)
+        plugin = StubPlugin()
+        runtime = ArchitectRuntime(context=ctx, plugin=plugin)
+        prompt = runtime.build_prompt()
+        assert "Prior Art Research" in prompt
+        assert "authlib" in prompt
+        assert "USE_LIBRARY" in prompt
+        assert "leverage it rather than building from scratch" in prompt
+
+    def test_build_prompt_works_without_research(self, project_dir: str, draft_spec: str) -> None:
+        ctx = AgentContext.load_from_disk(project_dir, spec_path=draft_spec)
+        plugin = StubPlugin()
+        runtime = ArchitectRuntime(context=ctx, plugin=plugin)
+        prompt = runtime.build_prompt()
+        assert "Prior Art Research" not in prompt
+
     def test_build_prompt_includes_constitution(self, project_dir: str, draft_spec: str) -> None:
         constitution_path = project_dir + "/.vizier/constitution.md"
         with open(constitution_path, "w", encoding="utf-8") as f:

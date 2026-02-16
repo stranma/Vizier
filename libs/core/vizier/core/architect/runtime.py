@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from vizier.core.agent.base import BaseAgent
@@ -14,6 +15,7 @@ from vizier.core.architect.decomposition import (
 from vizier.core.file_protocol.spec_io import create_spec, update_spec_status
 from vizier.core.models.spec import Spec, SpecStatus
 from vizier.core.plugins.base_plugin import BasePlugin  # noqa: TC001
+from vizier.core.scout.report import read_report
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +91,7 @@ class ArchitectRuntime(BaseAgent):
             f"### Constitution\n{self.context.constitution or 'No constitution defined.'}\n\n"
             f"### Learnings\n{self.context.learnings or 'No learnings recorded yet.'}\n\n"
             f"## Plugin Decomposition Guide\n{guide or 'No specific decomposition guide.'}\n"
+            f"{self._research_section()}"
             f"{criteria_section}\n\n"
             f"## Output Format\n\n"
             f"For each sub-spec, use this exact format:\n\n"
@@ -132,6 +135,23 @@ class ArchitectRuntime(BaseAgent):
         """
         self.run()
         return self._created_specs
+
+    def _research_section(self) -> str:
+        """Build the prior art research section if research.md exists."""
+        if not self.context.spec or not self.context.spec.file_path:
+            return ""
+
+        spec_dir = str(Path(self.context.spec.file_path).parent)
+        research = read_report(spec_dir)
+        if not research:
+            return ""
+
+        return (
+            f"\n\n## Prior Art Research\n{research}\n"
+            "\nConsider the research findings above when decomposing. "
+            "If a suitable library, package, or SaaS exists, create sub-specs "
+            "that leverage it rather than building from scratch.\n"
+        )
 
     def _create_sub_specs(self, definitions: list[SubSpecDefinition]) -> None:
         """Create sub-spec files on disk from parsed definitions.

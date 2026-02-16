@@ -80,6 +80,28 @@ Respond with a structured verdict:
 - FAIL: Issues found (list each with specific feedback)
 """
 
+SCOUT_GUIDE = """\
+## Software Research Guide
+
+When researching prior art for a software task, focus on:
+
+### Libraries and Packages
+- Search for existing libraries that solve the core problem
+- Check GitHub for similar implementations in the same language/framework
+- Prefer well-maintained packages with >100 stars over obscure forks
+
+### Evaluation Criteria
+- **License compatibility**: MIT, Apache-2.0, BSD preferred
+- **Maintenance status**: Check last commit date and open issues count
+- **API quality**: Clean, well-documented interfaces are easier to integrate
+- **Test coverage**: Libraries with good test suites are more reliable
+
+### Search Strategy
+- Start with the problem domain (e.g. "python authentication library")
+- Then narrow to specific approaches (e.g. "JWT token validation python")
+- Check the project's language/framework ecosystem first (PyPI for Python)
+"""
+
 ARCHITECT_GUIDE = """\
 ## Software Task Decomposition Guide
 
@@ -230,7 +252,12 @@ class SoftwarePlugin(BasePlugin):
             "worker": "sonnet",
             "quality_gate": "sonnet",
             "architect": "opus",
+            "scout": "sonnet",
         }
+
+    def get_scout_guide(self) -> str:
+        """Return software-specific research guidance for the Scout agent."""
+        return SCOUT_GUIDE
 
     def get_architect_guide(self) -> str:
         """Return software-specific decomposition guidance."""

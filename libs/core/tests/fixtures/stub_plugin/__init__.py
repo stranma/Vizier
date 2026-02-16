@@ -87,6 +87,7 @@ class StubPlugin(BasePlugin):
             "worker": "haiku",
             "quality_gate": "haiku",
             "architect": "opus",
+            "scout": "haiku",
         }
 
     def get_architect_guide(self) -> str:

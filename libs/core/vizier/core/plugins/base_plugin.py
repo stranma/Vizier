@@ -48,7 +48,15 @@ class BasePlugin(ABC):
             "worker": "sonnet",
             "quality_gate": "sonnet",
             "architect": "opus",
+            "scout": "sonnet",
         }
+
+    def get_scout_guide(self) -> str:
+        """Return plugin-specific research guidance for the Scout agent.
+
+        :returns: Markdown text for scout research guidance.
+        """
+        return ""
 
     def get_architect_guide(self) -> str:
         """Return plugin-specific decomposition patterns guide.

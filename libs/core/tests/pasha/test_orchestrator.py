@@ -43,6 +43,7 @@ def mock_runner() -> MagicMock:
     runner.run_worker.return_value = RunResult(agent_type="worker", spec_id="spec-001", result="REVIEW")
     runner.run_quality_gate.return_value = RunResult(agent_type="quality_gate", spec_id="spec-001", result="DONE")
     runner.run_architect.return_value = RunResult(agent_type="architect", spec_id="spec-001", result="DECOMPOSED:2")
+    runner.run_scout.return_value = RunResult(agent_type="scout", spec_id="spec-001", result="SCOUTED:RESEARCH")
     return runner
 
 
@@ -88,10 +89,21 @@ class TestCycleExecution:
         asyncio.run(orchestrator.run_once())
         assert orchestrator.cycle_count == 2
 
-    def test_draft_triggers_architect(
+    def test_draft_triggers_scout(
         self, orchestrator: PashaOrchestrator, project_root: Path, mock_runner: MagicMock
     ) -> None:
         create_spec(str(project_root), "spec-001", "Test task", {"status": "DRAFT", "plugin": "software"})
+        report = asyncio.run(orchestrator.run_once())
+        assert len(report.agents_spawned) > 0
+        assert any("scout" in a for a in report.agents_spawned)
+        mock_runner.run_scout.assert_called_once()
+
+    def test_scouted_triggers_architect(
+        self, orchestrator: PashaOrchestrator, project_root: Path, mock_runner: MagicMock
+    ) -> None:
+        spec = create_spec(str(project_root), "spec-001", "Test task", {"status": "DRAFT", "plugin": "software"})
+        assert spec.file_path is not None
+        update_spec_status(spec.file_path, SpecStatus.SCOUTED)
         report = asyncio.run(orchestrator.run_once())
         assert len(report.agents_spawned) > 0
         assert any("architect" in a for a in report.agents_spawned)
@@ -232,5 +244,5 @@ class TestStatusWriting:
 
         report = asyncio.run(orchestrator.run_once())
         assert len(report.agents_spawned) == 2
-        assert mock_runner.run_architect.call_count == 1
+        assert mock_runner.run_scout.call_count == 1
         assert mock_runner.run_worker.call_count == 1
