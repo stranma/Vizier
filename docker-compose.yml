@@ -1,0 +1,63 @@
+services:
+  vizier-daemon:
+    build: .
+    container_name: vizier-daemon
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - VIZIER_ROOT=/opt/vizier
+    volumes:
+      - vizier-workspaces:/opt/vizier/workspaces
+      - vizier-reports:/opt/vizier/reports
+      - vizier-ea:/opt/vizier/ea
+      - vizier-security:/opt/vizier/security
+      - vizier-logs:/opt/vizier/logs
+      - vizier-config:/opt/vizier
+    ports:
+      - "8080:8080"
+    depends_on:
+      langfuse-db:
+        condition: service_healthy
+
+  langfuse:
+    image: langfuse/langfuse:2
+    container_name: vizier-langfuse
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://langfuse:langfuse@langfuse-db:5432/langfuse
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=${LANGFUSE_NEXTAUTH_SECRET:-changeme}
+      - SALT=${LANGFUSE_SALT:-changeme}
+    ports:
+      - "3000:3000"
+    depends_on:
+      langfuse-db:
+        condition: service_healthy
+
+  langfuse-db:
+    image: postgres:15-alpine
+    container_name: vizier-langfuse-db
+    restart: always
+    environment:
+      - POSTGRES_USER=langfuse
+      - POSTGRES_PASSWORD=langfuse
+      - POSTGRES_DB=langfuse
+    volumes:
+      - langfuse-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  vizier-workspaces:
+  vizier-reports:
+  vizier-ea:
+  vizier-security:
+  vizier-logs:
+  vizier-config:
+  langfuse-pgdata:

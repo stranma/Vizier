@@ -1,10 +1,11 @@
 [project]
 name = "vizier-cli"
-version = "0.1.0"
+version = "0.7.0"
 description = "Autonomous multi-agent work system - CLI application"
 requires-python = ">=3.11,<3.13"
 dependencies = [
     "vizier-core",
+    "vizier-daemon",
     "click>=8.0",
     "rich>=13.0",
 ]
@@ -22,6 +23,7 @@ dev = [
 
 [tool.uv.sources]
 "vizier-core" = { workspace = true }
+"vizier-daemon" = { workspace = true }
 
 [tool.pyright]
 pythonVersion = "3.11"

@@ -1,0 +1,25 @@
+[Unit]
+Description=Vizier Autonomous Multi-Agent Daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vizier
+Group=vizier
+WorkingDirectory=/opt/vizier
+ExecStart=/usr/local/bin/uv run vizier start --root /opt/vizier
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vizier
+
+Environment=VIZIER_ROOT=/opt/vizier
+EnvironmentFile=-/opt/vizier/.env
+
+LimitNOFILE=65536
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
