@@ -24,6 +24,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **D22: Reconciliation interval** -- Default changed from 60 seconds to 15 seconds (recommended 10-30s). Shorter intervals compensate for ReadDirectoryChangesW unreliability on Windows.
 - **D25: Repeated action detection** -- If Worker performs identical tool call 3+ consecutive times, escalate immediately to next retry threshold. Catches stuck loops that diverse-failure retry logic misses.
 
+## [0.7.0] - 2026-02-16
+
+Phase 6: EA + Communication. Sultan-facing Executive Assistant with full communication infrastructure.
+
+### Added
+
+- **EARuntime** -- Monolithic, Opus-tier Executive Assistant agent. Handles all Sultan communication: delegation, status queries, quick queries, control commands, focus mode, briefings, and general LLM-backed conversation. Uses JIT prompt assembly (D42) for efficient context window usage.
+- **MessageClassifier** -- Deterministic message classifier using regex, keyword matching, and slash command detection. Zero LLM cost for routing. Classifies into 15 message categories: delegation, status, control, session, briefing, checkin, quick_query, focus, approval, budget, priorities, file_ops, cross_project, direct_qa, general.
+- **PromptAssembler** -- JIT prompt assembly (D42). Always-loaded core module (~2,500 tokens) plus 9 conditional modules (checkin, file_ops, calendar, cross_project, budget, briefing, session, approval, proactive) loaded based on message classification. Reads priorities.yaml on every invocation.
+- **BudgetEnforcer** -- Cost budget enforcement (D33). Three-tier thresholds: alert at 80%, degrade to cheapest model at 100%, pause non-critical work at 120%. Reads agent-log.jsonl to compute spending. Sultan can override any threshold.
+- **CommitmentTracker** -- CRUD operations for Sultan's commitments with deadlines, project links, and status tracking. Atomic YAML writes via os.replace(). Lists active and overdue commitments.
+- **RelationshipTracker** -- CRUD operations for contacts with role, open commitments, and last interaction date. Finds overdue follow-ups by days threshold. Case-insensitive name search.
+- **ContentScanner** -- Sentinel extension for untrusted content. Deterministic regex patterns detect prompt injection attempts (6 patterns). URL scanning flags URL shorteners and data/javascript URIs. Optional Haiku-tier LLM for ambiguous content analysis. Fail-cautious: marks suspicious on LLM failure.
+- **EA data models** -- Commitment, Relationship, Priority, PrioritiesConfig, BriefingConfig, CheckoutRecord, CheckinRecord, FocusMode, BudgetConfig. All with Pydantic validation and JSON serialization.
+- **Focus mode** -- Hold non-emergency notifications for configurable duration. Control and approval commands bypass focus. Release returns held messages.
+- **Morning briefing generator** -- Structured briefing with priorities, overdue commitments, active commitments, escalations, and cost summary from agent logs.
+
 ## [0.6.0] - 2026-02-16
 
 Phase 5: Retrospective. Meta-improvement agent that learns from failures.
