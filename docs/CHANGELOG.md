@@ -32,6 +32,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **D25: Repeated action detection** -- If Worker performs identical tool call 3+ consecutive times, escalate immediately to next retry threshold. Catches stuck loops that diverse-failure retry logic misses.
 - **Daemon config: Azure Key Vault URL** -- Added `azure_vault_url` field to DaemonConfig for configuring the secret store backend at server level.
 
+### Fixed
+
+- **Sentinel allowlist: `git push -f` bypass** -- The allowlist pattern for `git push` was incorrectly matching `push -f` and `push --force` as safe, bypassing the denylist. Force-push commands now correctly fall through to denylist evaluation.
+- **CompositeSecretStore.is_non_empty() consistency** -- Method now returns `True` only when at least one backend store is non-empty, consistent with `SecretStore` protocol semantics.
+
 ## [0.10.0] - 2026-02-16
 
 Phase 9: Documents Plugin.

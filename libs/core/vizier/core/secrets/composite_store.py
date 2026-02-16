@@ -40,12 +40,13 @@ class CompositeSecretStore:
         return any(backend.has(key) for backend in self._backends)
 
     def is_non_empty(self, key: str) -> bool:
-        """Check whether any backend has a non-empty value for this secret.
+        """Check whether the effective value (from get()) is non-empty.
 
         :param key: Secret name.
-        :returns: True if any backend has a non-empty value.
+        :returns: True if get() would return a non-empty string.
         """
-        return any(backend.is_non_empty(key) for backend in self._backends)
+        val = self.get(key)
+        return val is not None and len(val) > 0
 
     def keys(self) -> list[str]:
         """List all unique secret names across all backends.

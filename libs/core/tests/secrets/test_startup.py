@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path  # noqa: TC003
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import pytest
 
 from vizier.core.secrets.env_file_store import EnvFileSecretStore
 from vizier.core.secrets.startup import (
@@ -54,20 +57,15 @@ class TestLoadBootstrapCredentials:
         assert creds["azure_client_id"] == "cid"
         assert creds["azure_client_secret"] == "csec"
 
-    def test_fallback_to_environ(self, tmp_path: Path, monkeypatch: object) -> None:
-        import pytest
+    def test_fallback_to_environ(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("AZURE_TENANT_ID", "env_tid")
+        monkeypatch.setenv("AZURE_CLIENT_ID", "env_cid")
+        monkeypatch.setenv("AZURE_CLIENT_SECRET", "env_csec")
 
-        mp = pytest.MonkeyPatch()
-        mp.setenv("AZURE_TENANT_ID", "env_tid")
-        mp.setenv("AZURE_CLIENT_ID", "env_cid")
-        mp.setenv("AZURE_CLIENT_SECRET", "env_csec")
-        try:
-            creds = load_bootstrap_credentials(str(tmp_path))
-            assert creds["azure_tenant_id"] == "env_tid"
-            assert creds["azure_client_id"] == "env_cid"
-            assert creds["azure_client_secret"] == "env_csec"
-        finally:
-            mp.undo()
+        creds = load_bootstrap_credentials(str(tmp_path))
+        assert creds["azure_tenant_id"] == "env_tid"
+        assert creds["azure_client_id"] == "env_cid"
+        assert creds["azure_client_secret"] == "env_csec"
 
     def test_empty_when_nothing_configured(self, tmp_path: Path) -> None:
         creds = load_bootstrap_credentials(str(tmp_path))
@@ -77,52 +75,33 @@ class TestLoadBootstrapCredentials:
 
 
 class TestSanitizeEnvironment:
-    def test_removes_known_keys(self) -> None:
-        os.environ["TEST_SANITIZE_KEY"] = "val"
-        try:
-            removed = sanitize_environment(["TEST_SANITIZE_KEY"])
-            assert "TEST_SANITIZE_KEY" in removed
-            assert "TEST_SANITIZE_KEY" not in os.environ
-        finally:
-            os.environ.pop("TEST_SANITIZE_KEY", None)
+    def test_removes_known_keys(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("TEST_SANITIZE_KEY", "val")
+        removed = sanitize_environment(["TEST_SANITIZE_KEY"])
+        assert "TEST_SANITIZE_KEY" in removed
 
-    def test_removes_bootstrap_keys(self) -> None:
-        os.environ["AZURE_TENANT_ID"] = "tid"
-        os.environ["AZURE_CLIENT_ID"] = "cid"
-        os.environ["AZURE_CLIENT_SECRET"] = "csec"
-        try:
-            removed = sanitize_environment([])
-            assert "AZURE_TENANT_ID" in removed
-            assert "AZURE_CLIENT_ID" in removed
-            assert "AZURE_CLIENT_SECRET" in removed
-        finally:
-            for k in ("AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"):
-                os.environ.pop(k, None)
+    def test_removes_bootstrap_keys(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("AZURE_TENANT_ID", "tid")
+        monkeypatch.setenv("AZURE_CLIENT_ID", "cid")
+        monkeypatch.setenv("AZURE_CLIENT_SECRET", "csec")
+        removed = sanitize_environment([])
+        assert "AZURE_TENANT_ID" in removed
+        assert "AZURE_CLIENT_ID" in removed
+        assert "AZURE_CLIENT_SECRET" in removed
 
-    def test_removes_sensitive_pattern_keys(self) -> None:
-        os.environ["MY_API_TOKEN"] = "tok"
-        os.environ["DB_PASSWORD"] = "pw"
-        try:
-            removed = sanitize_environment([])
-            assert "MY_API_TOKEN" in removed
-            assert "DB_PASSWORD" in removed
-        finally:
-            os.environ.pop("MY_API_TOKEN", None)
-            os.environ.pop("DB_PASSWORD", None)
+    def test_removes_sensitive_pattern_keys(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MY_API_TOKEN", "tok")
+        monkeypatch.setenv("DB_PASSWORD", "pw")
+        removed = sanitize_environment([])
+        assert "MY_API_TOKEN" in removed
+        assert "DB_PASSWORD" in removed
 
-    def test_does_not_remove_safe_keys(self) -> None:
-        os.environ["PATH_BACKUP_TEST"] = "safe"
-        try:
-            removed = sanitize_environment([])
-            assert "PATH_BACKUP_TEST" not in removed
-            assert os.environ.get("PATH_BACKUP_TEST") == "safe"
-        finally:
-            os.environ.pop("PATH_BACKUP_TEST", None)
+    def test_does_not_remove_safe_keys(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("PATH_BACKUP_TEST", "safe")
+        removed = sanitize_environment([])
+        assert "PATH_BACKUP_TEST" not in removed
 
-    def test_returns_removed_list(self) -> None:
-        os.environ["REMOVE_ME_TOKEN"] = "val"
-        try:
-            removed = sanitize_environment(["EXTRA_KEY"])
-            assert isinstance(removed, list)
-        finally:
-            os.environ.pop("REMOVE_ME_TOKEN", None)
+    def test_returns_removed_list(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("REMOVE_ME_TOKEN", "val")
+        removed = sanitize_environment(["EXTRA_KEY"])
+        assert isinstance(removed, list)
