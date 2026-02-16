@@ -4,23 +4,6 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.10.0] - 2026-02-16
-
-Phase 9: Documents Plugin.
-
-### Added
-
-- **DocumentsPlugin** -- Document production plugin proving plugin system works for non-software domains. Registers as `documents` plugin via entry points.
-- **DocumentWriter** -- Worker agent with file_read, file_write, and web_search tools (no bash or git). Uses commit_to_main git strategy. Document-focused prompt with structure planning, source citation, and formatting instructions.
-- **DocumentReviewer** -- Quality gate with output_exists and no_placeholders automated checks. Evaluates structure, content completeness, factual accuracy, and formatting consistency.
-- **Document Architect Guide** -- Decomposition patterns for Report, Proposal, and Memo document types with complexity guidelines (Low/Medium/High).
-- **Document criteria library** -- Three criteria files: structure_complete (section presence and order), facts_sourced (citation and attribution), formatting_standards (consistent headings, lists, tables).
-- **63 new tests** -- 53 unit tests across 5 test classes + 10 integration tests across 2 test classes. Full lifecycle coverage: DRAFT -> decompose -> write -> review -> DONE.
-
-### Changed
-
-- **Version sync** -- All plugin packages bumped to 0.10.0 (software and documents).
-
 ## [Unreleased]
 
 ### Added
@@ -40,6 +23,23 @@ Phase 9: Documents Plugin.
 
 - **D22: Reconciliation interval** -- Default changed from 60 seconds to 15 seconds (recommended 10-30s). Shorter intervals compensate for ReadDirectoryChangesW unreliability on Windows.
 - **D25: Repeated action detection** -- If Worker performs identical tool call 3+ consecutive times, escalate immediately to next retry threshold. Catches stuck loops that diverse-failure retry logic misses.
+
+## [0.10.0] - 2026-02-16
+
+Phase 9: Documents Plugin.
+
+### Added
+
+- **DocumentsPlugin** -- Document production plugin proving plugin system works for non-software domains. Registers as `documents` plugin via entry points.
+- **DocumentWriter** -- Worker agent with file_read, file_write, and web_search tools (no bash or git). Uses commit_to_main git strategy. Document-focused prompt with structure planning, source citation, and formatting instructions.
+- **DocumentReviewer** -- Quality gate with output_exists and no_placeholders automated checks. Evaluates structure, content completeness, factual accuracy, and formatting consistency.
+- **Document Architect Guide** -- Decomposition patterns for Report, Proposal, and Memo document types with complexity guidelines (Low/Medium/High).
+- **Document criteria library** -- Three criteria files: structure_complete (section presence and order), facts_sourced (citation and attribution), formatting_standards (consistent headings, lists, tables).
+- **63 new tests** -- 53 unit tests across 5 test classes + 10 integration tests across 2 test classes. Full lifecycle coverage: DRAFT -> decompose -> write -> review -> DONE.
+
+### Changed
+
+- **Version sync** -- All plugin packages bumped to 0.10.0 (software and documents).
 
 ## [0.8.0] - 2026-02-16
 
