@@ -15,7 +15,9 @@ class GitSafety(StrEnum):
 
 
 SAFE_GIT_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(r"^git\s+(status|log|diff|show|branch|tag|remote|stash\s+list|rev-parse|ls-files)\b"),
+    re.compile(r"^git\s+(status|log|diff|show|branch|tag|remote|rev-parse|ls-files)\b"),
+    re.compile(r"^git\s+(blame|reflog|describe|shortlog|rev-list)\b"),
+    re.compile(r"^git\s+stash\b"),
     re.compile(r"^git\s+commit\b"),
     re.compile(r"^git\s+add\b"),
     re.compile(r"^git\s+push\b(?!.*(-f|--force))"),
@@ -31,10 +33,13 @@ DANGEROUS_GIT_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"^git\s+push\s+.*(-f|--force)\b"),
     re.compile(r"^git\s+reset\s+--hard\b"),
     re.compile(r"^git\s+rebase\s+-i\b"),
-    re.compile(r"^git\s+clean\s+-f"),
+    re.compile(r"^git\s+clean\b"),
     re.compile(r"^git\s+branch\s+-D\b"),
     re.compile(r"^git\s+checkout\s+\.\s*$"),
-    re.compile(r"^git\s+restore\s+\.\s*$"),
+    re.compile(r"^git\s+restore\b"),
+    re.compile(r"^git\s+config\b"),
+    re.compile(r"^git\s+init\b"),
+    re.compile(r"^git\s+worktree\b"),
 ]
 
 

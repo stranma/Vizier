@@ -139,7 +139,15 @@ class SoftwareCoder(BaseWorker):
             "git": {
                 "denied_patterns": [
                     r"push\s+--force",
-                    r"reset\s+--hard\s+origin",
+                    r"push\s+-f\b",
+                    r"reset\s+--hard\b",
+                    r"clean\b",
+                    r"config\b",
+                    r"init\b",
+                    r"restore\b",
+                    r"rebase\s+-i\b",
+                    r"branch\s+-D\b",
+                    r"checkout\s+\.\s*$",
                 ],
             },
         }

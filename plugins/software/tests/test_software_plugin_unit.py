@@ -148,11 +148,46 @@ class TestSoftwareCoder:
         assert any("sudo" in p for p in patterns)
 
     def test_tool_restrictions_git(self, worker: SoftwareCoder) -> None:
+        import re
+
         restrictions = worker.tool_restrictions
         assert "git" in restrictions
         assert "denied_patterns" in restrictions["git"]
-        patterns = restrictions["git"]["denied_patterns"]
-        assert any("force" in p for p in patterns)
+        patterns = [re.compile(p) for p in restrictions["git"]["denied_patterns"]]
+
+        should_deny = [
+            "push --force origin main",
+            "push -f origin main",
+            "reset --hard HEAD~3",
+            "clean -fd",
+            "clean",
+            "config user.email foo@bar.com",
+            "init",
+            "restore src/main.py",
+            "restore --staged file.py",
+            "rebase -i HEAD~5",
+            "branch -D feature/old",
+            "checkout .",
+        ]
+        for cmd in should_deny:
+            matched = any(p.search(cmd) for p in patterns)
+            assert matched, f"'{cmd}' should be denied by git tool_restrictions"
+
+        should_allow = [
+            "push origin main",
+            "commit -m 'test'",
+            "add .",
+            "status",
+            "diff HEAD",
+            "log --oneline",
+            "branch -a",
+            "stash push -m 'wip'",
+            "fetch origin",
+            "pull origin main",
+        ]
+        for cmd in should_allow:
+            matched = any(p.search(cmd) for p in patterns)
+            assert not matched, f"'{cmd}' should NOT be denied by git tool_restrictions"
 
     def test_git_strategy(self, worker: SoftwareCoder) -> None:
         assert worker.git_strategy == "branch_per_spec"

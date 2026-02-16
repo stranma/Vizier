@@ -16,6 +16,13 @@ SAFE_TOOLS: set[str] = {
 
 SAFE_COMMAND_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"^git\s+(status|log|diff|branch|show|rev-parse)\b"),
+    re.compile(r"^git\s+(blame|reflog|describe|shortlog|rev-list)\b"),
+    re.compile(r"^git\s+stash\b"),
+    re.compile(r"^git\s+fetch\b"),
+    re.compile(r"^git\s+pull\b"),
+    re.compile(r"^git\s+add\b"),
+    re.compile(r"^git\s+remote\b"),
+    re.compile(r"^git\s+tag\b"),
     re.compile(r"^git\s+commit\b"),
     re.compile(r"^git\s+push\b(?!.*--force)"),
     re.compile(r"^git\s+checkout\s+-b\s+"),

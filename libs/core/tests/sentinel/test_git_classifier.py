@@ -21,6 +21,15 @@ class TestGitOperationClassifier:
             "git add .",
             "git branch -a",
             "git clone https://github.com/test/repo",
+            "git blame src/main.py",
+            "git reflog show HEAD",
+            "git describe --tags",
+            "git shortlog -sn",
+            "git rev-list --count HEAD",
+            "git stash push -m 'wip'",
+            "git stash pop",
+            "git stash list",
+            "git stash apply",
         ]
         for cmd in safe_commands:
             assert self.classifier.classify(cmd) == GitSafety.SAFE, f"'{cmd}' should be safe"
@@ -32,18 +41,21 @@ class TestGitOperationClassifier:
             "git reset --hard HEAD~3",
             "git rebase -i HEAD~5",
             "git clean -fd",
+            "git clean -n",
             "git branch -D feature/old",
             "git checkout .",
             "git restore .",
+            "git restore src/main.py",
+            "git restore --staged file.py",
+            "git config user.email foo@bar.com",
+            "git init",
+            "git worktree add /tmp/work",
         ]
         for cmd in dangerous_commands:
             assert self.classifier.classify(cmd) == GitSafety.DANGEROUS, f"'{cmd}' should be dangerous"
 
     def test_non_git_command_is_safe(self) -> None:
         assert self.classifier.classify("echo hello") == GitSafety.SAFE
-
-    def test_unknown_git_command_needs_approval(self) -> None:
-        assert self.classifier.classify("git worktree add /tmp/work") == GitSafety.NEEDS_APPROVAL
 
 
 class TestGitClassifierEvaluate:
