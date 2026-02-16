@@ -1,31 +1,38 @@
 services:
   vizier-daemon:
+    image: ghcr.io/stranma/vizier:latest
     build: .
     container_name: vizier-daemon
     restart: always
     env_file:
-      - .env
+      - /opt/vizier/config/.env
     environment:
       - VIZIER_ROOT=/opt/vizier
     volumes:
+      - /opt/vizier/config/config.yaml:/opt/vizier/config.yaml:ro
+      - /opt/vizier/config/projects.yaml:/opt/vizier/projects.yaml
       - vizier-workspaces:/opt/vizier/workspaces
       - vizier-reports:/opt/vizier/reports
       - vizier-ea:/opt/vizier/ea
       - vizier-security:/opt/vizier/security
       - vizier-logs:/opt/vizier/logs
-      - vizier-config:/opt/vizier
     ports:
       - "8080:8080"
-    depends_on:
-      langfuse-db:
-        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
 
   langfuse:
     image: langfuse/langfuse:2
     container_name: vizier-langfuse
     restart: always
+    profiles:
+      - observability
     env_file:
-      - .env
+      - /opt/vizier/config/.env
     environment:
       - DATABASE_URL=postgresql://langfuse:langfuse@langfuse-db:5432/langfuse
       - NEXTAUTH_URL=http://localhost:3000
@@ -41,6 +48,8 @@ services:
     image: postgres:15-alpine
     container_name: vizier-langfuse-db
     restart: always
+    profiles:
+      - observability
     environment:
       - POSTGRES_USER=langfuse
       - POSTGRES_PASSWORD=langfuse
@@ -59,5 +68,4 @@ volumes:
   vizier-ea:
   vizier-security:
   vizier-logs:
-  vizier-config:
   langfuse-pgdata:

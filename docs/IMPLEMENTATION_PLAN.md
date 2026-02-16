@@ -16,6 +16,7 @@
 | 9 | Documents Plugin | Complete | `feat/plugin-documents` |
 | 10 | Scout Agent | Complete | `feat/scout-agent` |
 | 11 | Production Wiring & CD Pipeline | Complete | `feat/production-wiring` |
+| 12 | Docker Deployment | In Progress | `feat/docker-deploy` |
 
 ---
 
@@ -689,6 +690,43 @@ Phase 11 wired existing but unused components into the daemon startup flow:
 | Deployment docs | DEPLOYMENT.md | 0 |
 
 Code review (APPROVE, 0 critical): Fixed S3 suggestion (graceful handling of invalid TELEGRAM_SULTAN_CHAT_ID format). 66 daemon tests, 32 CLI tests, 737 core tests -- all passing, 0 lint/pyright errors.
+
+### Phase Completion Steps
+
+After implementation, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md).
+
+---
+
+## Phase 12: Docker Deployment
+
+**Goal:** Switch from bare-metal systemd deployment to Docker. Fix critical bugs in existing Dockerfile and docker-compose.yml that prevented them from working.
+
+### Bugs Fixed
+- **Volume overlay destroyed config files:** `docker-compose.yml` mounted `vizier-config` named volume over `/opt/vizier`, hiding config files on first run
+- **Langfuse dependency blocked startup:** `depends_on: langfuse-db` prevented daemon from starting without PostgreSQL
+- **No healthcheck:** Docker had no way to monitor daemon health
+- **No gh CLI:** Scout agent GitHub searches silently failed
+- **Heartbeat script required file access:** Didn't work from outside container
+
+### Components
+- [x] `scripts/entrypoint.sh` -- init-on-first-run wrapper with exec for PID 1 signal handling
+- [x] `Dockerfile` -- multi-stage build, gh CLI, curl, HEALTHCHECK directive
+- [x] `docker-compose.yml` -- bind mounts for config, named volumes for data, langfuse behind `observability` profile
+- [x] `.github/workflows/deploy.yml` -- GHCR build+push then SSH docker pull+restart
+- [x] `scripts/check_heartbeat.sh` -- HTTP health endpoint instead of file read
+- [x] `scripts/migrate_to_docker.sh` -- one-time systemd-to-Docker migration
+- [x] `docs/DEPLOYMENT.md` -- Docker-first documentation with volume design rationale
+
+### Acceptance Criteria
+- [x] `docker compose up -d` starts only vizier-daemon (not langfuse) by default
+- [x] Config files are accessible via bind mounts from host
+- [x] Named volumes persist runtime data across container restarts
+- [x] HEALTHCHECK directive monitors daemon via HTTP endpoint
+- [x] CD pipeline builds image, pushes to GHCR, deploys via SSH
+- [x] `check_heartbeat.sh` works via HTTP (Docker and bare-metal)
+- [x] Migration script handles systemd stop, config copy, container start
+- [x] gh CLI available in container for Scout agent
+- [x] Entrypoint runs `vizier init` on first boot when config.yaml missing
 
 ### Phase Completion Steps
 
