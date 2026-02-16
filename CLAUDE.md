@@ -121,6 +121,15 @@ uv run pyright                          # Type check
 
 ---
 
+## Shell Command Style
+
+- **Always use absolute paths** instead of `cd /path && command` chains
+- **Use `TaskOutput` tool** to read background task results instead of `tail`/`cat` on task output files
+- **Do not use `git -C <path>`** -- run git commands from the working directory
+- Reason: Claude Code's shell-operator protection blocks chained `&&` commands from matching permission rules
+
+---
+
 ## Code Style
 
 Configuration lives in root `pyproject.toml`:
@@ -131,6 +140,34 @@ Configuration lives in root `pyproject.toml`:
 - **No special Unicode characters** in code or output -- use plain ASCII (`[x]`, `[OK]`, `PASS`, `FAIL`)
 - Use types everywhere possible
 - No obvious inline comments
+
+---
+
+## Documentation Requirements
+
+Documentation is part of the implementation, not an afterthought. Write docs as you code, not after.
+
+| What | Required Documentation |
+|------|----------------------|
+| Public API functions/classes | Docstring with parameter descriptions and return type |
+| Non-obvious algorithmic decisions | Inline comment explaining WHY, not WHAT |
+| Significant trade-offs | Decision record in IMPLEMENTATION_PLAN.md |
+| Changed behavior | CHANGELOG entry describing user impact |
+
+### Decision Records
+
+When making a non-obvious architectural or implementation choice, record it:
+
+- **When**: The decision has alternatives worth documenting
+- **Format**: Add to the Decisions & Trade-offs table in `docs/IMPLEMENTATION_PLAN.md`
+- **What to include**: The decision, alternatives considered, rationale for the choice
+
+### What Does NOT Need Documentation
+
+- Self-explanatory code (e.g., `def get_user_by_id(user_id: str) -> User`)
+- Internal helper functions with clear names
+- Standard patterns already documented in this file
+- Implementation details that follow obvious conventions
 
 ---
 
@@ -183,9 +220,10 @@ This ensures continuity and prevents duplicated or missed work.
 1. **Create code structure** -- Define classes, functions, constants with proper type annotations
 2. **Write unit tests** -- Test the interface and expected behavior before implementation
 3. **Write implementation** -- Implement the actual functionality to pass tests
-4. **Iterate** -- If not finished, return to step 2 for next increment
-5. **Run integration tests** -- Validate complete workflow after unit tests pass
-6. **Run Phase Completion Checklist** -- See below. This is NOT optional.
+4. **Document as you go** -- Add docstrings to public APIs, inline comments for non-obvious logic, decision records for trade-offs
+5. **Iterate** -- If not finished, return to step 2 for next increment
+6. **Run integration tests** -- Validate complete workflow after unit tests pass
+7. **Run Phase Completion Checklist** -- See below. This is NOT optional.
 
 **Key Principles:**
 - Structure first, tests second, implementation third
@@ -223,7 +261,7 @@ ask Claude to "use the [agent-name] agent" and it will delegate automatically.
 | 3b | `.claude/agents/test-coverage-validator.md` | `general-purpose` | Run tests, check coverage |
 | 3c | `.claude/agents/acceptance-criteria-validator.md` | `general-purpose` | Verify acceptance criteria |
 | 4 | Built-in `Plan` agent | `Plan` | Check implementation plan accuracy |
-| 5 | `.claude/agents/docs-updater.md` | `general-purpose` | Update IMPLEMENTATION_PLAN.md, CHANGELOG.md |
+| 5 | `.claude/agents/docs-updater.md` | `general-purpose` | Verify and update IMPLEMENTATION_PLAN.md, CHANGELOG.md |
 | 7 | `.claude/agents/pr-writer.md` | `general-purpose` | Generate PR description |
 | 9 | `.claude/agents/code-reviewer.md` | `general-purpose` | Independent code review |
 | 9 | `.claude/agents/review-responder.md` | `general-purpose` | Respond to automated reviewer comments |
@@ -299,8 +337,10 @@ Spawn the following **three agents in parallel**. Gate on ALL completing success
 - Update plan document if discrepancies found
 - Verify all phase deliverables are actually complete
 
-### 5. Documentation Update Agent (`.claude/agents/docs-updater.md`) -- CRITICAL
+### 5. Documentation Verification Agent (`.claude/agents/docs-updater.md`) -- CRITICAL
 **This step is often missed. Invoke via Task tool: `subagent_type: "general-purpose"` with the docs-updater system prompt.**
+
+Since documentation should be written during implementation (TDD step 4), this step **verifies and finalizes** rather than creating from scratch.
 
 The agent should update:
 
@@ -323,6 +363,7 @@ The agent should update:
 ### 7. Create Pull Request (`.claude/agents/pr-writer.md`)
 - Use the pr-writer agent (`subagent_type: "general-purpose"` with the agent's system prompt) to generate the PR description
 - Create a PR from the feature branch to the base branch using `gh pr create`
+- Print the PR URL to the user after creation
 - Verify the PR has no merge conflicts before proceeding
 - If working directly on the base branch, skip this step
 
@@ -410,6 +451,13 @@ If a step fails, follow this decision tree:
 **DO include:** New API fields/parameters, changed defaults, performance improvements, breaking changes with migration steps, new features.
 
 **DON'T include:** Internal refactoring, CI/CD changes, infrastructure updates (unless they affect API), test improvements.
+
+### Changelog Entry Quality
+
+Good: "Users can now filter search results by date range using the --since and --until flags"
+Bad: "Added date filter"
+
+Entries must describe **user impact**, not just name the feature or file changed.
 
 ---
 
