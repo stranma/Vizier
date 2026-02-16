@@ -63,10 +63,18 @@ jobs:
           username: vizier
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            docker login ghcr.io -u "${{ github.actor }}" --password-stdin <<< "${{ secrets.GITHUB_TOKEN }}"
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
             docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             cd /opt/vizier
             docker compose up -d
-            sleep 10
-            curl -f http://localhost:8080/health
+            for i in $(seq 1 30); do
+              if curl -sf http://localhost:8080/health >/dev/null; then
+                echo "Health check passed"
+                exit 0
+              fi
+              echo "Waiting for health endpoint (attempt $i/30)..."
+              sleep 2
+            done
+            echo "Health check failed after 60 seconds"
+            exit 1

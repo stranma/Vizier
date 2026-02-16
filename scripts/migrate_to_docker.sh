@@ -32,7 +32,7 @@ mkdir -p "${CONFIG_DIR}"
 
 for f in config.yaml projects.yaml .env; do
     if [ -f "${VIZIER_ROOT}/${f}" ]; then
-        cp "${VIZIER_ROOT}/${f}" "${CONFIG_DIR}/${f}"
+        cp -p "${VIZIER_ROOT}/${f}" "${CONFIG_DIR}/${f}"
         echo "  Copied ${f}"
     else
         echo "  WARNING: ${VIZIER_ROOT}/${f} not found"
@@ -69,9 +69,17 @@ docker compose up -d
 
 # 7. Verify health
 echo "[7/7] Waiting for health endpoint..."
-sleep 10
+HEALTHY=false
+for i in $(seq 1 30); do
+    if curl -sf http://localhost:8080/health >/dev/null; then
+        HEALTHY=true
+        break
+    fi
+    echo "  Waiting (attempt $i/30)..."
+    sleep 2
+done
 
-if curl -sf http://localhost:8080/health >/dev/null; then
+if [ "${HEALTHY}" = true ]; then
     echo ""
     echo "=== Migration complete ==="
     echo "Daemon is healthy. Next steps:"

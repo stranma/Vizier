@@ -16,13 +16,13 @@ RESPONSE=$(curl -sf "${HEALTH_URL}" 2>/dev/null) || {
     exit 2
 }
 
-# Parse heartbeat age from the JSON response
-AGE=$(python3 -c "
+# Parse heartbeat age from the JSON response (read via stdin to avoid injection)
+AGE=$(echo "${RESPONSE}" | python3 -c "
 import json, sys
 from datetime import datetime, timezone
 
 try:
-    data = json.loads('''${RESPONSE}''')
+    data = json.load(sys.stdin)
     ts_str = data.get('heartbeat', {}).get('timestamp') or data.get('timestamp')
     if not ts_str:
         print('ERROR: No timestamp in response', file=sys.stderr)

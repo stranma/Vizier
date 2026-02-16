@@ -10,7 +10,10 @@ VIZIER_ROOT="${VIZIER_ROOT:-/opt/vizier}"
 
 if [ ! -f "${VIZIER_ROOT}/config.yaml" ]; then
     echo "First run detected -- initializing ${VIZIER_ROOT}"
-    uv run vizier init --root "${VIZIER_ROOT}"
+    if ! uv run vizier init --root "${VIZIER_ROOT}"; then
+        echo "ERROR: vizier init failed"
+        exit 1
+    fi
 fi
 
 exec uv run vizier "$@"
