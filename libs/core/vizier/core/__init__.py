@@ -39,6 +39,8 @@ from vizier.core.plugins.discovery import discover_plugins, load_plugin, registe
 from vizier.core.plugins.templates import PromptTemplateRenderer
 from vizier.core.plugins.tool_registry import ToolRegistry
 from vizier.core.quality_gate.runtime import QualityGateRuntime
+from vizier.core.retrospective.analysis import FailurePattern, RetrospectiveAnalysis, SpecMetrics
+from vizier.core.retrospective.runtime import RetrospectiveRuntime
 from vizier.core.sentinel.engine import SentinelEngine
 from vizier.core.sentinel.policies import PolicyDecision, SentinelResult, ToolCallRequest
 from vizier.core.testing.vcr import VCRMode, VizierVCR
@@ -61,6 +63,7 @@ __all__ = [
     "BaseWorker",
     "CycleReport",
     "EventType",
+    "FailurePattern",
     "FileEvent",
     "FileSystemWatcher",
     "GraduatedRetry",
@@ -75,6 +78,8 @@ __all__ = [
     "PromptTemplateRenderer",
     "QualityGateRuntime",
     "Reconciler",
+    "RetrospectiveAnalysis",
+    "RetrospectiveRuntime",
     "RetryAction",
     "RetryThreshold",
     "RunResult",
@@ -85,6 +90,7 @@ __all__ = [
     "SpecComplexity",
     "SpecFrontmatter",
     "SpecLifecycle",
+    "SpecMetrics",
     "SpecStatus",
     "StateManager",
     "SubSpecDefinition",

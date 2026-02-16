@@ -25,6 +25,7 @@ from vizier.core.models.config import ProjectConfig, ServerConfig
 from vizier.core.plugins.discovery import load_plugin
 from vizier.core.plugins.tool_registry import ToolRegistry
 from vizier.core.quality_gate.runtime import QualityGateRuntime
+from vizier.core.retrospective.runtime import RetrospectiveRuntime
 from vizier.core.sentinel.engine import SentinelEngine
 from vizier.core.worker.runtime import WorkerRuntime
 
@@ -202,6 +203,43 @@ class AgentRunner:
         except Exception as e:
             logger.exception("Architect run failed")
             return RunResult(agent_type="architect", spec_id="unknown", error=str(e))
+
+    def run_retrospective(self) -> RunResult:
+        """Run a Retrospective agent to analyze failures and generate learnings.
+
+        :returns: RunResult with outcome.
+        """
+        try:
+            context = AgentContext.load_from_disk(self._project_root)
+
+            project_config = ProjectConfig(**context.config) if context.config else ProjectConfig()
+            router = ModelRouter(
+                server_config=self._server_config,
+                project_config=project_config,
+            )
+
+            project_name = context.config.get("project", "default")
+            log_path = f"reports/{project_name}/agent-log.jsonl"
+            agent_logger = AgentLogger(log_path)
+
+            runtime = RetrospectiveRuntime(
+                context=context,
+                model_router=router,
+                logger_instance=agent_logger,
+                llm_callable=self._llm,
+                agent_log_path=log_path,
+            )
+
+            result = runtime.run_analysis()
+            return RunResult(
+                agent_type="retrospective",
+                spec_id="",
+                result=result,
+            )
+
+        except Exception as e:
+            logger.exception("Retrospective run failed")
+            return RunResult(agent_type="retrospective", spec_id="", error=str(e))
 
     def _load_plugin(self, context: AgentContext) -> Any:
         plugin_name = context.config.get("plugin", "software")
