@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir uv
 
 WORKDIR /app
 
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml ./
 COPY libs/ libs/
 COPY apps/ apps/
 COPY plugins/ plugins/
