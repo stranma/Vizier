@@ -15,7 +15,7 @@
 | 8 | Software Plugin (end-to-end) | Complete | `feature/plugin-software` |
 | 9 | Documents Plugin | Complete | `feat/plugin-documents` |
 | 10 | Scout Agent | Complete | `feat/scout-agent` |
-| 11 | Production Wiring & CD Pipeline | In Progress | `feat/production-wiring` |
+| 11 | Production Wiring & CD Pipeline | Complete | `feat/production-wiring` |
 
 ---
 
@@ -673,6 +673,22 @@ All architecture documentation updated to include Scout agent:
 - [x] CD pipeline triggers on successful test run against master
 - [x] CD pipeline SSHes into server and restarts the service
 - [x] Heartbeat monitoring cron documented in DEPLOYMENT.md
+
+### Completion Notes
+
+**Completed:** 2026-02-16 | **Branch:** `feat/production-wiring`
+
+Phase 11 wired existing but unused components into the daemon startup flow:
+
+| Component | Files Changed | New Tests |
+|-----------|--------------|-----------|
+| HealthCheckServer lifecycle | process.py | 2 |
+| TelegramTransport lifecycle + config resolution | process.py | 5 |
+| Startup status lines | daemon_commands.py | 0 |
+| CD pipeline | deploy.yml (new) | 0 |
+| Deployment docs | DEPLOYMENT.md | 0 |
+
+Code review (APPROVE, 0 critical): Fixed S3 suggestion (graceful handling of invalid TELEGRAM_SULTAN_CHAT_ID format). 66 daemon tests, 32 CLI tests, 737 core tests -- all passing, 0 lint/pyright errors.
 
 ### Phase Completion Steps
 
