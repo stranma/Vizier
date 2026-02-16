@@ -24,6 +24,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **D22: Reconciliation interval** -- Default changed from 60 seconds to 15 seconds (recommended 10-30s). Shorter intervals compensate for ReadDirectoryChangesW unreliability on Windows.
 - **D25: Repeated action detection** -- If Worker performs identical tool call 3+ consecutive times, escalate immediately to next retry threshold. Catches stuck loops that diverse-failure retry logic misses.
 
+## [0.8.0] - 2026-02-16
+
+Phase 7: Daemon + Multi-project + Deployment. Server daemon and deployment infrastructure.
+
+### Added
+
+- **VizierDaemon** -- Asyncio event loop managing multiple project Pasha orchestrators. Per-project workspace management with concurrent agent limits. Heartbeat dead-man switch writes heartbeat.json every reconciliation cycle. Graceful shutdown via SIGINT/SIGTERM signal handlers. Single reconciliation cycle mode for testing.
+- **DaemonConfig** -- Server-wide configuration with YAML loading and environment variable substitution (`${VAR}` syntax). Configurable: vizier_root, max_concurrent_agents, reconciliation_interval, monthly_budget, health_check_port, log rotation, progressive autonomy stage.
+- **ProjectRegistry** -- YAML-persisted project registration with add/remove/get/active_projects operations. Atomic writes via os.replace(). Per-project plugin and active/inactive status.
+- **TelegramTransport** -- Thin aiogram 3.x adapter connecting Sultan's Telegram messages to EA runtime. User ID allowlist for authorization. Message splitting for Telegram's 4096-char limit. Document handling with captions.
+- **HealthCheckServer** -- Minimal asyncio HTTP server returning daemon status as JSON on GET /health. Configurable port and host.
+- **CLI daemon commands** -- `vizier init` (create directory structure), `vizier register` (add project), `vizier start` (launch daemon), `vizier stop` (graceful shutdown via PID), `vizier status` (show daemon and project state).
+- **Deployment infrastructure** -- Dockerfile (Python 3.11 + uv + git), docker-compose.yml (vizier-daemon + Langfuse + PostgreSQL), systemd unit file (Type=simple, Restart=always), server setup script, heartbeat monitoring script, deployment documentation.
+- **Progressive autonomy config (D44)** -- Four-stage configuration (Shadow/Gated/Supervised/Autonomous) with stage history logging. Default Stage 1 (Shadow).
+
 ## [0.7.0] - 2026-02-16
 
 Phase 6: EA + Communication. Sultan-facing Executive Assistant with full communication infrastructure.
