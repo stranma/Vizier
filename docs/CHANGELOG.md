@@ -24,6 +24,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **D22: Reconciliation interval** -- Default changed from 60 seconds to 15 seconds (recommended 10-30s). Shorter intervals compensate for ReadDirectoryChangesW unreliability on Windows.
 - **D25: Repeated action detection** -- If Worker performs identical tool call 3+ consecutive times, escalate immediately to next retry threshold. Catches stuck loops that diverse-failure retry logic misses.
 
+## [0.5.0] - 2026-02-16
+
+Phase 4: Pasha + Orchestration. Per-project agent lifecycle management.
+
+### Added
+
+- **PashaOrchestrator** -- Event-driven per-project orchestrator with periodic reconciliation. Manages full spec lifecycle: DRAFT specs trigger Architect, READY specs trigger Worker, REVIEW specs trigger Quality Gate. Supports session mode for direct Sultan interaction with summary writing to `ea/sessions/`.
+- **SubprocessManager** -- Asyncio-based agent subprocess management with `Semaphore` concurrency limiting, configurable per-agent timeout, crash detection, and graceful shutdown. Tracks active and completed agent processes.
+- **ProgressReporter** -- Writes `status.json` (project overview), cycle reports (`YYYY-MM-DD-cycle-NNN.md`), and escalation files (`escalations/YYYY-MM-DD-spec-id.md`). All writes use atomic write-then-rename pattern.
+- **Graduated retry orchestration** -- PashaOrchestrator processes REJECTED specs through graduated retry: normal retry, model bump (retry 3), Pasha alert (retry 5), Architect re-decomposition (retry 7), STUCK (retry 10). STUCK specs generate escalation files.
+- **State-age monitoring** -- Detects specs stuck IN_PROGRESS beyond configurable threshold (default 30 min) with no active agent subprocess. Generates escalation files for EA pickup.
+- **Graceful shutdown** -- Transitions IN_PROGRESS specs to INTERRUPTED, signals subprocess manager to reject new spawns. INTERRUPTED specs re-queued as READY on restart.
+
 ## [0.4.0] - 2026-02-16
 
 Phase 3: Architect. Task decomposition agent with sub-spec generation.

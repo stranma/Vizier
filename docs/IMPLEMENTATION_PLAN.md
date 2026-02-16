@@ -8,7 +8,7 @@
 | 1 | Core Runtime + Plugin Framework + Sentinel | Complete | `feature/core-runtime` |
 | 2 | Inner Loop (Worker + Quality Gate) | Complete | `feature/inner-loop` |
 | 3 | Architect | Complete | `feature/architect` |
-| 4 | Pasha + Orchestration | Pending | `feature/manager` |
+| 4 | Pasha + Orchestration | Complete | `feature/pasha` |
 | 5 | Retrospective | Pending | `feature/retrospective` |
 | 6 | EA + Communication | Pending | `feature/ea` |
 | 7 | Daemon + Multi-project + Deployment | Pending | `feature/daemon` |
@@ -224,38 +224,56 @@ Key features: LLM response parsing into sub-specs, parent->child relationships, 
 **Goal:** Build the per-project orchestrator that manages agent lifecycle and reports progress.
 
 ### Components
-- [ ] Pasha agent (event-driven loop + periodic reconciliation)
-- [ ] Plugin loading on project startup (reads config.yaml, loads correct plugin)
-- [ ] Agent spawning via subprocess (D37): asyncio subprocess launcher with timeout and crash detection
-- [ ] Agent concurrency limiting (asyncio.Semaphore for max_concurrent_agents)
-- [ ] Progress reporting (status.json, cycle reports)
-- [ ] Escalation logic (blockers -> reports/escalations/)
-- [ ] Worker/Quality Gate pipeline (Worker finishes -> Quality Gate starts)
-- [ ] Graduated retry orchestration (model bumping, Pasha review, Architect re-decomposition at thresholds)
-- [ ] Graceful shutdown (IN_PROGRESS specs -> INTERRUPTED, kill running agent subprocesses)
-- [ ] Spec state-age monitoring: Pasha checks `time_in_state` during reconciliation, detects silently stuck specs, plugin-configurable thresholds
+- [x] Pasha agent (event-driven loop + periodic reconciliation)
+- [x] Plugin loading on project startup (reads config.yaml, loads correct plugin)
+- [x] Agent spawning via subprocess (D37): asyncio subprocess launcher with timeout and crash detection
+- [x] Agent concurrency limiting (asyncio.Semaphore for max_concurrent_agents)
+- [x] Progress reporting (status.json, cycle reports)
+- [x] Escalation logic (blockers -> reports/escalations/)
+- [x] Worker/Quality Gate pipeline (Worker finishes -> Quality Gate starts)
+- [x] Graduated retry orchestration (model bumping, Pasha review, Architect re-decomposition at thresholds)
+- [x] Graceful shutdown (IN_PROGRESS specs -> INTERRUPTED, kill running agent subprocesses)
+- [x] Spec state-age monitoring: Pasha checks `time_in_state` during reconciliation, detects silently stuck specs, plugin-configurable thresholds
 - [ ] Langfuse integration (D45): configure LiteLLM success/failure callbacks, optional self-hosted Langfuse for trace-level agent debugging
-- [ ] Session mode: direct Sultan-Pasha back-and-forth for spec design and architecture discussions
-- [ ] Session summary writing (ea/sessions/YYYY-MM-DD-project.md after session ends)
+- [x] Session mode: direct Sultan-Pasha back-and-forth for spec design and architecture discussions
+- [x] Session summary writing (ea/sessions/YYYY-MM-DD-project.md after session ends)
 
 ### Acceptance Criteria
-- [ ] Pasha loads correct plugin based on project config
-- [ ] Pasha reacts to spec lifecycle events (new DRAFT, DONE, STUCK)
-- [ ] Reconciliation catches missed filesystem events
-- [ ] Pasha spawns Architect for DRAFT specs as subprocess
-- [ ] Pasha spawns plugin's Worker for READY specs as subprocess
-- [ ] Pasha spawns plugin's Quality Gate for REVIEW specs as subprocess
-- [ ] Agent subprocess crash is detected and handled (spec marked for retry, not left orphaned)
-- [ ] Agent subprocess timeout triggers kill and retry
-- [ ] Concurrency limit prevents more than N agents running simultaneously
-- [ ] Graduated retry: Pasha reviews at retry 5, triggers Architect re-decomposition at retry 7
-- [ ] Progress reports written to reports/ directory
-- [ ] Blockers escalated to escalations/ directory
-- [ ] Graceful shutdown transitions IN_PROGRESS specs to INTERRUPTED and kills running subprocesses
-- [ ] Spec state-age monitoring: specs stuck in IN_PROGRESS beyond threshold (default 30 min) trigger warning log and agent subprocess health check
+- [x] Pasha loads correct plugin based on project config
+- [x] Pasha reacts to spec lifecycle events (new DRAFT, DONE, STUCK)
+- [x] Reconciliation catches missed filesystem events
+- [x] Pasha spawns Architect for DRAFT specs as subprocess
+- [x] Pasha spawns plugin's Worker for READY specs as subprocess
+- [x] Pasha spawns plugin's Quality Gate for REVIEW specs as subprocess
+- [x] Agent subprocess crash is detected and handled (spec marked for retry, not left orphaned)
+- [x] Agent subprocess timeout triggers kill and retry
+- [x] Concurrency limit prevents more than N agents running simultaneously
+- [x] Graduated retry: Pasha reviews at retry 5, triggers Architect re-decomposition at retry 7
+- [x] Progress reports written to reports/ directory
+- [x] Blockers escalated to escalations/ directory
+- [x] Graceful shutdown transitions IN_PROGRESS specs to INTERRUPTED and kills running subprocesses
+- [x] Spec state-age monitoring: specs stuck in IN_PROGRESS beyond threshold (default 30 min) trigger warning log and agent subprocess health check
 - [ ] Langfuse traces appear for agent invocations when Langfuse is configured (optional, system works without it)
-- [ ] Session mode: Sultan can connect to Pasha for extended conversation with full project context
-- [ ] Session summary written to ea/sessions/ when session ends
+- [x] Session mode: Sultan can connect to Pasha for extended conversation with full project context
+- [x] Session summary written to ea/sessions/ when session ends
+
+### Completion Notes
+
+**Completed:** 2026-02-16 | **Branch:** `feature/pasha`
+
+Phase 4 delivered the Pasha orchestrator with agent lifecycle management:
+
+| Component | Modules | Tests |
+|-----------|---------|-------|
+| PashaOrchestrator (event-driven loop, reconciliation, agent spawning) | 1 source | 19 |
+| SubprocessManager (asyncio concurrency, timeout, crash detection) | 1 source | 14 |
+| ProgressReporter (status.json, cycle reports, escalations) | 1 source | 14 |
+
+Key features: asyncio-based concurrency limiting via Semaphore, agent timeout with kill, graduated retry orchestration (REJECTED -> retry with model bump/re-decompose/STUCK), state-age monitoring for silently stuck specs, session mode with summary writing, graceful shutdown (IN_PROGRESS -> INTERRUPTED).
+
+Langfuse integration (D45) deferred -- it requires runtime configuration of LiteLLM callbacks and is better implemented when the daemon wires up the full pipeline. System works without it.
+
+**Totals:** 9 files changed (8 new + 1 modified), 392 core tests, 0 lint/pyright errors. 16/18 acceptance criteria verified as PASS, 2 deferred (Langfuse).
 
 ---
 
