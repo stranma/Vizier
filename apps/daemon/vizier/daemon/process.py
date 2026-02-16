@@ -223,7 +223,11 @@ class VizierDaemon:
         if not allowed_ids and self._secret_store is not None:
             raw = self._secret_store.get("TELEGRAM_SULTAN_CHAT_ID") or ""
             if raw:
-                allowed_ids = [int(x.strip()) for x in raw.split(",") if x.strip()]
+                try:
+                    allowed_ids = [int(x.strip()) for x in raw.split(",") if x.strip()]
+                except ValueError:
+                    logger.warning("Invalid TELEGRAM_SULTAN_CHAT_ID format, expected comma-separated integers")
+                    allowed_ids = []
 
         if not token:
             return None
