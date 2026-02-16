@@ -5,6 +5,7 @@ __version__ = "0.8.0"
 import click
 
 from vizier.cli.daemon_commands import daemon_init, daemon_register, daemon_start, daemon_status, daemon_stop
+from vizier.cli.secret_commands import secret
 from vizier.cli.spec_commands import spec
 
 
@@ -15,6 +16,7 @@ def main() -> None:
 
 
 main.add_command(spec)
+main.add_command(secret)
 main.add_command(daemon_init, "init")
 main.add_command(daemon_register, "register")
 main.add_command(daemon_start, "start")

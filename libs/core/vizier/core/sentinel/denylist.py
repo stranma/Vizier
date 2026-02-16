@@ -26,6 +26,14 @@ DANGEROUS_COMMAND_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"\b(sudo\s+)?dd\s+.*of=/dev/"),
     re.compile(r"\bmkfs\b"),
     re.compile(r"\bformat\s+[A-Z]:\b", re.IGNORECASE),
+    re.compile(r"\bprintenv\b"),
+    re.compile(r"(?<!\w)env\s*$"),
+    re.compile(r"(?<!\w)env\s*\|"),
+    re.compile(r"(?<!\w)env\s*>"),
+    re.compile(r"\bos\.environ\b"),
+    re.compile(r"\bprocess\.env\b"),
+    re.compile(r"\$\{?[A-Z_]*(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)[A-Z_]*\}?"),
+    re.compile(r"%[A-Z_]*(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)[A-Z_]*%"),
 ]
 
 DANGEROUS_TOOLS: set[str] = {
