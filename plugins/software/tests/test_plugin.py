@@ -14,7 +14,6 @@ from vizier.core.plugins.criteria_loader import CriteriaLibraryLoader
 from vizier.core.plugins.discovery import clear_registry, discover_plugins, register_plugin
 from vizier.plugins.software.plugin import (
     ARCHITECT_GUIDE,
-    CRITERIA_LIBRARY,
     QUALITY_GATE_PROMPT,
     WORKER_PROMPT,
     SoftwareCoder,
@@ -106,9 +105,10 @@ class TestSoftwarePlugin:
         assert "Medium" in guide
         assert "High" in guide
 
-    def test_criteria_library(self, plugin: SoftwarePlugin) -> None:
+    def test_criteria_library_loaded_from_files(self, plugin: SoftwarePlugin) -> None:
         library = plugin.get_criteria_library()
-        assert library == CRITERIA_LIBRARY
+        assert len(library) == 5
+        assert all(len(v) > 0 for v in library.values())
 
     def test_criteria_library_has_all_entries(self, plugin: SoftwarePlugin) -> None:
         library = plugin.get_criteria_library()
@@ -328,5 +328,6 @@ class TestPromptTemplates:
     def test_criteria_library_keys_match_files(self) -> None:
         criteria_dir = Path(__file__).parent.parent / "vizier" / "plugins" / "software" / "criteria"
         file_keys = {f.stem for f in criteria_dir.glob("*.md")}
-        library_keys = set(CRITERIA_LIBRARY.keys())
+        plugin = SoftwarePlugin()
+        library_keys = set(plugin.get_criteria_library().keys())
         assert library_keys == file_keys
