@@ -115,7 +115,6 @@ Each sub-spec should specify:
 """
 
 
-
 class SoftwareCoder(BaseWorker):
     """Worker agent for software development tasks.
 
@@ -131,7 +130,7 @@ class SoftwareCoder(BaseWorker):
         return {
             "bash": {
                 "denied_patterns": [
-                    r"rm\s+-rf\s+/",
+                    r"rm\s+-rf\b",
                     r"sudo\s+",
                     r"curl.*\|\s*(?:ba)?sh",
                     r"wget.*\|\s*(?:ba)?sh",

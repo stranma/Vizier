@@ -26,7 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.8.0] - 2026-02-16
 
-Phase 7: Daemon + Multi-project + Deployment. Server daemon and deployment infrastructure.
+Phase 7: Daemon + Multi-project + Deployment. Phase 8: Software Plugin (end-to-end).
 
 ### Added
 
@@ -38,6 +38,12 @@ Phase 7: Daemon + Multi-project + Deployment. Server daemon and deployment infra
 - **CLI daemon commands** -- `vizier init` (create directory structure), `vizier register` (add project), `vizier start` (launch daemon), `vizier stop` (graceful shutdown via PID), `vizier status` (show daemon and project state).
 - **Deployment infrastructure** -- Dockerfile (Python 3.11 + uv + git), docker-compose.yml (vizier-daemon + Langfuse + PostgreSQL), systemd unit file (Type=simple, Restart=always), server setup script, heartbeat monitoring script, deployment documentation.
 - **Progressive autonomy config (D44)** -- Four-stage configuration (Shadow/Gated/Supervised/Autonomous) with stage history logging. Default Stage 1 (Shadow).
+- **SoftwareCoder** -- Worker agent for software development tasks. Allowed tools: file_read, file_write, bash, git. Security restrictions block destructive commands (rm -rf, sudo, pipe-to-shell, push --force, reset --hard). Uses branch_per_spec git strategy.
+- **SoftwareQualityGate** -- Quality gate with three automated checks: pytest (tests_pass), ruff check (lint_clean), pyright (type_check). LLM-based review validates correctness, test coverage, code quality, and edge cases.
+- **SoftwarePlugin** -- BasePlugin implementation registering SoftwareCoder and SoftwareQualityGate. Default model tiers: sonnet for worker/quality_gate, opus for architect.
+- **Architect guide** -- Software-specific decomposition patterns for feature implementation, bug fixes, and refactoring. Complexity guidelines (low/medium/high) with file count heuristics.
+- **Criteria library** -- Five criteria loaded from markdown files via CriteriaLibraryLoader: tests_pass, lint_clean, type_check, no_debug_artifacts, test_meaningfulness.
+- **Plugin entry point** -- Registered via `[project.entry-points."vizier.plugins"]` for automatic discovery.
 
 ## [0.7.0] - 2026-02-16
 
