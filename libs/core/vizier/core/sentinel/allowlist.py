@@ -24,7 +24,7 @@ SAFE_COMMAND_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"^git\s+remote\b"),
     re.compile(r"^git\s+tag\b"),
     re.compile(r"^git\s+commit\b"),
-    re.compile(r"^git\s+push\b(?!.*--force)"),
+    re.compile(r"^git\s+push\b(?!.*(-f\b|--force))"),
     re.compile(r"^git\s+checkout\s+-b\s+"),
     re.compile(r"^(uv\s+run\s+)?pytest\b"),
     re.compile(r"^(uv\s+run\s+)?ruff\s+(check|format)\b"),
