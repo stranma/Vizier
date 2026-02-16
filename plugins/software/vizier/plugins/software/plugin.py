@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from vizier.core.plugins.base_plugin import BasePlugin
 from vizier.core.plugins.base_quality_gate import BaseQualityGate
 from vizier.core.plugins.base_worker import BaseWorker
+from vizier.core.plugins.criteria_loader import CriteriaLibraryLoader
 
 if TYPE_CHECKING:
     from vizier.core.models.spec import Spec
+
+_CRITERIA_DIR = Path(__file__).parent / "criteria"
 
 
 WORKER_PROMPT = """\
@@ -110,30 +114,6 @@ Each sub-spec should specify:
 - Complexity estimate (low/medium/high)
 """
 
-CRITERIA_LIBRARY: dict[str, str] = {
-    "tests_pass": (
-        "All existing and new tests must pass when running the project's "
-        "test suite (e.g., `pytest`). No test regressions are acceptable."
-    ),
-    "lint_clean": (
-        "Code must pass the project's linter without errors or warnings "
-        "(e.g., `ruff check`). Auto-fixable issues should be fixed before review."
-    ),
-    "type_check": (
-        "Code must pass the project's type checker without errors "
-        "(e.g., `pyright`). All new functions and methods must have type annotations."
-    ),
-    "no_debug_artifacts": (
-        "No debug prints (print(), console.log), breakpoints (breakpoint(), debugger), "
-        "or commented-out code blocks in the final implementation."
-    ),
-    "test_meaningfulness": (
-        "Tests must have meaningful assertions that validate actual behavior. "
-        "Smoke tests (just calling a function without asserting results), "
-        "tautological assertions (assert True), and tests that can never fail "
-        "are not acceptable."
-    ),
-}
 
 
 class SoftwareCoder(BaseWorker):
@@ -250,5 +230,6 @@ class SoftwarePlugin(BasePlugin):
         return ARCHITECT_GUIDE
 
     def get_criteria_library(self) -> dict[str, str]:
-        """Return the software criteria library."""
-        return CRITERIA_LIBRARY
+        """Return the software criteria library loaded from criteria/ markdown files."""
+        loader = CriteriaLibraryLoader(_CRITERIA_DIR)
+        return loader.load()
