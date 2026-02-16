@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Sentinel permissions alignment** -- Broadened denylist to block `git clean` (all variants), `git config`, `git init`, `git restore`, `git worktree`, and `sudo`. Added read-only git commands (`blame`, `reflog`, `describe`, `shortlog`, `rev-list`, `stash`, `fetch`, `pull`, `add`, `remote`, `tag`) to allowlist for zero-cost approval. Aligned git classifier safe/dangerous patterns. Expanded SoftwareCoder `tool_restrictions` to cover `push -f`, `reset --hard`, `clean`, `config`, `init`, `restore`, `rebase -i`, `branch -D`, `checkout .`. Autonomous agents now deny commands that require human confirmation in the IDE.
+
 ### Added
 
 - **D40: Atomic writes via os.replace()** -- All spec file writes now use write-then-rename pattern for crash safety. Prevents half-written files on crash or power loss. Implemented in `spec_io.py` with tests.
