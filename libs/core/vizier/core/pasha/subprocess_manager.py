@@ -91,6 +91,15 @@ class SubprocessManager:
         """
         return await self._spawn("quality_gate", spec_path, spec_id, diff=diff)
 
+    async def spawn_scout(self, spec_path: str, spec_id: str) -> RunResult:
+        """Spawn a Scout agent with concurrency limiting and timeout.
+
+        :param spec_path: Path to the spec file.
+        :param spec_id: Spec identifier for tracking.
+        :returns: RunResult from the agent.
+        """
+        return await self._spawn("scout", spec_path, spec_id)
+
     async def spawn_architect(self, spec_path: str, spec_id: str) -> RunResult:
         """Spawn an Architect agent with concurrency limiting and timeout.
 
@@ -161,6 +170,8 @@ class SubprocessManager:
             )
         if agent_type == "architect":
             return await loop.run_in_executor(None, lambda: self._runner.run_architect(spec_path))
+        if agent_type == "scout":
+            return await loop.run_in_executor(None, lambda: self._runner.run_scout(spec_path))
 
         return RunResult(agent_type=agent_type, spec_id=spec_id, error=f"Unknown agent type: {agent_type}")
 

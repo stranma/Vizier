@@ -35,15 +35,22 @@ EA / VIZIER (singleton, always-on — monolithic Opus-tier agent, Claude Code pa
   |   |
   |   PASHA (orchestration, event-driven)
   |   |  - Owns project lifecycle
-  |   |  - Delegates to Architect
+  |   |  - Delegates to Scout, then Architect
   |   |  - Writes progress reports
   |   |  - Escalates blockers to EA
   |   |
+  |   SCOUT (research, sonnet-tier)
+  |   |  - Researches prior art for DRAFT specs
+  |   |  - Searches GitHub, PyPI, npm for existing solutions
+  |   |  - Writes research.md report with recommendations
+  |   |  - Deterministic triage: SKIP (bugfix/refactor) or RESEARCH (feature)
+  |   |
   |   ARCHITECT (decomposition, strongest model)
-  |   |  - Reads codebase / project context
+  |   |  - Reads codebase / project context / research.md
   |   |  - Uses plugin's decomposition patterns
   |   |  - Writes detailed specs with acceptance criteria
   |   |  - References plugin's criteria library
+  |   |  - Leverages Scout's findings (e.g., use existing library)
   |   |
   |   WORKER (plugin: SoftwareCoder)
   |   |  - Ralph-style: fresh context, one spec, exit
@@ -345,6 +352,7 @@ Default tiers (overridable per-plugin and per-project):
 |------|---------------|----------------|
 | EA (Vizier) | Opus-class | Server config only |
 | Pasha | Opus-class | Per-project config |
+| Scout | Sonnet-class | Per-project config, per-plugin default |
 | Architect | Opus-class | Per-project config, per-plugin default |
 | Worker | Sonnet-class | Per-project config, per-plugin default, per-spec complexity |
 | Quality Gate | Sonnet-class | Per-project config, per-plugin default |

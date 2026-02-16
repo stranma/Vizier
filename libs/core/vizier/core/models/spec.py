@@ -12,6 +12,7 @@ class SpecStatus(StrEnum):
     """Spec lifecycle states matching FILE_PROTOCOL.md."""
 
     DRAFT = "DRAFT"
+    SCOUTED = "SCOUTED"
     READY = "READY"
     IN_PROGRESS = "IN_PROGRESS"
     REVIEW = "REVIEW"
@@ -31,7 +32,8 @@ class SpecComplexity(StrEnum):
 
 
 VALID_TRANSITIONS: dict[SpecStatus, list[SpecStatus]] = {
-    SpecStatus.DRAFT: [SpecStatus.READY, SpecStatus.DECOMPOSED],
+    SpecStatus.DRAFT: [SpecStatus.SCOUTED, SpecStatus.READY, SpecStatus.DECOMPOSED],
+    SpecStatus.SCOUTED: [SpecStatus.DECOMPOSED],
     SpecStatus.READY: [SpecStatus.IN_PROGRESS],
     SpecStatus.IN_PROGRESS: [SpecStatus.REVIEW, SpecStatus.STUCK, SpecStatus.INTERRUPTED],
     SpecStatus.REVIEW: [SpecStatus.DONE, SpecStatus.REJECTED],

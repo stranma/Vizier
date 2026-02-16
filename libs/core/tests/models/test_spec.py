@@ -10,7 +10,18 @@ from vizier.core.models.spec import VALID_TRANSITIONS, Spec, SpecComplexity, Spe
 
 class TestSpecStatus:
     def test_all_statuses_exist(self) -> None:
-        expected = {"DRAFT", "READY", "IN_PROGRESS", "REVIEW", "DONE", "REJECTED", "STUCK", "DECOMPOSED", "INTERRUPTED"}
+        expected = {
+            "DRAFT",
+            "SCOUTED",
+            "READY",
+            "IN_PROGRESS",
+            "REVIEW",
+            "DONE",
+            "REJECTED",
+            "STUCK",
+            "DECOMPOSED",
+            "INTERRUPTED",
+        }
         assert {s.value for s in SpecStatus} == expected
 
     def test_status_is_str(self) -> None:
@@ -32,7 +43,10 @@ class TestValidTransitions:
             assert status in VALID_TRANSITIONS, f"Missing transitions for {status}"
 
     def test_draft_transitions(self) -> None:
-        assert set(VALID_TRANSITIONS[SpecStatus.DRAFT]) == {SpecStatus.READY, SpecStatus.DECOMPOSED}
+        assert set(VALID_TRANSITIONS[SpecStatus.DRAFT]) == {SpecStatus.SCOUTED, SpecStatus.READY, SpecStatus.DECOMPOSED}
+
+    def test_scouted_transitions(self) -> None:
+        assert VALID_TRANSITIONS[SpecStatus.SCOUTED] == [SpecStatus.DECOMPOSED]
 
     def test_ready_transitions(self) -> None:
         assert VALID_TRANSITIONS[SpecStatus.READY] == [SpecStatus.IN_PROGRESS]

@@ -213,6 +213,11 @@ class PashaOrchestrator:
         draft_specs = list_specs(str(self._root), status_filter=SpecStatus.DRAFT)
         for spec in draft_specs:
             if spec.file_path:
+                tasks.append(("scout", spec.file_path, spec.frontmatter.id))
+
+        scouted_specs = list_specs(str(self._root), status_filter=SpecStatus.SCOUTED)
+        for spec in scouted_specs:
+            if spec.file_path:
                 tasks.append(("architect", spec.file_path, spec.frontmatter.id))
 
         ready_specs = list_specs(str(self._root), status_filter=SpecStatus.READY)
@@ -273,13 +278,15 @@ class PashaOrchestrator:
     async def _spawn_agent(self, agent_type: str, spec_path: str, spec_id: str) -> RunResult:
         """Spawn an agent via the subprocess manager.
 
-        :param agent_type: Type of agent (architect, worker, quality_gate).
+        :param agent_type: Type of agent (scout, architect, worker, quality_gate).
         :param spec_path: Path to the spec file.
         :param spec_id: Spec identifier.
         :returns: RunResult from the agent.
         """
         logger.info("Spawning %s for spec %s", agent_type, spec_id)
 
+        if agent_type == "scout":
+            return await self._subprocess_mgr.spawn_scout(spec_path, spec_id)
         if agent_type == "architect":
             return await self._subprocess_mgr.spawn_architect(spec_path, spec_id)
         if agent_type == "worker":

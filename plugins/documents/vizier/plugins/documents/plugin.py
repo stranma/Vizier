@@ -80,6 +80,27 @@ Respond with a structured verdict:
 - FAIL: Issues found (list each with specific feedback)
 """
 
+SCOUT_GUIDE = """\
+## Document Research Guide
+
+When researching prior art for a document production task, focus on:
+
+### Templates and Style Guides
+- Search for document templates matching the requested format
+- Look for markdown/LaTeX templates in similar projects
+- Check for organizational style guides or branding assets
+
+### Tools and Libraries
+- Consider document generation libraries (python-docx, reportlab, pandoc)
+- Look for existing SaaS tools (Google Docs, Notion, Confluence)
+- Check for diagram/chart generation tools if visual content is needed
+
+### Content Sources
+- Search for authoritative references on the document's subject matter
+- Look for existing documents that cover similar topics for structure ideas
+- Check for data sources that could support the document's claims
+"""
+
 ARCHITECT_GUIDE = """\
 ## Document Task Decomposition Guide
 
@@ -207,7 +228,12 @@ class DocumentsPlugin(BasePlugin):
             "worker": "sonnet",
             "quality_gate": "sonnet",
             "architect": "opus",
+            "scout": "sonnet",
         }
+
+    def get_scout_guide(self) -> str:
+        """Return document-specific research guidance for the Scout agent."""
+        return SCOUT_GUIDE
 
     def get_architect_guide(self) -> str:
         """Return document-specific decomposition guidance."""
