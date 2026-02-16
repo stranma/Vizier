@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Scout agent for prior art research** -- New agent that runs on DRAFT specs before the Architect. Searches GitHub repos, PyPI, and npm for existing solutions, then writes a structured `research.md` report. Deterministic keyword classifier triages specs into RESEARCH or SKIP paths (zero LLM cost for bug fixes and refactors). Architect reads the report during decomposition, enabling sub-specs that leverage existing libraries instead of building from scratch.
+- **SCOUTED spec state** -- New lifecycle state between DRAFT and DECOMPOSED. DRAFT specs now route to Scout (not directly to Architect). Specs can still bypass Scout via direct DRAFT -> DECOMPOSED transition for backwards compatibility.
+- **Plugin scout guides** -- Software and Documents plugins provide domain-specific research guidance to the Scout agent (library evaluation criteria, template sources, etc.).
 - **Secret management system** -- SecretStore protocol with pluggable backends: Azure Key Vault (production) and .env file (dev/CI fallback). Composite store chains multiple backends with priority ordering. Daemon initializes the secret store at startup and sanitizes os.environ so agent subprocesses cannot read API keys from the environment.
 - **LLM callable factory** -- Creates closure-captured LLM callables where the API key lives in the closure scope, never in os.environ or agent context. Supports Anthropic, OpenAI, and Azure providers via `PROVIDER_KEY_MAP`.
 - **Secret check tool for agents** -- Agents can verify whether required secrets (e.g., GITHUB_TOKEN) are configured without ever seeing the actual value. Returns metadata only (exists, has_value).
