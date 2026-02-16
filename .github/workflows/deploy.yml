@@ -1,0 +1,29 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ["Tests"]
+    types: [completed]
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    environment: production
+
+    steps:
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: vizier
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /opt/vizier-repo
+            git fetch origin master
+            git reset --hard origin/master
+            uv sync --all-packages --no-dev
+            sudo systemctl restart vizier
+            sleep 5
+            sudo systemctl is-active vizier

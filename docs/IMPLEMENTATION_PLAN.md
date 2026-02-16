@@ -15,6 +15,7 @@
 | 8 | Software Plugin (end-to-end) | Complete | `feature/plugin-software` |
 | 9 | Documents Plugin | Complete | `feat/plugin-documents` |
 | 10 | Scout Agent | Complete | `feat/scout-agent` |
+| 11 | Production Wiring & CD Pipeline | Complete | `feat/production-wiring` |
 
 ---
 
@@ -649,3 +650,46 @@ All architecture documentation updated to include Scout agent:
 - [x] `docs/AGENT_SPECS.md` - Scout agent specification added (Role, Inputs, Outputs, Trigger, Key Behaviors)
 - [x] `docs/FILE_PROTOCOL.md` - State machine diagram updated to include SCOUTED state and transitions
 - [x] `docs/CHANGELOG.md` - Scout feature entry verified (already present)
+
+---
+
+## Phase 11: Production Wiring & CD Pipeline
+
+**Goal:** Wire existing HealthCheckServer and TelegramTransport into daemon startup, add CD pipeline, and document deployment.
+
+### Components
+- [x] HealthCheckServer lifecycle in `VizierDaemon.run()` and shutdown
+- [x] TelegramTransport lifecycle with config/secret-store resolution
+- [x] Startup log lines for health check URL and Telegram status
+- [x] GitHub Actions CD pipeline (`.github/workflows/deploy.yml`)
+- [x] Heartbeat cron monitoring documented in `docs/DEPLOYMENT.md`
+
+### Acceptance Criteria
+- [x] Health check endpoint responds at configured port when daemon is running
+- [x] Health check server stops cleanly on daemon shutdown
+- [x] Telegram bot starts when token is configured (from config or secret store)
+- [x] Telegram transport is skipped gracefully when no token available (log warning, no crash)
+- [x] Telegram transport stops cleanly on daemon shutdown
+- [x] CD pipeline triggers on successful test run against master
+- [x] CD pipeline SSHes into server and restarts the service
+- [x] Heartbeat monitoring cron documented in DEPLOYMENT.md
+
+### Completion Notes
+
+**Completed:** 2026-02-16 | **Branch:** `feat/production-wiring`
+
+Phase 11 wired existing but unused components into the daemon startup flow:
+
+| Component | Files Changed | New Tests |
+|-----------|--------------|-----------|
+| HealthCheckServer lifecycle | process.py | 2 |
+| TelegramTransport lifecycle + config resolution | process.py | 5 |
+| Startup status lines | daemon_commands.py | 0 |
+| CD pipeline | deploy.yml (new) | 0 |
+| Deployment docs | DEPLOYMENT.md | 0 |
+
+Code review (APPROVE, 0 critical): Fixed S3 suggestion (graceful handling of invalid TELEGRAM_SULTAN_CHAT_ID format). 66 daemon tests, 32 CLI tests, 737 core tests -- all passing, 0 lint/pyright errors.
+
+### Phase Completion Steps
+
+After implementation, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md).

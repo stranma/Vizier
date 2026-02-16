@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from vizier.daemon.config import DaemonConfig, ProjectEntry, ProjectRegistry
+from vizier.daemon.config import DaemonConfig, ProjectEntry, ProjectRegistry, TelegramConfig
 from vizier.daemon.process import Heartbeat, VizierDaemon, install_signal_handlers
 
 
@@ -198,6 +198,159 @@ class TestVizierDaemon:
 
         hb_path = Path(config.vizier_root) / config.heartbeat_path
         assert hb_path.exists()
+
+
+class TestHealthServerIntegration:
+    @pytest.fixture()
+    def vizier_dir(self, tmp_path: Any) -> Path:
+        root = tmp_path / "vizier"
+        root.mkdir()
+        (root / "workspaces").mkdir()
+        (root / "reports").mkdir()
+        (root / "ea").mkdir()
+        return root
+
+    @pytest.fixture()
+    def config(self, vizier_dir: Path) -> DaemonConfig:
+        return DaemonConfig(vizier_root=str(vizier_dir))
+
+    @pytest.fixture()
+    def registry(self, vizier_dir: Path) -> ProjectRegistry:
+        ws = vizier_dir / "workspaces" / "alpha"
+        ws.mkdir(parents=True, exist_ok=True)
+        (ws / ".vizier" / "specs").mkdir(parents=True)
+        reg = ProjectRegistry()
+        reg.add(ProjectEntry(name="alpha", local_path=str(ws)))
+        return reg
+
+    @pytest.mark.asyncio()
+    async def test_run_starts_health_server(self, config: DaemonConfig, registry: ProjectRegistry) -> None:
+        daemon = VizierDaemon(config, registry)
+        mock_health = MagicMock()
+        mock_health.start = AsyncMock()
+        mock_health.stop = AsyncMock()
+
+        with patch("vizier.daemon.process.HealthCheckServer", return_value=mock_health) as mock_cls:
+            asyncio.get_event_loop().call_later(0.05, daemon.shutdown)
+            await daemon.run()
+
+            mock_cls.assert_called_once_with(daemon, port=config.health_check_port)
+            mock_health.start.assert_awaited_once()
+            mock_health.stop.assert_awaited_once()
+
+    @pytest.mark.asyncio()
+    async def test_health_server_uses_config_port(self, vizier_dir: Path, registry: ProjectRegistry) -> None:
+        config = DaemonConfig(vizier_root=str(vizier_dir), health_check_port=9090)
+        daemon = VizierDaemon(config, registry)
+        mock_health = MagicMock()
+        mock_health.start = AsyncMock()
+        mock_health.stop = AsyncMock()
+
+        with patch("vizier.daemon.process.HealthCheckServer", return_value=mock_health) as mock_cls:
+            asyncio.get_event_loop().call_later(0.05, daemon.shutdown)
+            await daemon.run()
+
+            mock_cls.assert_called_once_with(daemon, port=9090)
+
+
+class TestTelegramIntegration:
+    @pytest.fixture()
+    def vizier_dir(self, tmp_path: Any) -> Path:
+        root = tmp_path / "vizier"
+        root.mkdir()
+        (root / "workspaces").mkdir()
+        (root / "reports").mkdir()
+        (root / "ea").mkdir()
+        return root
+
+    @pytest.fixture()
+    def registry(self, vizier_dir: Path) -> ProjectRegistry:
+        ws = vizier_dir / "workspaces" / "alpha"
+        ws.mkdir(parents=True, exist_ok=True)
+        (ws / ".vizier" / "specs").mkdir(parents=True)
+        reg = ProjectRegistry()
+        reg.add(ProjectEntry(name="alpha", local_path=str(ws)))
+        return reg
+
+    def test_resolve_telegram_config_from_config(self, vizier_dir: Path) -> None:
+        config = DaemonConfig(
+            vizier_root=str(vizier_dir),
+            telegram=TelegramConfig(token="bot-token-123", allowed_user_ids=[111, 222]),
+        )
+        daemon = VizierDaemon(config, ProjectRegistry())
+        result = daemon._resolve_telegram_config()
+        assert result is not None
+        token, ids = result
+        assert token == "bot-token-123"
+        assert ids == [111, 222]
+
+    def test_resolve_telegram_config_from_store(self, vizier_dir: Path) -> None:
+        config = DaemonConfig(vizier_root=str(vizier_dir))
+        store = MagicMock()
+        store.get = MagicMock(
+            side_effect=lambda key: {
+                "TELEGRAM_BOT_TOKEN": "store-token",
+                "TELEGRAM_SULTAN_CHAT_ID": "100,200",
+            }.get(key)
+        )
+        daemon = VizierDaemon(config, ProjectRegistry(), secret_store=store)
+        result = daemon._resolve_telegram_config()
+        assert result is not None
+        token, ids = result
+        assert token == "store-token"
+        assert ids == [100, 200]
+
+    def test_resolve_telegram_config_empty(self, vizier_dir: Path) -> None:
+        config = DaemonConfig(vizier_root=str(vizier_dir))
+        daemon = VizierDaemon(config, ProjectRegistry())
+        result = daemon._resolve_telegram_config()
+        assert result is None
+
+    @pytest.mark.asyncio()
+    async def test_run_starts_telegram_with_token(self, vizier_dir: Path, registry: ProjectRegistry) -> None:
+        config = DaemonConfig(
+            vizier_root=str(vizier_dir),
+            telegram=TelegramConfig(token="bot-token"),
+        )
+        daemon = VizierDaemon(config, registry)
+
+        mock_health = MagicMock()
+        mock_health.start = AsyncMock()
+        mock_health.stop = AsyncMock()
+
+        mock_telegram = MagicMock()
+        mock_telegram.setup = MagicMock()
+        mock_telegram.start = AsyncMock()
+        mock_telegram.stop = AsyncMock()
+
+        with (
+            patch("vizier.daemon.process.HealthCheckServer", return_value=mock_health),
+            patch("vizier.daemon.process.TelegramTransport", return_value=mock_telegram) as mock_tg_cls,
+        ):
+            asyncio.get_event_loop().call_later(0.05, daemon.shutdown)
+            await daemon.run()
+
+            mock_tg_cls.assert_called_once()
+            mock_telegram.setup.assert_called_once()
+            mock_telegram.stop.assert_awaited_once()
+
+    @pytest.mark.asyncio()
+    async def test_run_skips_telegram_without_token(self, vizier_dir: Path, registry: ProjectRegistry) -> None:
+        config = DaemonConfig(vizier_root=str(vizier_dir))
+        daemon = VizierDaemon(config, registry)
+
+        mock_health = MagicMock()
+        mock_health.start = AsyncMock()
+        mock_health.stop = AsyncMock()
+
+        with (
+            patch("vizier.daemon.process.HealthCheckServer", return_value=mock_health),
+            patch("vizier.daemon.process.TelegramTransport") as mock_tg_cls,
+        ):
+            asyncio.get_event_loop().call_later(0.05, daemon.shutdown)
+            await daemon.run()
+
+            mock_tg_cls.assert_not_called()
 
 
 class TestInstallSignalHandlers:
