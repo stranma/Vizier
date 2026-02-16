@@ -7,7 +7,7 @@
 | 0 | Project Scaffold | Complete | `master` |
 | 1 | Core Runtime + Plugin Framework + Sentinel | Complete | `feature/core-runtime` |
 | 2 | Inner Loop (Worker + Quality Gate) | Complete | `feature/inner-loop` |
-| 3 | Architect | Pending | `feature/architect` |
+| 3 | Architect | Complete | `feature/architect` |
 | 4 | Pasha + Orchestration | Pending | `feature/manager` |
 | 5 | Retrospective | Pending | `feature/retrospective` |
 | 6 | EA + Communication | Pending | `feature/ea` |
@@ -185,20 +185,37 @@ Integration tests: 8 end-to-end tests covering happy path, rejection/retry, stuc
 **Goal:** Build the task decomposition agent that reads project context and writes detailed specs using plugin's decomposition patterns.
 
 ### Components
-- [ ] Architect agent (reads project, writes sub-specs)
-- [ ] Plugin decomposition pattern loading (reads plugin's architect_guide.md)
-- [ ] Spec decomposition logic (parent -> children)
-- [ ] `@criteria/` snapshotting (resolve and embed criteria at spec creation)
-- [ ] Contract generation (domain-appropriate via plugin)
-- [ ] Complexity estimation
-- [ ] Criteria library integration (Architect references `@criteria/` in specs)
+- [x] Architect agent (reads project, writes sub-specs)
+- [x] Plugin decomposition pattern loading (reads plugin's architect_guide.md)
+- [x] Spec decomposition logic (parent -> children)
+- [x] `@criteria/` snapshotting (resolve and embed criteria at spec creation)
+- [x] Contract generation (domain-appropriate via plugin)
+- [x] Complexity estimation
+- [x] Criteria library integration (Architect references `@criteria/` in specs)
 
 ### Acceptance Criteria
-- [ ] Architect reads DRAFT spec and produces READY sub-specs
-- [ ] Sub-specs include: artifacts, contracts, acceptance criteria with snapshotted `@criteria/`
-- [ ] Architect uses plugin's decomposition patterns
-- [ ] Parent spec transitions to DECOMPOSED when children are created
-- [ ] Complexity field is set and used by model router for Worker
+- [x] Architect reads DRAFT spec and produces READY sub-specs
+- [x] Sub-specs include: artifacts, contracts, acceptance criteria with snapshotted `@criteria/`
+- [x] Architect uses plugin's decomposition patterns
+- [x] Parent spec transitions to DECOMPOSED when children are created
+- [x] Complexity field is set and used by model router for Worker
+
+### Completion Notes
+
+**Completed:** 2026-02-16 | **Branch:** `feature/architect`
+
+Phase 3 delivered the Architect agent with decomposition logic:
+
+| Component | Modules | Tests |
+|-----------|---------|-------|
+| Architect Runtime (ArchitectRuntime extending BaseAgent) | 2 source | 16 |
+| Decomposition Logic (parse, estimate, generate IDs) | 1 source | 15 |
+| AgentRunner integration (run_architect method) | 1 modified | 3 |
+| Integration tests (DRAFT -> DECOMPOSED -> Worker -> QG -> DONE) | 1 modified | 3+3 |
+
+Key features: LLM response parsing into sub-specs, parent->child relationships, DRAFT->DECOMPOSED and STUCK->DECOMPOSED transitions, complexity estimation heuristics, criteria library references in prompts.
+
+**Totals:** 10 files changed (6 new + 4 modified), 345 core tests, 0 lint/pyright errors. All 5 acceptance criteria verified as PASS.
 
 ---
 

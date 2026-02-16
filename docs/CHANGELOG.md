@@ -24,6 +24,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **D22: Reconciliation interval** -- Default changed from 60 seconds to 15 seconds (recommended 10-30s). Shorter intervals compensate for ReadDirectoryChangesW unreliability on Windows.
 - **D25: Repeated action detection** -- If Worker performs identical tool call 3+ consecutive times, escalate immediately to next retry threshold. Catches stuck loops that diverse-failure retry logic misses.
 
+## [0.4.0] - 2026-02-16
+
+Phase 3: Architect. Task decomposition agent with sub-spec generation.
+
+### Added
+
+- **Architect agent runtime** -- ArchitectRuntime extends BaseAgent to decompose DRAFT specs into READY sub-specs. Reads plugin's decomposition guide, criteria library, project constitution, and learnings. Parses structured LLM responses into sub-spec definitions.
+- **Decomposition logic** -- LLM response parser extracts sub-specs with title, complexity, priority, artifacts, and @criteria/ references. Includes complexity estimation heuristic and sub-spec ID generator.
+- **Re-decomposition support** -- STUCK specs (retry 7+) can be re-decomposed via the same Architect flow (STUCK -> DECOMPOSED).
+- **AgentRunner.run_architect()** -- Entry point for spawning Architect as a subprocess, completing the Worker/QualityGate/Architect trinity.
+- **Full lifecycle integration test** -- DRAFT -> Architect -> DECOMPOSED parent + READY children -> Worker -> QG -> DONE.
+
 ## [0.3.0] - 2026-02-16
 
 Phase 2: Inner Loop (Worker + Quality Gate). Delivered in 6 sub-phases (2a-2f), 34 files, 318 tests.
