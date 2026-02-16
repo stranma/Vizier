@@ -6,14 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Sentinel permissions alignment** -- Broadened denylist to block `git clean` (all variants), `git config`, `git init`, `git restore`, `git worktree`, and `sudo`. Added read-only git commands (`blame`, `reflog`, `describe`, `shortlog`, `rev-list`, `stash`, `fetch`, `pull`, `add`, `remote`, `tag`) to allowlist for zero-cost approval. Aligned git classifier safe/dangerous patterns. Expanded SoftwareCoder `tool_restrictions` to cover `push -f`, `reset --hard`, `clean`, `config`, `init`, `restore`, `rebase -i`, `branch -D`, `checkout .`. Autonomous agents now deny commands that require human confirmation in the IDE.
+
 ### Added
 
-- **Secret management system** -- SecretStore protocol with pluggable backends: Azure Key Vault (production) and .env file (dev/CI fallback). Composite store chains multiple backends with priority ordering. Daemon initializes the secret store at startup and sanitizes os.environ so agent subprocesses cannot read API keys from the environment.
-- **LLM callable factory** -- Creates closure-captured LLM callables where the API key lives in the closure scope, never in os.environ or agent context. Supports Anthropic, OpenAI, and Azure providers via `PROVIDER_KEY_MAP`.
-- **Secret check tool for agents** -- Agents can verify whether required secrets (e.g., GITHUB_TOKEN) are configured without ever seeing the actual value. Returns metadata only (exists, has_value).
-- **Tool executor with scoped secret injection** -- Subprocess execution that injects only the secrets explicitly allowed for each tool type (e.g., git gets GITHUB_TOKEN but not ANTHROPIC_API_KEY). Secrets exist only for the lifetime of the subprocess.
-- **Sentinel denylist: environment exfiltration patterns** -- Blocks `printenv`, `env`, `env |`, `env >`, `os.environ`, `process.env`, and shell variable expansion of sensitive key names (KEY, TOKEN, SECRET, PASSWORD, CREDENTIAL). Prevents agents from reading secrets via command execution.
-- **CLI secret commands** -- `vizier secret list` (show configured secret names with status), `vizier secret check <key>` (verify a specific secret), `vizier secret set <key>` (securely set a value in .env with hidden input prompt).
 - **D40: Atomic writes via os.replace()** -- All spec file writes now use write-then-rename pattern for crash safety. Prevents half-written files on crash or power loss. Implemented in `spec_io.py` with tests.
 - **D41: VCR/Record-Replay testing** -- Cassette-based record/replay for LLM responses. `VIZIER_VCR_MODE` env var (record/replay/off). Extends D34 mock strategy with realistic test data. Cassettes stored in `tests/cassettes/`.
 - **D42: JIT prompt assembly for EA** -- Dynamic prompt composition: always-loaded core (~2,500 tokens) plus conditional modules loaded by deterministic classifier. Saves ~40% on EA input tokens per call.
@@ -27,10 +25,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- **Sentinel permissions alignment** -- Broadened denylist to block `git clean` (all variants), `git config`, `git init`, `git restore`, `git worktree`, and `sudo`. Added read-only git commands (`blame`, `reflog`, `describe`, `shortlog`, `rev-list`, `stash`, `fetch`, `pull`, `add`, `remote`, `tag`) to allowlist for zero-cost approval. Aligned git classifier safe/dangerous patterns. Expanded SoftwareCoder `tool_restrictions` to cover `push -f`, `reset --hard`, `clean`, `config`, `init`, `restore`, `rebase -i`, `branch -D`, `checkout .`. Autonomous agents now deny commands that require human confirmation in the IDE.
 - **D22: Reconciliation interval** -- Default changed from 60 seconds to 15 seconds (recommended 10-30s). Shorter intervals compensate for ReadDirectoryChangesW unreliability on Windows.
 - **D25: Repeated action detection** -- If Worker performs identical tool call 3+ consecutive times, escalate immediately to next retry threshold. Catches stuck loops that diverse-failure retry logic misses.
-- **Daemon config: Azure Key Vault URL** -- Added `azure_vault_url` field to DaemonConfig for configuring the secret store backend at server level.
 
 ## [0.10.0] - 2026-02-16
 
