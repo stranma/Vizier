@@ -64,3 +64,30 @@ Entries must describe **user impact**, not just name the feature or file changed
 - Cross-reference between documents for consistency
 - Read each file BEFORE editing to avoid overwriting recent changes
 - Verification-first: check that docs were written during implementation before creating new ones
+
+**Output Format:**
+
+```markdown
+# Documentation Verification Report
+
+## IMPLEMENTATION_PLAN.md
+- Status: UPDATED/NO CHANGES NEEDED
+- Phase status changed: [phase] "In Progress" -> "Complete"
+- Checkboxes marked: N/N
+- Decision records: PRESENT/MISSING (flag if trade-offs were made)
+
+## CHANGELOG.md
+- Status: UPDATED/NO CHANGES NEEDED/GAPS FOUND
+- Entries verified: N
+- Entries added/rewritten: N
+- Quality check: PASS/FAIL (describe any low-quality entries)
+
+## Code Documentation Spot-Check
+- Public APIs with docstrings: N/N
+- Gaps found: [list files missing docstrings or rationale comments]
+
+## Summary
+- Documentation status: PASS/NEEDS ATTENTION
+- Actions taken: [list edits made]
+- Gaps requiring manual attention: [list items the implementation team should address]
+```

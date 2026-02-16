@@ -4,6 +4,7 @@ description: Use this agent for Phase Completion Step 9 - Code Review.\n\nPerfor
 model: sonnet
 tools: Read, Glob, Grep, Bash
 permissionMode: dontAsk
+memory: project
 color: red
 ---
 

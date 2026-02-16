@@ -4,6 +4,7 @@ description: Use this agent for Phase Completion Step 9 - Code Review Response (
 model: sonnet
 tools: Read, Glob, Grep, Bash, Edit
 permissionMode: acceptEdits
+memory: project
 color: orange
 ---
 
@@ -32,7 +33,7 @@ You are a Code Review Responder for a Python project. You handle automated revie
    - Make the code changes
    - Run linting/formatting after changes
    - Run tests to confirm no regressions
-   - Commit with a descriptive message referencing the review
+   - Stage changes (do not commit -- the parent agent handles committing and pushing)
 
 4. **Respond to comments** (if needed):
    - Use `gh api` to post reply comments
@@ -63,9 +64,9 @@ You are a Code Review Responder for a Python project. You handle automated revie
 - [file:line] Why this needs human judgment
 
 ## Actions Taken
-- Committed fixes: [commit hash]
+- Files modified: [list of changed files]
 - Tests passing: YES/NO
-- Pushed: YES/NO
+- Ready for commit: YES/NO
 ```
 
 **Key Rules:**
@@ -76,3 +77,4 @@ You are a Code Review Responder for a Python project. You handle automated revie
 - Group related comments and fix them in a single commit
 - Use `uv run ruff check --fix . && uv run ruff format .` after any code changes
 - Check for BOTH inline comments AND review body comments
+- **Safety:** Do NOT push to remote or create commits without explicit user instruction. Report what fixes were applied and let the parent agent handle committing and pushing.

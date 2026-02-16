@@ -52,3 +52,4 @@ Scan the repository for packages by finding all `pyproject.toml` files in `apps/
 - Do NOT modify code beyond what ruff auto-fix handles
 - Report specific file:line references for manual fixes
 - If no `.venv` exists, run `uv sync --all-packages --group dev` first
+- **Safety:** This agent applies auto-fixes (ruff --fix, ruff format) but does NOT commit or push. The parent agent is responsible for staging, committing, and pushing any changes.
