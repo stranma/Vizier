@@ -16,7 +16,7 @@
 | 9 | Documents Plugin | Complete | `feat/plugin-documents` |
 | 10 | Scout Agent | Complete | `feat/scout-agent` |
 | 11 | Production Wiring & CD Pipeline | Complete | `feat/production-wiring` |
-| 12 | Docker Deployment | In Progress | `feat/docker-deploy` |
+| 12 | Docker Deployment | Complete | `feat/docker-deploy` |
 
 ---
 
@@ -727,6 +727,30 @@ After implementation, execute the Phase Completion Checklist (steps -2 through 1
 - [x] Migration script handles systemd stop, config copy, container start
 - [x] gh CLI available in container for Scout agent
 - [x] Entrypoint runs `vizier init` on first boot when config.yaml missing
+
+### Completion Notes
+
+**Completed:** 2026-02-16 | **Branch:** `feat/docker-deploy`
+
+Phase 12 fixed critical bugs in the existing Docker deployment infrastructure and established Docker as the primary deployment method:
+
+| Component | Files Changed | Description |
+|-----------|--------------|-------------|
+| Dockerfile | 1 modified | Added gh CLI (Scout agent), curl (healthcheck), multi-stage build optimization |
+| docker-compose.yml | 1 modified | Fixed volume overlay bug (bind mounts for config), moved Langfuse to `observability` profile |
+| Entrypoint | scripts/entrypoint.sh (new) | Init-on-first-run with exec for PID 1 signal handling |
+| CD Pipeline | .github/workflows/deploy.yml | GHCR build+push then SSH docker pull+restart |
+| Heartbeat Monitor | scripts/check_heartbeat.sh | HTTP health endpoint (Docker and bare-metal compatible) |
+| Migration Script | scripts/migrate_to_docker.sh | One-time systemd-to-Docker migration |
+| Documentation | docs/DEPLOYMENT.md | Rewritten for Docker-first with volume design rationale |
+
+**Key Fixes:**
+- **Volume overlay bug** - Named volume mounted at `/opt/vizier` destroyed config files on first run. Fixed with bind mounts for config files and named volumes for runtime data.
+- **Langfuse blocking startup** - `depends_on: langfuse-db` prevented daemon from starting. Fixed by moving Langfuse to optional `observability` profile.
+- **Missing Scout dependencies** - GitHub searches silently failed without gh CLI. Fixed in Dockerfile.
+- **No health monitoring** - Added HEALTHCHECK directive and HTTP-based heartbeat script.
+
+All 9 acceptance criteria verified as PASS. Docker deployment is now production-ready.
 
 ### Phase Completion Steps
 
