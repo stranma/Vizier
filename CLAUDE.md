@@ -224,7 +224,7 @@ ask Claude to "use the [agent-name] agent" and it will delegate automatically.
 | 3c | `.claude/agents/acceptance-criteria-validator.md` | `general-purpose` | Verify acceptance criteria |
 | 4 | Built-in `Plan` agent | `Plan` | Check implementation plan accuracy |
 | 5 | `.claude/agents/docs-updater.md` | `general-purpose` | Update IMPLEMENTATION_PLAN.md, CHANGELOG.md |
-| 7 | -- | -- | Merge feature branch to master (direct merge, no PR) |
+| 7 | `.claude/agents/pr-writer.md` | `general-purpose` | Generate PR description |
 | 9 | `.claude/agents/code-reviewer.md` | `general-purpose` | Independent code review |
 | 9 | `.claude/agents/review-responder.md` | `general-purpose` | Respond to automated reviewer comments |
 | -- | `.claude/agents/implementation-tracker.md` | `general-purpose` | Verify plan matches reality |
@@ -320,15 +320,15 @@ The agent should update:
 - Consolidate running changelog entries
 - Add: Breaking changes, Migration notes, Upgrade instructions
 
-### 7. Merge to Master
-- Merge the feature branch into master: `git checkout master && git merge <feature-branch>`
-- Push master to remote: `git push origin master`
-- Delete the feature branch locally and remotely if desired
-- If working directly on master, skip this step
+### 7. Create Pull Request (`.claude/agents/pr-writer.md`)
+- Use the pr-writer agent (`subagent_type: "general-purpose"` with the agent's system prompt) to generate the PR description
+- Create a PR from the feature branch to the base branch using `gh pr create`
+- Verify the PR has no merge conflicts before proceeding
+- If working directly on the base branch, skip this step
 
 ### 8. Verify CI Pipeline
-- Check that all CI checks pass on master using `gh run list` or `gh run view`
-- If any checks fail, fix the issues on master and re-push
+- Check that all CI checks pass on the PR using `gh pr checks <pr-number>`
+- If any checks fail, fix the issues, push, and re-check
 - Do not proceed until all checks are green
 
 ### 9. Code Review (`.claude/agents/code-reviewer.md` or `.claude/agents/review-responder.md`)
@@ -363,7 +363,7 @@ If a step fails, follow this decision tree:
 | **Steps 3a/3b/3c fail on current phase's code** | Fix the issue, amend commit, re-run from Step 2 |
 | **Step 3c reveals a previous phase's criteria now failing** | File as a separate bug/issue. Fix in current phase only if it's a direct regression |
 | **Step 8 (CI) fails on pre-existing issue** | Document the issue, file separately, do NOT block the current phase |
-| **Step 8 (CI) fails on current phase's code** | Fix on master, push, re-run from Step 8 |
+| **Step 8 (CI) fails on current phase's code** | Fix, push, re-run from Step 8 |
 | **Step 9 (code review) flags an architectural concern** | Pause. Evaluate whether it requires rework (go back to Step 2) or can be addressed as follow-up |
 | **Multiple steps fail repeatedly** | Stop. Reassess the phase scope -- it may need to be split into smaller increments |
 
@@ -452,6 +452,6 @@ They are complementary -- one prevents conflicts, the other prevents gaps. Neith
 
 When creating implementation plans (in plan mode), ALWAYS include a "Phase Completion Steps" section that explicitly states:
 
-> After each phase, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md): PIRR (`.claude/agents/spec-readiness-reviewer.md` via `subagent_type: "general-purpose"`) as pre-implementation gate, then sync remote, pre-commit hygiene, commit & push, parallel validation (`.claude/agents/code-quality-validator.md` + `.claude/agents/test-coverage-validator.md` + `.claude/agents/acceptance-criteria-validator.md` -- all invoked via `subagent_type: "general-purpose"`), Plan agent or `.claude/agents/implementation-tracker.md` for implementation check, `.claude/agents/docs-updater.md` for documentation + changelog, merge feature branch to master (direct merge, no PR), verify CI, code review with `.claude/agents/code-reviewer.md` (NOT `feature-dev:code-reviewer`) or `.claude/agents/review-responder.md`, phase handoff note. Consult the Failure & Rollback Protocol if any step fails. See the Agent Reference table in the PCC section for exact invocation details.
+> After each phase, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md): PIRR (`.claude/agents/spec-readiness-reviewer.md` via `subagent_type: "general-purpose"`) as pre-implementation gate, then sync remote, pre-commit hygiene, commit & push, parallel validation (`.claude/agents/code-quality-validator.md` + `.claude/agents/test-coverage-validator.md` + `.claude/agents/acceptance-criteria-validator.md` -- all invoked via `subagent_type: "general-purpose"`), Plan agent or `.claude/agents/implementation-tracker.md` for implementation check, `.claude/agents/docs-updater.md` for documentation + changelog, create PR with `.claude/agents/pr-writer.md`, verify CI, code review with `.claude/agents/code-reviewer.md` (NOT `feature-dev:code-reviewer`) or `.claude/agents/review-responder.md`, phase handoff note. Consult the Failure & Rollback Protocol if any step fails. See the Agent Reference table in the PCC section for exact invocation details.
 
 This ensures the checklist is visible in the plan and not forgotten during execution.
