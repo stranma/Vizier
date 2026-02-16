@@ -121,9 +121,31 @@ def daemon_start(root: str | None, once: bool) -> None:
         click.echo("No active projects registered. Use 'vizier register' first.", err=True)
         raise SystemExit(1)
 
+    from vizier.core.llm.factory import create_llm_callable
+    from vizier.core.secrets.startup import create_secret_store, load_bootstrap_credentials, sanitize_environment
     from vizier.daemon.process import VizierDaemon, install_signal_handlers
 
-    daemon = VizierDaemon(config, registry)
+    bootstrap = load_bootstrap_credentials(vizier_root)
+    store = create_secret_store(
+        vizier_root,
+        azure_vault_url=config.azure_vault_url,
+        azure_tenant_id=bootstrap["azure_tenant_id"],
+        azure_client_id=bootstrap["azure_client_id"],
+        azure_client_secret=bootstrap["azure_client_secret"],
+    )
+
+    llm_callable = None
+    sentinel_llm = None
+    try:
+        llm_callable = create_llm_callable(store)
+        sentinel_llm = create_llm_callable(store)
+        click.echo("  LLM: configured")
+    except Exception as e:
+        click.echo(f"  LLM: not configured ({e})", err=True)
+
+    sanitize_environment(store.keys())
+
+    daemon = VizierDaemon(config, registry, llm_callable=llm_callable, sentinel_llm=sentinel_llm, secret_store=store)
 
     if once:
         click.echo(f"Running single cycle for {len(registry.active_projects())} project(s)...")

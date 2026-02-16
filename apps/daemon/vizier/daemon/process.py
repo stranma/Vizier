@@ -67,11 +67,13 @@ class VizierDaemon:
         registry: ProjectRegistry,
         llm_callable: Any | None = None,
         sentinel_llm: Any | None = None,
+        secret_store: Any | None = None,
     ) -> None:
         self._config = config
         self._registry = registry
         self._llm_callable = llm_callable
         self._sentinel_llm = sentinel_llm
+        self._secret_store = secret_store
         self._pashas: dict[str, PashaOrchestrator] = {}
         self._ea: EARuntime | None = None
         self._heartbeat = Heartbeat(Path(config.vizier_root) / config.heartbeat_path)

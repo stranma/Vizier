@@ -42,6 +42,7 @@ class DaemonConfig(BaseModel):
     log_rotation_max_bytes: int = Field(default=10 * 1024 * 1024)
     log_rotation_backup_count: int = Field(default=5)
     health_check_port: int = Field(default=8080, ge=1024, le=65535)
+    azure_vault_url: str = ""
 
 
 class ProjectEntry(BaseModel):
