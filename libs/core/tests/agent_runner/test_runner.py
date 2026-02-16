@@ -127,6 +127,52 @@ class TestAgentRunnerQualityGate:
         assert result.result == "REJECTED"
 
 
+class TestAgentRunnerArchitect:
+    def test_run_architect_success(self, project_dir: str) -> None:
+        spec = create_spec(
+            project_dir,
+            "004-arch-test",
+            "Architect test task",
+            {"status": "DRAFT", "plugin": "test-stub"},
+        )
+        response = "## Sub-spec: Sub task\nComplexity: low\nPriority: 1\n\nDo the sub task.\n"
+        mock_llm = MagicMock(return_value=_make_llm_response(response))
+        runner = AgentRunner(project_root=project_dir, llm_callable=mock_llm)
+        result = runner.run_architect(spec.file_path or "")
+
+        assert result.agent_type == "architect"
+        assert "DECOMPOSED" in result.result
+        assert result.error == ""
+
+    def test_run_architect_missing_plugin(self, project_dir: str) -> None:
+        spec = create_spec(
+            project_dir,
+            "005-arch-noplugin",
+            "Architect missing plugin",
+            {"status": "DRAFT", "plugin": "test-stub"},
+        )
+        clear_registry()
+        config_path = Path(project_dir) / ".vizier" / "config.yaml"
+        config_path.write_text(yaml.dump({"plugin": "nonexistent"}), encoding="utf-8")
+
+        runner = AgentRunner(project_root=project_dir)
+        result = runner.run_architect(spec.file_path or "")
+
+        assert "not found" in result.error.lower() or "Plugin" in result.error
+        register_plugin("test-stub", StubPlugin)
+
+    def test_run_architect_no_llm(self, project_dir: str) -> None:
+        spec = create_spec(
+            project_dir,
+            "006-arch-nollm",
+            "Architect no LLM test",
+            {"status": "DRAFT", "plugin": "test-stub"},
+        )
+        runner = AgentRunner(project_root=project_dir)
+        result = runner.run_architect(spec.file_path or "")
+        assert result.error != ""
+
+
 class TestRunResult:
     def test_serialization(self) -> None:
         r = RunResult(agent_type="worker", spec_id="001", result="REVIEW")

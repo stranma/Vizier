@@ -5,6 +5,8 @@ __version__ = "0.1.0"
 from vizier.core.agent.base import BaseAgent
 from vizier.core.agent.context import AgentContext
 from vizier.core.agent_runner.runner import AgentRunner, RunResult
+from vizier.core.architect.decomposition import SubSpecDefinition, estimate_complexity, parse_decomposition
+from vizier.core.architect.runtime import ArchitectRuntime
 from vizier.core.file_protocol.criteria import resolve_criteria_references, snapshot_criteria
 from vizier.core.file_protocol.spec_io import create_spec, list_specs, read_spec, update_spec_status
 from vizier.core.file_protocol.state_manager import StateManager
@@ -48,6 +50,7 @@ __all__ = [
     "AgentLogEntry",
     "AgentLogger",
     "AgentRunner",
+    "ArchitectRuntime",
     "BaseAgent",
     "BasePlugin",
     "BaseQualityGate",
@@ -76,6 +79,7 @@ __all__ = [
     "SpecLifecycle",
     "SpecStatus",
     "StateManager",
+    "SubSpecDefinition",
     "ToolCallRequest",
     "ToolRegistry",
     "VCRMode",
@@ -83,8 +87,10 @@ __all__ = [
     "WorkerRuntime",
     "create_spec",
     "discover_plugins",
+    "estimate_complexity",
     "list_specs",
     "load_plugin",
+    "parse_decomposition",
     "read_spec",
     "register_plugin",
     "resolve_criteria_references",

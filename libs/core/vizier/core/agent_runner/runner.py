@@ -4,7 +4,7 @@ This module provides the entry point for agent subprocesses launched
 by Pasha (Phase 4). Each invocation:
 1. Loads spec from disk (fresh context)
 2. Loads plugin from project config
-3. Creates the appropriate agent runtime (Worker or QualityGate)
+3. Creates the appropriate agent runtime (Worker, QualityGate, or Architect)
 4. Runs the agent
 5. Returns the result
 6. Exits (Ralph Wiggum pattern)
@@ -18,6 +18,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from vizier.core.agent.context import AgentContext
+from vizier.core.architect.runtime import ArchitectRuntime
 from vizier.core.logging.agent_logger import AgentLogger
 from vizier.core.model_router.router import ModelRouter
 from vizier.core.models.config import ProjectConfig, ServerConfig
@@ -158,6 +159,49 @@ class AgentRunner:
         except Exception as e:
             logger.exception("Quality Gate run failed")
             return RunResult(agent_type="quality_gate", spec_id="unknown", error=str(e))
+
+    def run_architect(self, spec_path: str) -> RunResult:
+        """Run an Architect agent to decompose a spec.
+
+        :param spec_path: Path to the DRAFT or STUCK spec file.
+        :returns: RunResult with outcome.
+        """
+        try:
+            context = AgentContext.load_from_disk(self._project_root, spec_path=spec_path)
+            plugin = self._load_plugin(context)
+            if plugin is None:
+                return RunResult(agent_type="architect", spec_id=self._spec_id(context), error="Plugin not found")
+
+            project_config = ProjectConfig(**context.config) if context.config else ProjectConfig()
+            router = ModelRouter(
+                server_config=self._server_config,
+                project_config=project_config,
+                plugin_defaults=plugin.default_model_tiers,
+            )
+
+            log_path = f"reports/{context.config.get('project', 'default')}/agent-log.jsonl"
+            agent_logger = AgentLogger(log_path)
+
+            runtime = ArchitectRuntime(
+                context=context,
+                plugin=plugin,
+                model_router=router,
+                logger_instance=agent_logger,
+                llm_callable=self._llm,
+            )
+
+            created = runtime.decompose()
+            result_str = f"DECOMPOSED:{len(created)}"
+
+            return RunResult(
+                agent_type="architect",
+                spec_id=self._spec_id(context),
+                result=result_str,
+            )
+
+        except Exception as e:
+            logger.exception("Architect run failed")
+            return RunResult(agent_type="architect", spec_id="unknown", error=str(e))
 
     def _load_plugin(self, context: AgentContext) -> Any:
         plugin_name = context.config.get("plugin", "software")

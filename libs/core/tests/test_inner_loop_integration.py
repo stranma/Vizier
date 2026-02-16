@@ -12,7 +12,8 @@ import yaml
 from tests.fixtures.stub_plugin import StubPlugin, StubQualityGate, StubWorker
 from vizier.core.agent.context import AgentContext
 from vizier.core.agent_runner.runner import AgentRunner
-from vizier.core.file_protocol.spec_io import create_spec, read_spec, update_spec_status
+from vizier.core.architect.runtime import ArchitectRuntime
+from vizier.core.file_protocol.spec_io import create_spec, list_specs, read_spec, update_spec_status
 from vizier.core.lifecycle.retry import GraduatedRetry, RetryAction
 from vizier.core.lifecycle.spec_lifecycle import SpecLifecycle
 from vizier.core.models.spec import SpecStatus
@@ -224,3 +225,91 @@ class TestGraduatedRetryIntegration:
 
         runtime2 = WorkerRuntime(context=ctx, plugin_worker=worker, llm_callable=mock_llm)
         assert runtime2.exploration_log == []
+
+
+class TestArchitectIntegration:
+    """End-to-end: DRAFT -> Architect -> DECOMPOSED + READY children."""
+
+    def test_architect_decomposes_draft(self, project_dir: str) -> None:
+        spec = create_spec(
+            project_dir,
+            "001-feature",
+            "Build a user management feature.",
+            {"status": "DRAFT", "priority": 1, "plugin": "test-stub"},
+        )
+
+        architect_response = (
+            "## Sub-spec: Create user model\n"
+            "Complexity: low\n"
+            "Priority: 1\n"
+            "Artifacts: src/models.py\n\n"
+            "Create User model.\n\n"
+            "## Sub-spec: Add user API\n"
+            "Complexity: medium\n"
+            "Priority: 2\n"
+            "Artifacts: src/api.py\n\n"
+            "Create CRUD API for users.\n"
+        )
+        mock_llm = MagicMock(return_value=_make_llm_response(architect_response))
+        ctx = AgentContext.load_from_disk(project_dir, spec_path=spec.file_path)
+        plugin = StubPlugin()
+        runtime = ArchitectRuntime(context=ctx, plugin=plugin, llm_callable=mock_llm)
+        runtime.decompose()
+
+        parent = read_spec(spec.file_path or "")
+        assert parent.frontmatter.status == SpecStatus.DECOMPOSED
+
+        children = [s for s in list_specs(project_dir) if s.frontmatter.parent == "001-feature"]
+        assert len(children) == 2
+        assert all(c.frontmatter.status == SpecStatus.READY for c in children)
+
+    def test_agent_runner_architect(self, project_dir: str) -> None:
+        spec = create_spec(
+            project_dir,
+            "002-runner-arch",
+            "Architect runner test.",
+            {"status": "DRAFT", "priority": 1, "plugin": "test-stub"},
+        )
+
+        response = "## Sub-spec: Sub task A\nComplexity: low\nPriority: 1\n\nDo sub task A.\n"
+        mock_llm = MagicMock(return_value=_make_llm_response(response))
+        runner = AgentRunner(project_root=project_dir, llm_callable=mock_llm)
+        result = runner.run_architect(spec.file_path or "")
+
+        assert result.agent_type == "architect"
+        assert "DECOMPOSED" in result.result
+        assert result.error == ""
+
+    def test_full_lifecycle_draft_to_done(self, project_dir: str) -> None:
+        spec = create_spec(
+            project_dir,
+            "003-lifecycle",
+            "Full lifecycle test.",
+            {"status": "DRAFT", "priority": 1, "plugin": "test-stub"},
+        )
+
+        arch_response = "## Sub-spec: Implementation\nComplexity: low\nPriority: 1\n\nImplement the feature.\n"
+        arch_llm = MagicMock(return_value=_make_llm_response(arch_response))
+        arch_runner = AgentRunner(project_root=project_dir, llm_callable=arch_llm)
+        arch_result = arch_runner.run_architect(spec.file_path or "")
+        assert "DECOMPOSED" in arch_result.result
+
+        children = [s for s in list_specs(project_dir) if s.frontmatter.parent == "003-lifecycle"]
+        assert len(children) == 1
+        child_path = children[0].file_path or ""
+
+        worker_llm = MagicMock(return_value=_make_llm_response("Implementation complete."))
+        worker_runner = AgentRunner(project_root=project_dir, llm_callable=worker_llm)
+        worker_result = worker_runner.run_worker(child_path, worker_id="w-001")
+        assert worker_result.result == "REVIEW"
+
+        gate_llm = MagicMock(return_value=_make_llm_response("All criteria PASS."))
+        gate_runner = AgentRunner(project_root=project_dir, llm_callable=gate_llm)
+        gate_result = gate_runner.run_quality_gate(child_path, diff="+ valid code")
+        assert gate_result.result == "DONE"
+
+        final_child = read_spec(child_path)
+        assert final_child.frontmatter.status == SpecStatus.DONE
+
+        final_parent = read_spec(spec.file_path or "")
+        assert final_parent.frontmatter.status == SpecStatus.DECOMPOSED
