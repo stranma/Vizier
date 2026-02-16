@@ -24,6 +24,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **D22: Reconciliation interval** -- Default changed from 60 seconds to 15 seconds (recommended 10-30s). Shorter intervals compensate for ReadDirectoryChangesW unreliability on Windows.
 - **D25: Repeated action detection** -- If Worker performs identical tool call 3+ consecutive times, escalate immediately to next retry threshold. Catches stuck loops that diverse-failure retry logic misses.
 
+## [0.6.0] - 2026-02-16
+
+Phase 5: Retrospective. Meta-improvement agent that learns from failures.
+
+### Added
+
+- **RetrospectiveAnalysis** -- Analyzes project specs for failure patterns: stuck specs (exhausted retries), high retry counts (3+), rejected specs, and feedback file themes (test failures, code quality, type errors). Computes aggregate SpecMetrics including cost-per-spec from agent logs.
+- **RetrospectiveRuntime** -- LLM-driven analysis agent extending BaseAgent. Parses LEARNING:/PROPOSAL: markers from LLM response. Appends learnings to `.vizier/learnings.md` (append-only, never overwrites). Writes proposals to `.vizier/proposals/` with mandatory PENDING status requiring Sultan approval.
+- **AgentRunner.run_retrospective()** -- Entry point for spawning Retrospective as a subprocess, completing the full agent set (Worker, QualityGate, Architect, Retrospective).
+- **Cost analysis** -- SpecMetrics includes total_cost_usd, cost_per_spec, avg_duration_ms, and total_agent_calls computed from agent-log.jsonl entries.
+
 ## [0.5.0] - 2026-02-16
 
 Phase 4: Pasha + Orchestration. Per-project agent lifecycle management.
