@@ -111,6 +111,9 @@ def daemon_register(name: str, repo: str, local_path: str, plugin: str, root: st
 def daemon_start(root: str | None, once: bool) -> None:
     """Start the Vizier daemon."""
     import asyncio
+    import logging
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
     vizier_root = root or _default_root()
     config = load_daemon_config(_config_path(vizier_root))

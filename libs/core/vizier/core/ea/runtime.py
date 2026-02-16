@@ -7,6 +7,7 @@ Uses JIT prompt assembly (D42) for efficient context window usage.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,8 @@ from vizier.core.ea.models import (
 from vizier.core.ea.prompt_assembly import PromptAssembler
 from vizier.core.ea.tracking import CommitmentTracker, RelationshipTracker
 from vizier.core.file_protocol.spec_io import create_spec, list_specs
+
+logger = logging.getLogger(__name__)
 
 
 class EARuntime:
@@ -272,7 +275,7 @@ class EARuntime:
 
         try:
             response = self._llm_callable(
-                model="opus",
+                model="anthropic/claude-opus-4-6",
                 messages=[
                     {"role": "system", "content": prompt},
                     {"role": "user", "content": message},
@@ -280,6 +283,7 @@ class EARuntime:
             )
             return response.choices[0].message.content
         except Exception:
+            logger.exception("EA LLM call failed")
             return "I understood your message but encountered an error generating a response."
 
     def _read_project_status(self, project: str) -> dict[str, Any] | None:
