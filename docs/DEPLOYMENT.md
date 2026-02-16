@@ -161,10 +161,22 @@ Monitor with the included script:
 bash scripts/check_heartbeat.sh /opt/vizier 45
 ```
 
-Add to cron for alerting:
+Add to crontab for continuous monitoring:
 
 ```cron
-* * * * * /path/to/scripts/check_heartbeat.sh /opt/vizier 45 || echo "Vizier heartbeat stale" | mail -s "ALERT" admin@example.com
+* * * * * /opt/vizier-repo/scripts/check_heartbeat.sh /opt/vizier 45 >> /opt/vizier/logs/heartbeat-check.log 2>&1
+```
+
+To install:
+
+```bash
+(crontab -l 2>/dev/null; echo "* * * * * /opt/vizier-repo/scripts/check_heartbeat.sh /opt/vizier 45 >> /opt/vizier/logs/heartbeat-check.log 2>&1") | crontab -
+```
+
+For email alerting on staleness:
+
+```cron
+* * * * * /opt/vizier-repo/scripts/check_heartbeat.sh /opt/vizier 45 || echo "Vizier heartbeat stale" | mail -s "ALERT" admin@example.com
 ```
 
 ### Logs
@@ -177,6 +189,28 @@ View recent activity:
 ```bash
 tail -f /opt/vizier/logs/agent-log.jsonl | python3 -m json.tool
 ```
+
+## CD Pipeline
+
+Continuous deployment is handled by `.github/workflows/deploy.yml`. On every successful test run against `master`, the workflow SSHes into the server and:
+
+1. Pulls latest code (`git fetch origin master && git reset --hard origin/master`)
+2. Syncs dependencies (`uv sync --all-packages --no-dev`)
+3. Restarts the service (`systemctl restart vizier`)
+4. Verifies the service is active (`systemctl is-active vizier`)
+
+### Required GitHub Secrets
+
+| Secret | Description |
+|--------|-------------|
+| `DEPLOY_HOST` | Server IP or hostname |
+| `DEPLOY_SSH_KEY` | SSH private key for the `vizier` user |
+
+### Setup
+
+1. Generate an SSH keypair for deployment: `ssh-keygen -t ed25519 -f vizier-deploy`
+2. Add the public key to `~vizier/.ssh/authorized_keys` on the server
+3. Add `DEPLOY_HOST` and `DEPLOY_SSH_KEY` as repository secrets in GitHub Settings
 
 ## Docker Deployment
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import signal
 from datetime import UTC, datetime
 from pathlib import Path
@@ -13,6 +14,10 @@ from vizier.core.ea.models import BudgetConfig
 from vizier.core.ea.runtime import EARuntime
 from vizier.core.pasha.orchestrator import PashaOrchestrator
 from vizier.daemon.config import DaemonConfig, ProjectEntry, ProjectRegistry  # noqa: TC001
+from vizier.daemon.health import HealthCheckServer
+from vizier.daemon.telegram import TelegramTransport
+
+logger = logging.getLogger(__name__)
 
 
 class Heartbeat:
@@ -76,6 +81,8 @@ class VizierDaemon:
         self._secret_store = secret_store
         self._pashas: dict[str, PashaOrchestrator] = {}
         self._ea: EARuntime | None = None
+        self._health_server: HealthCheckServer | None = None
+        self._telegram: TelegramTransport | None = None
         self._heartbeat = Heartbeat(Path(config.vizier_root) / config.heartbeat_path)
         self._running = False
         self._shutdown_event = asyncio.Event()
@@ -130,7 +137,21 @@ class VizierDaemon:
         self._running = True
         self.setup()
 
+        self._health_server = HealthCheckServer(self, port=self._config.health_check_port)
+        await self._health_server.start()
+
         tasks: list[asyncio.Task[None]] = []
+
+        telegram_config = self._resolve_telegram_config()
+        if telegram_config:
+            token, allowed_ids = telegram_config
+            assert self._ea is not None
+            self._telegram = TelegramTransport(token, self._ea, allowed_ids)
+            self._telegram.setup()
+            tasks.append(asyncio.create_task(self._run_telegram()))
+        else:
+            logger.warning("Telegram token not configured, Telegram transport disabled")
+
         for name, pasha in self._pashas.items():
             task = asyncio.create_task(self._run_pasha(name, pasha))
             tasks.append(task)
@@ -145,6 +166,13 @@ class VizierDaemon:
 
         await asyncio.gather(*tasks, return_exceptions=True)
         await self._shutdown_pashas()
+
+        if self._telegram is not None:
+            await self._telegram.stop()
+
+        if self._health_server is not None:
+            await self._health_server.stop()
+
         self._running = False
 
     async def run_once(self) -> dict[str, Any]:
@@ -180,6 +208,36 @@ class VizierDaemon:
             "autonomy_stage": self._config.autonomy.stage,
             "heartbeat": self._heartbeat.read(),
         }
+
+    def _resolve_telegram_config(self) -> tuple[str, list[int]] | None:
+        """Resolve Telegram bot token and allowed user IDs from config or secret store.
+
+        :returns: Tuple of (token, allowed_user_ids) or None if no token available.
+        """
+        token = self._config.telegram.token
+        allowed_ids = list(self._config.telegram.allowed_user_ids)
+
+        if not token and self._secret_store is not None:
+            token = self._secret_store.get("TELEGRAM_BOT_TOKEN") or ""
+
+        if not allowed_ids and self._secret_store is not None:
+            raw = self._secret_store.get("TELEGRAM_SULTAN_CHAT_ID") or ""
+            if raw:
+                allowed_ids = [int(x.strip()) for x in raw.split(",") if x.strip()]
+
+        if not token:
+            return None
+        return token, allowed_ids
+
+    async def _run_telegram(self) -> None:
+        """Run Telegram transport polling, handling cancellation."""
+        try:
+            assert self._telegram is not None
+            await self._telegram.start()
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("Telegram transport error")
 
     async def _run_pasha(self, name: str, pasha: PashaOrchestrator) -> None:
         """Run a Pasha orchestrator, handling errors."""

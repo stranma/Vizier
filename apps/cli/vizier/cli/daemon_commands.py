@@ -162,6 +162,9 @@ def daemon_start(root: str | None, once: bool) -> None:
     click.echo(f"  Projects: {len(registry.active_projects())}")
     click.echo(f"  Max concurrent agents: {config.max_concurrent_agents}")
     click.echo(f"  Autonomy stage: {config.autonomy.stage}")
+    click.echo(f"  Health check: http://0.0.0.0:{config.health_check_port}/health")
+    telegram_status = "configured" if config.telegram.token else "not configured"
+    click.echo(f"  Telegram: {telegram_status}")
 
     import contextlib
 

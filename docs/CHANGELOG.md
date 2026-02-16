@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Health check server wired into daemon startup** -- HealthCheckServer is now created and started during `VizierDaemon.run()`, responding at the configured port (default 8080). Stops cleanly on daemon shutdown.
+- **Telegram transport wired into daemon startup** -- TelegramTransport is now created during `VizierDaemon.run()` when a bot token is available (from `config.yaml` or secret store). Skips gracefully with a warning log when no token is configured.
+- **CD pipeline** -- GitHub Actions workflow (`.github/workflows/deploy.yml`) triggers on successful test runs against master, SSHes into the production server, pulls latest code, syncs dependencies, and restarts the service.
+- **Deployment documentation** -- Added CD pipeline setup, heartbeat cron monitoring instructions, and Telegram configuration to `docs/DEPLOYMENT.md`.
+- **Startup status lines** -- `vizier start` now prints health check URL and Telegram configuration status.
+
 - **Scout agent for prior art research** -- New agent that runs on DRAFT specs before the Architect. Searches GitHub repos, PyPI, and npm for existing solutions, then writes a structured `research.md` report. Deterministic keyword classifier triages specs into RESEARCH or SKIP paths (zero LLM cost for bug fixes and refactors). Architect reads the report during decomposition, enabling sub-specs that leverage existing libraries instead of building from scratch.
 - **SCOUTED spec state** -- New lifecycle state between DRAFT and DECOMPOSED. DRAFT specs now route to Scout (not directly to Architect). Specs can still bypass Scout via direct DRAFT -> DECOMPOSED transition for backwards compatibility.
 - **Plugin scout guides** -- Software and Documents plugins provide domain-specific research guidance to the Scout agent (library evaluation criteria, template sources, etc.).
