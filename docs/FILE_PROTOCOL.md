@@ -18,6 +18,7 @@ All inter-agent communication happens through the filesystem. This document defi
 +-- specs/                             # Task specifications
 |   +-- 001-feature-name/
 |   |   +-- spec.md                    # Main spec (Architect writes)
+|   |   +-- research.md                # Prior art report (Scout writes)
 |   |   +-- 001-subtask.md             # Sub-spec (decomposed)
 |   |   +-- 002-subtask.md
 |   |   +-- feedback/                  # Quality Gate rejection notes
@@ -78,19 +79,25 @@ plugins/
 ## Spec Lifecycle
 
 ```
-DRAFT -> READY -> IN_PROGRESS -> REVIEW -> DONE
-                       |            |
-                       |            +-> REJECTED -> IN_PROGRESS (retry, graduated)
-                       |                              retry 3: bump model tier
-                       |                              retry 5: alert Pasha
-                       |                              retry 7: Architect re-decomposes
-                       +-> STUCK (after 10 retries)
-                       |     |
-                       |     +-> DECOMPOSED -> new sub-specs created
-                       |
-                       +-> INTERRUPTED (daemon shutdown)
-                             |
-                             +-> READY (on restart, re-queued)
+DRAFT -> SCOUTED -> DECOMPOSED -> READY (children)
+   |                    |
+   |                    +-> READY (if not split)
+   |
+   +-> READY (backward compat: direct DRAFT->READY for testing)
+
+READY -> IN_PROGRESS -> REVIEW -> DONE
+              |            |
+              |            +-> REJECTED -> IN_PROGRESS (retry, graduated)
+              |                              retry 3: bump model tier
+              |                              retry 5: alert Pasha
+              |                              retry 7: Architect re-decomposes
+              +-> STUCK (after 10 retries)
+              |     |
+              |     +-> DECOMPOSED -> new sub-specs created
+              |
+              +-> INTERRUPTED (daemon shutdown)
+                    |
+                    +-> READY (on restart, re-queued)
 ```
 
 ### State transitions
@@ -98,8 +105,11 @@ DRAFT -> READY -> IN_PROGRESS -> REVIEW -> DONE
 | From | To | Who | Trigger |
 |------|----|-----|---------|
 | (new) | DRAFT | EA/Sultan | Task received |
-| DRAFT | READY | Architect | Spec fully decomposed with acceptance criteria |
-| DRAFT | DECOMPOSED | Architect | Split into sub-specs |
+| DRAFT | SCOUTED | Scout | Research completed (or skipped), report written |
+| DRAFT | READY | CLI/Test | Direct transition for testing (bypasses Scout) |
+| SCOUTED | DECOMPOSED | Architect | Split into sub-specs |
+| SCOUTED | READY | Architect | Spec fully decomposed with acceptance criteria (not split) |
+| DRAFT | DECOMPOSED | Architect | Direct transition for backward compatibility |
 | READY | IN_PROGRESS | Worker | Picked from queue |
 | IN_PROGRESS | REVIEW | Worker | Worker exits cleanly (implicit completion) |
 | REVIEW | DONE | Quality Gate | All Completion Protocol passes succeed |
@@ -125,7 +135,7 @@ This means: if a spec file says `status: REVIEW` but the Pasha's in-memory state
 ```yaml
 ---
 id: "001-feature-name"
-status: READY          # DRAFT | READY | IN_PROGRESS | REVIEW | DONE | REJECTED | STUCK | DECOMPOSED
+status: READY          # DRAFT | SCOUTED | READY | IN_PROGRESS | REVIEW | DONE | REJECTED | STUCK | DECOMPOSED
 priority: 1            # lower = higher priority
 complexity: medium     # low | medium | high (used by model router)
 retries: 0             # incremented on each REJECTED -> IN_PROGRESS cycle
@@ -189,7 +199,9 @@ Agents subscribe to specific paths:
 
 | Agent | Watches | For |
 |-------|---------|-----|
-| Pasha | `.vizier/specs/**` | New specs (DRAFT), status changes |
+| Pasha | `.vizier/specs/**` | New specs (DRAFT), status changes (SCOUTED, READY) |
+| Scout | (spawned by Pasha) | N/A (processes one spec, writes report, exits) |
+| Architect | (spawned by Pasha) | N/A (processes one spec, writes sub-specs, exits) |
 | Worker | `.vizier/specs/**/` | READY specs (pick next task) |
 | Quality Gate | `.vizier/specs/**/` | REVIEW status (validate) |
 | Retrospective | `.vizier/specs/**/feedback/` | Rejections, STUCK transitions |

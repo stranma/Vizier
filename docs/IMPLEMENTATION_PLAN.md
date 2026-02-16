@@ -14,6 +14,7 @@
 | 7 | Daemon + Multi-project + Deployment | Complete | `feature/daemon` |
 | 8 | Software Plugin (end-to-end) | Complete | `feature/plugin-software` |
 | 9 | Documents Plugin | Complete | `feat/plugin-documents` |
+| 10 | Scout Agent | Complete | `feat/scout-agent` |
 
 ---
 
@@ -575,3 +576,76 @@ AC5 ("Real project test") validated via a full lifecycle integration test exerci
 - Mirrors software plugin structure exactly (same file layout, base class extensions, test patterns)
 - Version synced to 0.10.0 across both plugin packages
 - All 774 tests pass (569 core + 59 daemon + 24 CLI + 59 software + 63 documents)
+
+---
+
+## Phase 10: Scout Agent
+
+**Goal:** Add a prior art research agent that searches for existing solutions before the Architect decomposes a task.
+
+### Components
+- [x] State machine extension (SCOUTED state between DRAFT and DECOMPOSED)
+- [x] Scout classifier (deterministic keyword/regex triage: RESEARCH vs SKIP)
+- [x] Search sources (GitHub repos/code via `gh` CLI, PyPI HTTP API, npm registry API)
+- [x] Research report generation (structured markdown with solutions, recommendations, queries)
+- [x] Scout runtime (BaseAgent extension with two-LLM-call flow: query generation + synthesis)
+- [x] Pasha integration (route DRAFT -> Scout -> SCOUTED -> Architect)
+- [x] Agent runner integration (run_scout, spawn_scout)
+- [x] Architect enhancement (read research.md in build_prompt)
+- [x] Plugin scout guides (software and documents plugins provide domain-specific guidance)
+
+### Acceptance Criteria
+- [x] SCOUTED state exists with correct transitions (DRAFT -> SCOUTED -> DECOMPOSED)
+- [x] Scout classifier triggers RESEARCH for feature keywords (add, implement, new, feature)
+- [x] Scout classifier triggers SKIP for maintenance keywords (fix, refactor, rename, bugfix)
+- [x] GitHub search works via ToolExecutor with gh CLI (when GITHUB_TOKEN available)
+- [x] PyPI search works via HTTP API (no auth required)
+- [x] npm search works via HTTP API (no auth required)
+- [x] research.md is written to spec directory with structured format
+- [x] Spec transitions DRAFT -> SCOUTED after Scout completes
+- [x] Pasha routes DRAFT specs to Scout (not directly to Architect)
+- [x] Pasha routes SCOUTED specs to Architect
+- [x] Architect prompt includes research findings when research.md exists
+- [x] Architect works normally when research.md doesn't exist (backwards compat)
+- [x] Software plugin provides non-empty scout guide
+- [x] Documents plugin provides non-empty scout guide
+- [x] End-to-end: DRAFT -> Scout -> SCOUTED -> Architect -> DECOMPOSED works
+
+### Completion Notes
+
+**Completed:** 2026-02-16 | **Branch:** `feat/scout-agent`
+
+Phase 10 delivered the Scout agent with prior art research capability:
+
+| Component | Modules | Tests |
+|-----------|---------|-------|
+| State Machine Extension (SCOUTED state, transitions) | 1 modified | 3 |
+| Scout Classifier (deterministic keyword/regex) | 1 source | 11 |
+| Search Sources (GitHub, PyPI, npm) | 1 source | 13 |
+| Research Report (markdown generation, file I/O) | 1 source | 6 |
+| Scout Runtime (BaseAgent extension, two-LLM flow) | 1 source | 8 |
+| Agent Runner Integration (run_scout) | 1 modified | 0 |
+| Pasha Integration (DRAFT->Scout, SCOUTED->Architect routing) | 2 modified | 0 |
+| Architect Enhancement (read research.md) | 1 modified | 0 |
+| Plugin Scout Guides (software + documents) | 2 modified | 0 |
+
+Key features: Deterministic classifier with zero LLM cost for bugfix/refactor specs (SKIP path), three search sources (GitHub via `gh` CLI with graceful fallback, PyPI and npm via HTTP), two-LLM-call research flow (query generation from spec + synthesis of search results into recommendations), structured markdown report with solution details (source, URL, license, stars/downloads, relevance, notes), BasePlugin.get_scout_guide() extension point for domain-specific research guidance, Pasha orchestrator routing DRAFT->Scout->SCOUTED->Architect, Architect reads research.md when present for context-aware decomposition.
+
+Design decisions documented in plan file `C:\Users\Admin\.claude\plans\snappy-discovering-kernighan.md`:
+- **New SCOUTED state** (not a frontmatter flag) - state machine is canonical lifecycle tracker
+- **Separate Scout agent** (not Architect enhancement) - fresh context principle, research is different concern than decomposition
+- **Deterministic triage** (not LLM) - zero cost routing, consistent with EA classifier pattern (D3)
+- **Scout model tier: sonnet** (not opus) - research synthesis doesn't need strongest model, keeps costs low
+- **2 LLM calls max** - query generation + synthesis, deterministic searches between calls
+
+**Totals:** 25 files changed (5 new source + 4 new tests + 16 modified), 41 new tests (11 classifier + 13 sources + 6 report + 8 runtime + 3 model), 0 lint/pyright errors. All 15 acceptance criteria verified as PASS. Total test count: 815 (774 + 41 = 815).
+
+### Documentation Updates
+
+**Completed:** 2026-02-16
+
+All architecture documentation updated to include Scout agent:
+- [x] `docs/ARCHITECTURE.md` - Scout added to system topology diagram, model routing table
+- [x] `docs/AGENT_SPECS.md` - Scout agent specification added (Role, Inputs, Outputs, Trigger, Key Behaviors)
+- [x] `docs/FILE_PROTOCOL.md` - State machine diagram updated to include SCOUTED state and transitions
+- [x] `docs/CHANGELOG.md` - Scout feature entry verified (already present)

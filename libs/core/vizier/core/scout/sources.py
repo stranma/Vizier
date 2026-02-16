@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import logging
+import shlex
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import quote as url_quote
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +57,8 @@ class GitHubSearchSource(SearchSource):
 
         results: list[SearchResult] = []
         try:
-            cmd = f'gh search repos "{query}" --json name,url,description,stargazersCount,licenseInfo --limit 10'
+            safe_query = shlex.quote(query)
+            cmd = f"gh search repos {safe_query} --json name,url,description,stargazersCount,licenseInfo --limit 10"
             output = self._executor.execute("bash", cmd)
             if output and isinstance(output, str):
                 repos = json.loads(output)
@@ -95,7 +98,7 @@ class PyPISearchSource(SearchSource):
         try:
             import httpx
 
-            terms = query.lower().replace(" ", "-")
+            terms = url_quote(query.lower().replace(" ", "-"), safe="")
             resp = httpx.get(f"https://pypi.org/pypi/{terms}/json", timeout=10)
             if resp.status_code == 200:
                 data = resp.json()
@@ -129,8 +132,9 @@ class NpmSearchSource(SearchSource):
         try:
             import httpx
 
+            safe_text = url_quote(query, safe="")
             resp = httpx.get(
-                f"https://registry.npmjs.org/-/v1/search?text={query}&size=10",
+                f"https://registry.npmjs.org/-/v1/search?text={safe_text}&size=10",
                 timeout=10,
             )
             if resp.status_code == 200:

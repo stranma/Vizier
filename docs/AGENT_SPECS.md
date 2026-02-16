@@ -6,7 +6,8 @@
 |-------|-------|-----------|---------|-----------------|---------------|
 | EA | Singleton (all projects) | Opus | Human message / calendar / report / schedule | Yes | No (framework) |
 | Pasha | Per-project | Opus | Spec lifecycle events / human session | Yes (event loop) | No (framework) |
-| Architect | Per-project | Opus | DRAFT specs from Pasha | No (spawned) | Yes (reads plugin guide) |
+| Scout | Per-project | Sonnet | DRAFT specs from Pasha | No (spawned) | Yes (reads plugin scout guide) |
+| Architect | Per-project | Opus | SCOUTED specs from Pasha | No (spawned) | Yes (reads plugin guide + research.md) |
 | Worker | Per-project | Sonnet/Haiku | READY specs in queue | No (spawned per task) | Yes (plugin provides class) |
 | Quality Gate | Per-project | Sonnet | REVIEW specs | No (spawned per review) | Yes (plugin provides class) |
 | Retrospective | Per-project | Opus | Cycle end / STUCK / pattern | No (spawned periodically) | No (framework) |
@@ -146,13 +147,61 @@ When in session mode, the Pasha maintains full project context (constitution, sp
 
 ---
 
-## Architect
+## Scout
 
 ### Role
-Decomposes high-level tasks into implementable specs. Reads the project's full context. Writes specs detailed enough that Workers don't need to explore.
+Researches prior art before Architect decomposition. Searches GitHub, PyPI, and npm for existing libraries, packages, and implementations. Produces a structured research.md report that helps Architect leverage existing solutions instead of building from scratch.
 
 ### Inputs
 - DRAFT spec from Pasha
+- Plugin's scout guide (domain-specific research criteria)
+- GitHub token (optional, via GITHUB_TOKEN secret for gh CLI)
+- PyPI and npm public APIs (no auth required)
+
+### Outputs
+- `research.md` in spec directory — structured report with solutions, recommendation
+- Spec status update: DRAFT -> SCOUTED
+
+### Trigger
+- Pasha delegates a DRAFT spec
+
+### Key Behaviors
+- **Deterministic triage** — classifies specs using keyword patterns (zero LLM cost):
+  - RESEARCH path: feature-like keywords (add, implement, new, feature, build, create, integrate)
+  - SKIP path: maintenance keywords (fix, refactor, rename, update, bugfix, cleanup)
+- **SKIP path** — writes minimal research.md with "No external research needed", transitions to SCOUTED, zero API calls
+- **RESEARCH path** — uses LLM to generate 3-5 search queries, then searches all sources:
+  - GitHub repos (via gh CLI + ToolExecutor, graceful fallback if GITHUB_TOKEN unavailable)
+  - PyPI packages (via JSON API)
+  - npm packages (via registry API)
+- **Result deduplication** — merges results by URL across sources
+- **Recommendation generation** — deterministic logic based on result count and relevance:
+  - BUILD_FROM_SCRATCH (no results or low relevance)
+  - USE_LIBRARY (1+ high-relevance result)
+  - COMBINE (2+ high-relevance results)
+- **Structured report** — writes research.md with:
+  - Decision (RESEARCH/SKIP)
+  - Summary (one-sentence description of search focus)
+  - Recommendation (BUILD_FROM_SCRATCH/USE_LIBRARY/COMBINE)
+  - Solutions table (name, source, URL, description, license, metric, relevance, notes)
+  - Search queries used
+- **Plugin integration** — reads plugin's scout guide for domain-specific search criteria
+
+### Model Usage
+- Sonnet-tier (not Opus) — research synthesis doesn't require strongest model
+- One LLM call per RESEARCH path (query generation only, searches are deterministic)
+- Zero LLM calls for SKIP path (deterministic classifier)
+
+---
+
+## Architect
+
+### Role
+Decomposes high-level tasks into implementable specs. Reads the project's full context and Scout's research findings. Writes specs detailed enough that Workers don't need to explore.
+
+### Inputs
+- SCOUTED spec from Pasha (or DRAFT spec for backward compatibility)
+- `research.md` from Scout (when present, contains prior art findings)
 - Full project source (codebase, documents, data)
 - `.vizier/constitution.md`
 - `.vizier/learnings.md`
@@ -164,11 +213,13 @@ Decomposes high-level tasks into implementable specs. Reads the project's full c
 - Updated parent spec (status: DECOMPOSED if split)
 
 ### Trigger
-- Pasha delegates a DRAFT spec
+- Pasha delegates a SCOUTED spec (normal flow after Scout completes)
+- Pasha delegates a DRAFT spec (backward compatibility, direct routing)
 
 ### Key Behaviors
 - Always uses strongest model (Opus-class)
 - Reads project thoroughly before writing specs
+- Reads Scout's research.md when present — incorporates findings into decomposition (e.g., "use jwt-auth library" instead of "implement JWT from scratch")
 - Uses plugin's decomposition patterns (e.g., "feature -> data model -> logic -> API -> tests")
 - References plugin's criteria library via `@criteria/` syntax
 - Sets `complexity` field honestly (drives Worker model selection)
