@@ -1,84 +1,97 @@
-# Postmortem: EA Shipped Stateless Despite Architecture Requiring Continuity
+# Postmortem: EA Stateless Gap
 
 **Date**: 2026-02-17
-**Severity**: Medium (functionality gap, not data loss)
-**Status**: Resolved (PR pending)
-
----
+**Severity**: Medium (functional gap, not data loss)
+**Status**: Resolved
 
 ## Summary
 
-The EA (Executive Assistant) shipped as a completely stateless agent -- every message was processed in isolation with no conversation history. The LLM received only `system prompt + current user message`, with zero prior context. This contradicted multiple architecture documents that specified session continuity as a core EA responsibility.
+The EA (Executive Assistant) shipped as completely stateless -- every message was processed in isolation with zero conversation history. The architecture docs specified conversation continuity, the code created the `ea/sessions/` directory for this purpose, but no conversation logging or multi-turn LLM context was ever implemented.
 
 ## What the Architecture Promised
 
 1. **AGENT_SPECS.md:72** -- "Reads Pasha session summaries to maintain continuity"
 2. **AGENT_SPECS.md:47** -- `ea/sessions/*.md` listed as an EA input
-3. **AGENT_SPECS.md:54** -- "Session summaries (after Pasha sessions end)" listed as EA output
-4. **ARCHITECTURE.md:428** -- "When session ends, Pasha writes a summary -> EA reads it for continuity"
-5. **runtime.py:67-68** -- `sessions_dir` is created in `__init__`, proving the intent existed in code
+3. **ARCHITECTURE.md:428** -- "When session ends, Pasha writes a summary -> EA reads it for continuity"
+4. **runtime.py:67-68** -- `sessions_dir = self._ea_dir / "sessions"` is created in `__init__`, proving the intent existed in code
 
 ## What Was Actually Shipped
 
-- `handle_message()` was single-turn: `system prompt + 1 user message`
-- No JSONL, YAML, or any conversation log existed
-- `sessions_dir` was created but never read or written
-- Telegram handler stripped all `reply_to_message`, `forward_origin`, and quote context
+- `handle_message()` was single-turn: system prompt + 1 user message per LLM call
+- No JSONL, YAML, or any conversation log existed anywhere
+- `sessions_dir` was created in `__init__` but never read or written to
+- Telegram handler discarded all reply/forward context from aiogram `Message` objects
 - No conversation persistence mechanism of any kind
 
 ## Impact
 
-- Users referencing prior bot messages ("you sent me this") got nonsensical responses
-- After bot restarts, all conversational context was lost
-- The EA could not track evolving topics across a conversation
-- Multi-message delegation workflows required users to repeat full context each time
+- Users referencing prior bot messages ("you sent me this") received responses with no awareness of prior context
+- After bot restart, all conversational context was lost (no persistence)
+- The EA could not build rapport or maintain working relationships across messages
+- Multi-step interactions (e.g., "delegate this" -> "actually change the project") required repeating full context
 
 ## Root Cause Analysis
 
-### Primary: No Explicit Acceptance Criteria for Conversation Continuity
+### Primary Cause: Scope-driven omission
 
-Phase 6 (EA + Communication) had acceptance criteria covering individual features -- delegation, status queries, budget, check-ins, priorities, focus mode, briefings, commitments, relationships, and classification. Each feature was tested in isolation with single-turn message exchanges.
+Phase 6 (EA + Communication) had an ambitious scope:
+- Deterministic message classifier with 10+ categories
+- JIT prompt assembly with 9 conditional modules
+- Budget enforcement (D33)
+- Commitment tracking
+- Relationship tracking
+- Focus mode
+- Morning briefings
+- Check-in/check-out records
+- Quick queries, control commands, delegation routing
 
-No acceptance criterion said: "EA must include prior conversation context in LLM calls" or "EA must persist conversation turns to disk."
+Conversation history was implicitly assumed via the "sessions" directory but never had explicit acceptance criteria or a dedicated implementation task.
 
-### Secondary: Large Phase Scope Obscured the Gap
+### Contributing Factors
 
-Phase 6 was one of the largest phases, implementing the classifier, JIT prompt assembly, budget enforcement, commitment tracking, relationship tracking, focus mode, briefings, and more. The volume of features pushed conversation history below the priority threshold.
+1. **No explicit acceptance criterion for multi-turn interaction**: The PIRR and acceptance criteria focused on individual features (delegation works, status works, budget works) but not on cross-feature continuity. Each feature was tested in isolation with single-turn messages.
 
-### Contributing: "sessions_dir" Created a False Signal
+2. **Unused code not flagged**: `sessions_dir` was created but never used. No static analysis or review process caught this as a "dead intent" -- code that signals an unfulfilled design goal.
 
-The code at `runtime.py:67-68` created `ea/sessions/` during `__init__`, suggesting the feature was partially implemented. This dead code path may have suppressed questions about whether session persistence was working, since the directory structure existed.
+3. **Architecture docs treated as aspirational, not contractual**: AGENT_SPECS described the EA's *desired* behavior, but there was no mechanism to verify that implemented behavior matched the spec claims.
 
-### Contributing: Architecture Described Two Different "Continuity" Concepts
+4. **Telegram transport treated as a pure passthrough**: The aiogram `Message` object contains rich context (reply_to_message, forward_origin, quote), all of which was discarded. The handler extracted only `message.text`.
 
-The architecture documents conflated two forms of continuity:
-1. **Cross-session continuity** -- Pasha writes session summaries that EA reads (ARCHITECTURE.md:428)
-2. **Within-conversation continuity** -- EA remembering what was said in the current Telegram exchange
-
-The architecture focused heavily on (1) but (2) is what users actually need first. Since Pasha sessions are not yet implemented, continuity requirement (1) was deferred -- but (2) was never separately identified.
+5. **Test isolation masked the gap**: Every test created a fresh `EARuntime`, sent one message, and checked the response. No test ever sent two messages to the same instance and verified the second was aware of the first.
 
 ## Resolution
 
-- **ConversationLog**: JSONL-based append-only log stored in `ea/sessions/conversation.jsonl`
-- **Multi-turn LLM calls**: `_handle_general()` now loads last 10 turns as message history
-- **Telegram reply context**: Reply-to-message text is prepended as `[Replying to: ...]`
-- **Persistence across restarts**: JSONL on disk survives daemon restarts
-- **Log rotation**: Rotates at 1000 lines to prevent unbounded growth
+### Code Changes
+
+1. **ConversationLog** (`libs/core/vizier/core/ea/conversation_log.py`): New JSONL-based conversation log with append, recent retrieval, and rotation at 1000 lines. Stored in `ea/sessions/conversation.jsonl`.
+
+2. **EARuntime** (`libs/core/vizier/core/ea/runtime.py`): All message categories now log both user and assistant turns. `_handle_general()` includes the last 10 conversation turns in LLM calls for multi-turn context.
+
+3. **TelegramTransport** (`apps/daemon/vizier/daemon/telegram.py`): When the user replies to a bot message, the quoted text is prepended as `[Replying to: <text>]` context.
+
+4. **Tests**: 14 new tests covering conversation log persistence, rotation, corrupt line handling, multi-turn LLM calls, restart persistence, and reply context forwarding.
+
+5. **E2E smoke test** (`scripts/e2e_smoke_test.py`): Live deployment test script that verifies conversation continuity against a running bot.
 
 ## Process Improvements
 
 ### For CLAUDE.md / PCC
 
-1. **Multi-turn test requirement**: Any agent with LLM interaction must have at least one test that sends multiple messages and verifies the second response reflects awareness of the first.
+1. **Multi-turn test requirement**: For any agent with LLM interaction, acceptance criteria must include at least one multi-turn test scenario. Suggested criterion template: "Send message A, then send message B that references A. Verify B's response demonstrates awareness of A."
 
-2. **Dead code detection**: Code that creates directories, allocates resources, or establishes structures but never uses them should be flagged during code review as a potential incomplete implementation.
+2. **Unused code detection**: During code review (PCC step 9), reviewers should flag code that creates structures (directories, files, objects) but never uses them. This is a signal of unfulfilled design intent.
 
-3. **Architecture claim verification**: Each factual claim in AGENT_SPECS.md and ARCHITECTURE.md (e.g., "maintains continuity") should map to at least one acceptance criterion. If a claim describes future behavior, it should be marked as "planned" rather than stated as present-tense fact.
+3. **Architecture claim verification**: Add a PIRR dimension: "Do architecture/spec doc claims about this component have corresponding acceptance criteria?" If AGENT_SPECS says "maintains continuity," there must be a test that verifies continuity.
 
-4. **Realistic usage pattern tests**: Communication-facing agents should have integration tests that simulate realistic multi-message conversations, not just isolated single-turn exchanges.
+4. **Transport layer context preservation**: When integrating with messaging platforms, document which message metadata is preserved vs discarded. Reviewers should check that relevant context (replies, forwards, threads) reaches the application layer.
 
-### For Future Phase Planning
+5. **Integration test mandate**: For communication-facing agents, at least one test should simulate a realistic multi-message conversation pattern, not just isolated command-response pairs.
 
-5. **Separate "transport fidelity" from "agent logic"**: The Telegram handler silently dropping `reply_to_message` context is a transport-layer bug independent of the EA logic. Transport layers should be tested for what context they preserve and what they discard.
+## Timeline
 
-6. **Feature vs. cross-feature testing**: Phase completion should include at least one test that exercises multiple features in sequence (e.g., delegate a task, then ask about status, then reference the delegation) to catch cross-feature state issues.
+| Date | Event |
+|------|-------|
+| Phase 6 | EA + Communication implemented. `sessions_dir` created, conversation history omitted |
+| Phases 7-12 | Multiple phases shipped without noticing the gap |
+| 2026-02-17 | Gap identified during deployment testing |
+| 2026-02-17 | Fix implemented: ConversationLog + multi-turn LLM + reply context |
