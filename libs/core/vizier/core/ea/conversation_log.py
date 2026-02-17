@@ -20,7 +20,16 @@ MAX_LINES_BEFORE_ROTATION = 1000
 
 
 class ConversationTurn(BaseModel):
-    """A single turn in the EA conversation."""
+    """A single turn in the EA conversation.
+
+    :param role: Speaker -- ``"user"`` for Sultan messages, ``"assistant"`` for EA responses.
+    :param content: Raw message text.
+    :param category: MessageCategory value (e.g. ``"general"``, ``"status"``). Empty string when
+        category is unknown or not relevant.
+    :param metadata: Optional key-value pairs for transport-layer context, such as
+        ``{"reply_to": "<quoted text>"}`` from Telegram reply forwarding.
+    :param timestamp: UTC time of the turn. Defaults to the current time at construction.
+    """
 
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     role: Literal["user", "assistant"]

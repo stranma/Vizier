@@ -103,7 +103,14 @@ class EARuntime:
             and classification.category not in (MessageCategory.CONTROL, MessageCategory.APPROVAL)
         ):
             self._focus.held_messages.append(message)
-            return "Focus mode active. Message held for later."
+            response = "Focus mode active. Message held for later."
+            self._conversation_log.append(
+                ConversationTurn(role="user", content=message, category=classification.category.value)
+            )
+            self._conversation_log.append(
+                ConversationTurn(role="assistant", content=response, category=classification.category.value)
+            )
+            return response
 
         if classification.category == MessageCategory.FOCUS:
             response = self._handle_focus(classification)
