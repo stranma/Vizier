@@ -257,6 +257,73 @@ class TestGeneral:
         assert "error" in result.lower()
 
 
+class TestConversationHistory:
+    def test_history_included_in_llm_call(self, tmp_path: Path) -> None:
+        """Verify LLM receives prior turns in messages array."""
+        llm = MagicMock()
+        llm.return_value = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="Response"))])
+        ea = _make_ea(tmp_path, llm_callable=llm)
+
+        ea.handle_message("Hello, good morning")
+        ea.handle_message("What did I just say?")
+
+        call_args = llm.call_args_list[1]
+        messages = call_args.kwargs.get("messages") or call_args[1]["messages"]
+        # system + history (user turn 1 + assistant turn 1) + current user = 4 minimum
+        assert len(messages) >= 4
+        roles = [m["role"] for m in messages]
+        assert roles[0] == "system"
+        assert roles[-1] == "user"
+        assert "Hello, good morning" in messages[1]["content"]
+
+    def test_history_survives_restart(self, tmp_path: Path) -> None:
+        """Verify conversation persists across EARuntime instances."""
+        llm = MagicMock()
+        llm.return_value = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="Noted about Friday"))]
+        )
+        ea1 = _make_ea(tmp_path, llm_callable=llm)
+        ea1.handle_message("Remember: project deadline is Friday")
+
+        ea2 = _make_ea(tmp_path, llm_callable=llm)
+        ea2.handle_message("What is the deadline?")
+
+        call_args = llm.call_args_list[-1]
+        messages = call_args.kwargs.get("messages") or call_args[1]["messages"]
+        history_content = " ".join(m["content"] for m in messages if m["role"] != "system")
+        assert "Friday" in history_content
+
+    def test_deterministic_handlers_skip_llm_history(self, tmp_path: Path) -> None:
+        """Status, budget etc. don't use LLM, so history doesn't affect them."""
+        ea = _make_ea(tmp_path)
+        ea.handle_message("Hello")
+        result = ea.handle_message("/status")
+        assert "No project status" in result
+
+    def test_reply_context_forwarded(self, tmp_path: Path) -> None:
+        """Verify [Replying to: ...] prefix reaches LLM."""
+        llm = MagicMock()
+        llm.return_value = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="Got it"))])
+        ea = _make_ea(tmp_path, llm_callable=llm)
+        ea.handle_message("[Replying to: Task delegated to alpha.]\n\nYou sent me this")
+
+        call_args = llm.call_args
+        messages = call_args.kwargs.get("messages") or call_args[1]["messages"]
+        user_msgs = [m for m in messages if m["role"] == "user"]
+        assert any("Replying to" in m["content"] for m in user_msgs)
+
+    def test_conversation_logged_for_all_categories(self, tmp_path: Path) -> None:
+        """All message categories are logged, not just general."""
+        ea = _make_ea(tmp_path)
+        ea.handle_message("/status")
+        ea.handle_message("/budget")
+
+        log_path = tmp_path / "ea" / "sessions" / "conversation.jsonl"
+        assert log_path.exists()
+        lines = log_path.read_text(encoding="utf-8").strip().splitlines()
+        assert len(lines) == 4
+
+
 class TestCheckin:
     def test_record_checkin(self, tmp_path: Path) -> None:
         ea = _make_ea(tmp_path)

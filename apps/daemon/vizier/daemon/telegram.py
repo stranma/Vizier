@@ -69,8 +69,13 @@ class TelegramTransport:
                 logger.warning("Unauthorized message from user %d", message.from_user.id)
                 return
 
+            text = message.text
+            if message.reply_to_message and message.reply_to_message.text:
+                quoted = message.reply_to_message.text[:200]
+                text = f"[Replying to: {quoted}]\n\n{text}"
+
             try:
-                response = self._ea.handle_message(message.text)
+                response = self._ea.handle_message(text)
                 if response:
                     for chunk in self._split_message(response):
                         await message.answer(chunk)
