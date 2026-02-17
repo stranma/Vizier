@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **EA conversation history** -- The EA now maintains persistent, multi-turn conversation history across messages and bot restarts. User and assistant turns are stored in `ea/sessions/conversation.jsonl` (append-only JSONL). The last 10 turns are included in every LLM call for general messages, enabling the EA to reference earlier context in the same conversation.
+- **ConversationLog** -- New `ConversationLog` class with append-only JSONL storage, configurable recent-turn retrieval, and automatic rotation at 1000 lines (previous log renamed to `conversation.jsonl.1`). Corrupt lines are skipped with a warning instead of failing.
+- **ConversationTurn** -- New Pydantic model recording timestamp, role (user/assistant), content, message category, and arbitrary metadata per turn.
+- **Telegram reply context forwarding** -- When Sultan replies to a previous bot message in Telegram, the quoted text (up to 200 chars) is prepended as `[Replying to: ...]` so the EA sees the referenced context without requiring the user to repeat it.
+- **E2E smoke test script** -- `scripts/e2e_smoke_test.py` tests a live deployment via the Telegram Bot API. Verifies status responses, general greetings, and conversation continuity (bot remembers a "secret word" from a prior message). Marked `@pytest.mark.production` so it is excluded from CI runs.
+- **EA stateless gap postmortem** -- `docs/postmortem/2026-02-17-ea-stateless-gap.md` documents the root cause (no conversation log despite `sessions/` directory existing in code), impact (no cross-message context), resolution, and process improvements for future phases.
+
 - **Docker deployment** -- Docker is now the primary deployment method. Multi-stage Dockerfile with gh CLI (for Scout agent), curl (for healthcheck), and entrypoint script that runs `vizier init` on first boot.
 - **Docker Compose rewrite** -- Fixed critical volume overlay bug where `vizier-config` named volume destroyed config files on first run. Config files now use bind mounts from `/opt/vizier/config/`; runtime data uses named volumes. Langfuse services moved behind `observability` profile so `docker compose up -d` starts only the daemon.
 - **CD pipeline with GHCR** -- Deploy workflow now builds Docker image, pushes to GitHub Container Registry with SHA and `latest` tags, then SSHes to server to pull and restart via `docker compose up -d`.
