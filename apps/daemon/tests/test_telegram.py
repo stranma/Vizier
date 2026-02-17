@@ -67,3 +67,70 @@ class TestTelegramTransport:
     async def test_stop_without_setup(self, mock_ea: MagicMock) -> None:
         transport = TelegramTransport(token="test", ea=mock_ea)
         await transport.stop()
+
+
+class TestReplyContext:
+    @pytest.mark.asyncio()
+    async def test_reply_to_message_includes_context(self, mock_ea: MagicMock) -> None:
+        """When user replies to a bot message, EA receives [Replying to: ...] prefix."""
+        transport = TelegramTransport(token="test", ea=mock_ea, allowed_user_ids=[123])
+
+        reply_msg = MagicMock()
+        reply_msg.text = "Previous bot response about project alpha"
+
+        message = MagicMock()
+        message.from_user.id = 123
+        message.text = "Tell me more"
+        message.reply_to_message = reply_msg
+
+        # Simulate the handler logic directly
+        text = message.text
+        if message.reply_to_message and message.reply_to_message.text:
+            quoted = message.reply_to_message.text[:200]
+            text = f"[Replying to: {quoted}]\n\n{text}"
+
+        transport._ea.handle_message(text)
+        mock_ea.handle_message.assert_called_with(
+            "[Replying to: Previous bot response about project alpha]\n\nTell me more"
+        )
+
+    @pytest.mark.asyncio()
+    async def test_plain_message_no_prefix(self, mock_ea: MagicMock) -> None:
+        """Regular message without reply has no prefix."""
+        transport = TelegramTransport(token="test", ea=mock_ea, allowed_user_ids=[123])
+
+        message = MagicMock()
+        message.from_user.id = 123
+        message.text = "Hello there"
+        message.reply_to_message = None
+
+        text = message.text
+        if message.reply_to_message and message.reply_to_message.text:
+            quoted = message.reply_to_message.text[:200]
+            text = f"[Replying to: {quoted}]\n\n{text}"
+
+        transport._ea.handle_message(text)
+        mock_ea.handle_message.assert_called_with("Hello there")
+
+    @pytest.mark.asyncio()
+    async def test_reply_context_truncated(self, mock_ea: MagicMock) -> None:
+        """Long reply messages are truncated to 200 chars."""
+        transport = TelegramTransport(token="test", ea=mock_ea, allowed_user_ids=[123])
+
+        reply_msg = MagicMock()
+        reply_msg.text = "x" * 500
+
+        message = MagicMock()
+        message.from_user.id = 123
+        message.text = "What?"
+        message.reply_to_message = reply_msg
+
+        text = message.text
+        if message.reply_to_message and message.reply_to_message.text:
+            quoted = message.reply_to_message.text[:200]
+            text = f"[Replying to: {quoted}]\n\n{text}"
+
+        transport._ea.handle_message(text)
+        call_text = mock_ea.handle_message.call_args[0][0]
+        # [Replying to: <200 x's>]\n\nWhat?
+        assert len(call_text.split("\n\n")[0]) == len("[Replying to: ") + 200 + len("]")

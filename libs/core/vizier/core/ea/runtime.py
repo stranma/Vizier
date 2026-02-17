@@ -14,6 +14,7 @@ from typing import Any
 
 from vizier.core.ea.budget import BudgetEnforcer, BudgetStatus
 from vizier.core.ea.classifier import ClassificationResult, MessageCategory, MessageClassifier
+from vizier.core.ea.conversation_log import ConversationLog, ConversationTurn
 from vizier.core.ea.models import (
     BudgetConfig,
     CheckinRecord,
@@ -66,6 +67,7 @@ class EARuntime:
         self._ea_dir.mkdir(parents=True, exist_ok=True)
         sessions_dir = self._ea_dir / "sessions"
         sessions_dir.mkdir(parents=True, exist_ok=True)
+        self._conversation_log = ConversationLog(sessions_dir)
 
     @property
     def classifier(self) -> MessageClassifier:
@@ -101,30 +103,39 @@ class EARuntime:
             and classification.category not in (MessageCategory.CONTROL, MessageCategory.APPROVAL)
         ):
             self._focus.held_messages.append(message)
-            return "Focus mode active. Message held for later."
+            response = "Focus mode active. Message held for later."
+            self._conversation_log.append(
+                ConversationTurn(role="user", content=message, category=classification.category.value)
+            )
+            self._conversation_log.append(
+                ConversationTurn(role="assistant", content=response, category=classification.category.value)
+            )
+            return response
 
         if classification.category == MessageCategory.FOCUS:
-            return self._handle_focus(classification)
+            response = self._handle_focus(classification)
+        elif classification.category == MessageCategory.STATUS:
+            response = self._handle_status(classification)
+        elif classification.category == MessageCategory.BUDGET:
+            response = self._handle_budget(classification)
+        elif classification.category == MessageCategory.PRIORITIES:
+            response = self._handle_priorities()
+        elif classification.category == MessageCategory.DELEGATION:
+            response = self._handle_delegation(message, classification)
+        elif classification.category == MessageCategory.QUICK_QUERY:
+            response = self._handle_quick_query(classification)
+        elif classification.category == MessageCategory.CONTROL:
+            response = self._handle_control(message, classification)
+        else:
+            response = self._handle_general(message, classification)
 
-        if classification.category == MessageCategory.STATUS:
-            return self._handle_status(classification)
-
-        if classification.category == MessageCategory.BUDGET:
-            return self._handle_budget(classification)
-
-        if classification.category == MessageCategory.PRIORITIES:
-            return self._handle_priorities()
-
-        if classification.category == MessageCategory.DELEGATION:
-            return self._handle_delegation(message, classification)
-
-        if classification.category == MessageCategory.QUICK_QUERY:
-            return self._handle_quick_query(classification)
-
-        if classification.category == MessageCategory.CONTROL:
-            return self._handle_control(message, classification)
-
-        return self._handle_general(message, classification)
+        self._conversation_log.append(
+            ConversationTurn(role="user", content=message, category=classification.category.value)
+        )
+        self._conversation_log.append(
+            ConversationTurn(role="assistant", content=response, category=classification.category.value)
+        )
+        return response
 
     def _handle_focus(self, classification: ClassificationResult) -> str:
         """Enter or exit focus mode."""
@@ -262,7 +273,7 @@ class EARuntime:
         return f"Control command received for {project}. Processing: {message}"
 
     def _handle_general(self, message: str, classification: ClassificationResult) -> str:
-        """Handle general messages using LLM."""
+        """Handle general messages using LLM with conversation history."""
         if self._llm_callable is None:
             return "Message received. LLM not configured for general responses."
 
@@ -273,13 +284,16 @@ class EARuntime:
         ]
         prompt = self._assembler.assemble(classification, priorities, active)
 
+        history = self._conversation_log.recent(10)
+        messages: list[dict[str, str]] = [{"role": "system", "content": prompt}]
+        for turn in history:
+            messages.append({"role": turn.role, "content": turn.content})
+        messages.append({"role": "user", "content": message})
+
         try:
             response = self._llm_callable(
                 model="anthropic/claude-opus-4-6",
-                messages=[
-                    {"role": "system", "content": prompt},
-                    {"role": "user", "content": message},
-                ],
+                messages=messages,
             )
             return response.choices[0].message.content
         except Exception:
