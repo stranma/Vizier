@@ -7,6 +7,9 @@ dependencies = [
     "vizier-core",
 ]
 
+[project.entry-points."vizier.plugins"]
+software = "vizier.plugins.software:SoftwarePlugin"
+
 [dependency-groups]
 dev = [
     "pyright>=1.1.390",
