@@ -26,6 +26,10 @@ from vizier.core.plugins.base_plugin import BasePlugin
 from vizier.core.plugins.discovery import discover_plugins, load_plugin, register_plugin
 from vizier.core.plugins.templates import PromptTemplateRenderer
 from vizier.core.plugins.tool_registry import ToolRegistry
+from vizier.core.runtime.agent_runtime import AgentRuntime
+from vizier.core.runtime.budget import BudgetConfig, BudgetTracker
+from vizier.core.runtime.trace import TraceLogger
+from vizier.core.runtime.types import RunResult, StopReason, ToolCallRecord, ToolDefinition
 from vizier.core.secrets.composite_store import CompositeSecretStore
 from vizier.core.secrets.store import SecretStore
 from vizier.core.sentinel.content_scanner import ContentScanner, ContentScanResult, ContentVerdict
@@ -40,7 +44,10 @@ __all__ = [
     "VALID_TRANSITIONS",
     "ActiveAgent",
     "AgentLogEntry",
+    "AgentRuntime",
     "BasePlugin",
+    "BudgetConfig",
+    "BudgetTracker",
     "CompositeSecretStore",
     "ContentScanResult",
     "ContentScanner",
@@ -55,6 +62,7 @@ __all__ = [
     "ProjectState",
     "PromptTemplateRenderer",
     "Reconciler",
+    "RunResult",
     "SecretStore",
     "SentinelEngine",
     "SentinelResult",
@@ -64,9 +72,13 @@ __all__ = [
     "SpecFrontmatter",
     "SpecStatus",
     "StateManager",
+    "StopReason",
+    "ToolCallRecord",
     "ToolCallRequest",
+    "ToolDefinition",
     "ToolExecutor",
     "ToolRegistry",
+    "TraceLogger",
     "VCRMode",
     "VizierVCR",
     "create_llm_callable",
