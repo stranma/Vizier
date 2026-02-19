@@ -344,7 +344,7 @@ mindmap
 
 ### D2: Fresh context per task (from Ralph Wiggum)
 **Context:** Agents could maintain persistent sessions or start fresh each time.
-**Decision:** Fresh context per task for Workers. Pasha and EA maintain lightweight Python event loops (no LLM in the loop — fresh LLM call per message/event).
+**Decision:** Fresh context per task for Workers. Pasha and EA maintain lightweight Python event loops (no LLM in the loop -- fresh LLM call per message/event).
 **Why:** Long sessions accumulate stale context and hallucinated state. Fresh starts force agents to verify reality from disk.
 
 ### D3: Rules-based model routing, not a Scheduler agent
@@ -357,10 +357,10 @@ mindmap
 **Decision:** Filesystem with watchdog-based event detection. No message queue.
 **Why:** Zero infrastructure dependency. State survives restarts. Git-trackable. Every agent naturally has access. At single-server scale, filesystem watch is fast enough.
 
-### D5: EA replaces Secretary — three communication layers
+### D5: EA replaces Secretary -- three communication layers
 **Context:** Originally had a "Secretary" that routed tasks. Evolved through: Secretary with two modes -> Secretary as EA -> EA with direct Pasha sessions.
 **Decision:** Executive Assistant (EA) replaces Secretary. Three layers: (1) EA on Telegram for async/mobile (delegation, status, briefings, commitments), (2) Direct Pasha sessions for deep project discussions, (3) Autonomous operation with no human. EA is the gatekeeper of human attention.
-**Why:** A CEO doesn't just delegate — they need proactive briefings, commitment tracking, calendar awareness, and the ability to drop into deep working sessions when needed. A "Secretary" was too narrow.
+**Why:** A CEO doesn't just delegate -- they need proactive briefings, commitment tracking, calendar awareness, and the ability to drop into deep working sessions when needed. A "Secretary" was too narrow.
 
 ### D6: Plugin system (Python packages) over YAML profiles or prompt-only
 **Context:** Need to support different project types (software, finance, documents). Three approaches considered.
@@ -396,7 +396,7 @@ mindmap
 ### D12: Direct Pasha sessions for deep project work
 **Context:** EA handles quick delegation, but some tasks need extended back-and-forth: spec design, architecture, project kickoff.
 **Decision:** Human can "enter" a direct session with a project's Pasha (or Architect). EA facilitates the connection, holds non-urgent updates during the session, and reads the session summary afterward for continuity.
-**Why:** Deep creative/technical work can't be mediated through a routing layer. Like a CEO sitting down with a VP for a working session — the EA steps back but stays aware.
+**Why:** Deep creative/technical work can't be mediated through a routing layer. Like a CEO sitting down with a VP for a working session -- the EA steps back but stays aware.
 
 ### D13: Vizier as a personal AI operating system, not just coding
 **Context:** Started as "autonomous coding system." Evolved as we recognized the same orchestration serves any knowledge work.
@@ -404,18 +404,18 @@ mindmap
 **Why:** The orchestration (Pasha -> Architect -> Worker -> Quality Gate) is domain-agnostic. The plugin system already supports non-code work. Adding EA's real-world awareness makes it a complete system for anyone who works with information.
 
 ### D14: Own thin runtime over Claude Agent SDK (or any framework)
-**Context:** Evaluated 8 agent frameworks (Claude Agent SDK, LangGraph, CrewAI, AutoGen/Microsoft Agent Framework, Smolagents, OpenAI Agents SDK, Google ADK, Agno). Claude Agent SDK was the strongest candidate — it provides built-in file ops, bash, search, editing, subagent spawning, and context compaction for free.
+**Context:** Evaluated 8 agent frameworks (Claude Agent SDK, LangGraph, CrewAI, AutoGen/Microsoft Agent Framework, Smolagents, OpenAI Agents SDK, Google ADK, Agno). Claude Agent SDK was the strongest candidate -- it provides built-in file ops, bash, search, editing, subagent spawning, and context compaction for free.
 **Decision:** Build our own thin runtime (~1500 lines). Do not adopt any framework as foundation. Keep Claude Agent SDK as a future optional backend for the `software` plugin's Worker.
 **Why:**
-- **Orchestration mismatch**: Every framework assumes either LLM-driven orchestration (Claude SDK, CrewAI, OpenAI SDK) or graph-driven orchestration (LangGraph, Microsoft Agent Framework). Our event-driven, code-driven filesystem orchestration is the product differentiator — adopting someone else's orchestration means giving it away.
-- **Claude Agent SDK specifics**: It wraps the entire CLI binary as a subprocess (~55-73 MB). Each `query()` call has ~12s startup overhead (no daemon mode). Alpha status (v0.1.36, pre-1.0) with known issues: multi-agent OOM kills, lock file corruption, Windows initialization hangs. Anthropic-only — breaks our LiteLLM multi-provider strategy.
+- **Orchestration mismatch**: Every framework assumes either LLM-driven orchestration (Claude SDK, CrewAI, OpenAI SDK) or graph-driven orchestration (LangGraph, Microsoft Agent Framework). Our event-driven, code-driven filesystem orchestration is the product differentiator -- adopting someone else's orchestration means giving it away.
+- **Claude Agent SDK specifics**: It wraps the entire CLI binary as a subprocess (~55-73 MB). Each `query()` call has ~12s startup overhead (no daemon mode). Alpha status (v0.1.36, pre-1.0) with known issues: multi-agent OOM kills, lock file corruption, Windows initialization hangs. Anthropic-only -- breaks our LiteLLM multi-provider strategy.
 - **Cost of independence**: ~500 lines of custom tool implementation (file ops + bash + search) is cheap insurance against depending on alpha software for the core product.
 - **Re-evaluation trigger**: When Agent SDK reaches 1.0, adds daemon mode (eliminating 12s overhead), and fixes multi-agent stability, consider it as optional backend for `SoftwareCoder`. The plugin system supports this swap without changing orchestration code.
 **Trade-off:** We implement tools ourselves (~500 lines) that the SDK provides for free. But we gain: full control, lower latency, multi-provider support, production stability, and no 55MB binary dependency.
-**Alt rejected:** Claude Agent SDK as foundation — LLM-driven loop, Anthropic-only, alpha stability.
-**Alt rejected:** LangGraph — graph-driven, stateful by design (opposite of fresh-context), heavy LangChain abstractions.
-**Alt rejected:** CrewAI — agents share context (opposite of fresh-context), moving toward paid platform.
-**Alt rejected:** Smolagents — minimal and fast, but no orchestration layer, code-agent paradigm doesn't match tool-restriction model. Worth reading for patterns.
+**Alt rejected:** Claude Agent SDK as foundation -- LLM-driven loop, Anthropic-only, alpha stability.
+**Alt rejected:** LangGraph -- graph-driven, stateful by design (opposite of fresh-context), heavy LangChain abstractions.
+**Alt rejected:** CrewAI -- agents share context (opposite of fresh-context), moving toward paid platform.
+**Alt rejected:** Smolagents -- minimal and fast, but no orchestration layer, code-agent paradigm doesn't match tool-restriction model. Worth reading for patterns.
 
 ### D15: EFM check-in bot capabilities absorbed into EA + plugins
 **Context:** EFM's Telegram check-in bot handles structured founder check-ins, document updates, git automation, and approval workflows for a single project. Vizier's design should subsume all of this.
@@ -434,28 +434,28 @@ mindmap
 | open-items.md | EA's `commitments/*.yaml` (deadlines, linked contacts) |
 | Telegram diff approval | EA approval UI for `requires_approval: true` specs |
 
-**Gaps identified in Vizier that EFM has:** Pre-commit approval UI (human reviews diff before commit). Addressable by adding `requires_approval` flag to specs — EA shows diff in Telegram, gates the commit.
+**Gaps identified in Vizier that EFM has:** Pre-commit approval UI (human reviews diff before commit). Addressable by adding `requires_approval` flag to specs -- EA shows diff in Telegram, gates the commit.
 **Gaps in EFM that Vizier covers:** Commitment tracking with deadlines, calendar integration, proactive briefings, cross-project visibility, meta-improvement (Retrospective), multi-project support, plugin extensibility.
 **Why:** EFM's bot is a "single-threaded operations assistant" for one project. Vizier generalizes this into a multi-project autonomous work system while preserving all of EFM's operational capabilities.
 
-### D16: Ottoman court naming — Sultan, Vizier, Pasha, Sentinel
+### D16: Ottoman court naming -- Sultan, Vizier, Pasha, Sentinel
 **Context:** System needed clear role names. "TeamCoder" was too narrow (coding only). "User" and "admin" are bland.
-**Decision:** Adopt Ottoman court metaphor selectively. Human = Sultan. EA = Vizier. Per-project orchestrator = Pasha (replaces "Manager"). Security = Sentinel. The product itself = Vizier. Architect, Worker, Quality Gate, Retrospective keep functional names — Ottoman equivalents (Kadi, Scribe, Nişancı) are too obscure.
-**Why:** Sultan, Vizier, Pasha, and Sentinel are widely recognized words that create instant mental models. Pashas governed provinces (projects) autonomously but reported upward to the Vizier — exactly the per-project orchestrator role. Names should clarify, not require a history lesson.
+**Decision:** Adopt Ottoman court metaphor selectively. Human = Sultan. EA = Vizier. Per-project orchestrator = Pasha (replaces "Manager"). Security = Sentinel. The product itself = Vizier. Architect, Worker, Quality Gate, Retrospective keep functional names -- Ottoman equivalents (Kadi, Scribe, Nisanci) are too obscure.
+**Why:** Sultan, Vizier, Pasha, and Sentinel are widely recognized words that create instant mental models. Pashas governed provinces (projects) autonomously but reported upward to the Vizier -- exactly the per-project orchestrator role. Names should clarify, not require a history lesson.
 
 ### D17: Git-only sync with file checkout/checkin for direct edits
 **Context:** Need to sync project files between Sultan's machine and Vizier server. Options: git only, git + OneDrive/rclone, git + Syncthing.
 **Decision:** Git-only. All agent edits go through git. When Sultan needs to edit files directly (e.g., Excel), EA manages a checkout/checkin flow: copy file to `checkout/` folder, Sultan edits, EA copies back and commits.
 **Why:** Git provides atomic operations, history, and conflict resolution. Cloud sync (OneDrive, Syncthing) adds infrastructure, latency, and conflict issues. Since Sultan primarily interacts through agents (Telegram, CLI), git covers 95% of cases. The checkout/checkin pattern handles the remaining 5% (direct file editing) cleanly.
-**Trade-off:** Binary files (Excel) don't diff well in git. Acceptable — these files are edited infrequently and the checkout flow provides the safety net.
+**Trade-off:** Binary files (Excel) don't diff well in git. Acceptable -- these files are edited infrequently and the checkout flow provides the safety net.
 
-### D18: Permission model — least privilege per role
+### D18: Permission model -- least privilege per role
 **Context:** Need to define what each agent can read and write. Agents should not have unrestricted access.
 **Decision:** Role-based permissions: EA reads everything but writes only to ea/ data and DRAFT specs. Pasha reads/writes own project only. Worker reads/writes only files listed in its spec. Sentinel reads all outbound requests and can block operations.
 **Why:** Principle of least privilege. Workers that can read the whole filesystem are a security risk. Pashas that can modify other projects break isolation. EA needs broad read access to correlate across projects but doesn't need write access to source code.
-**Key design:** EA→Pasha communication is through specs/ (EA writes DRAFT) and reports/ (Pasha writes status). No direct calls. Consistent with filesystem-as-bus.
+**Key design:** EA to Pasha communication is through specs/ (EA writes DRAFT) and reports/ (Pasha writes status). No direct calls. Consistent with filesystem-as-bus.
 
-### D21: EA stays monolithic and powerful — rejected "god object" critique
+### D21: EA stays monolithic and powerful -- rejected "god object" critique
 
 **Context:** Design review raised concern that EA has 13+ responsibilities (routing, status, briefings, commitments, calendar, file relay, sessions, check-ins, cross-project coordination, direct Q&A, focus mode, proactive alerts) and violates the fresh-context principle by being "always-on." Proposed splitting EA into thin router + specialized handler agents.
 
@@ -463,27 +463,27 @@ mindmap
 
 **Why (three arguments):**
 
-1. **Ottoman metaphor is correct.** The historical Grand Vizier wasn't a receptionist — he was the most capable, most trusted person in the empire. He handled everything *because* he understood the full picture. Splitting the Vizier into router + specialists is like replacing the Grand Vizier with a helpdesk. That's the opposite of the metaphor's intent.
+1. **Ottoman metaphor is correct.** The historical Grand Vizier wasn't a receptionist -- he was the most capable, most trusted person in the empire. He handled everything *because* he understood the full picture. Splitting the Vizier into router + specialists is like replacing the Grand Vizier with a helpdesk. That's the opposite of the metaphor's intent.
 
 2. **Claude Code pattern.** Claude Code is a "god object" by software engineering definitions: it reads files, writes code, runs tests, does git, searches the web, creates PRs. And it works brilliantly because the user talks to ONE capable agent. EA should follow this pattern: one capable agent that handles anything the Sultan throws at it. Making it "dumb" by splitting would be like replacing Claude Code with a menu system.
 
-3. **The anti-pattern doesn't apply.** Software god objects fail because they accumulate mutable state. EA doesn't — each incoming message spawns a fresh LLM call with relevant state loaded from disk. The "always-on" part is a Python event loop (no LLM), not an LLM sitting in memory. Internal modularity (separate handler functions for delegation, status, check-in, file ops) provides testability without architectural splitting.
+3. **The anti-pattern doesn't apply.** Software god objects fail because they accumulate mutable state. EA doesn't -- each incoming message spawns a fresh LLM call with relevant state loaded from disk. The "always-on" part is a Python event loop (no LLM), not an LLM sitting in memory. Internal modularity (separate handler functions for delegation, status, check-in, file ops) provides testability without architectural splitting.
 
 **Internal structure:** Python event loop (always-on, deterministic) receives messages. Each message triggers a fresh Opus-tier LLM call with only the relevant state loaded (commitments, status files, relationships, etc.). Handler functions are separate Python code units, testable in isolation, but orchestrated by a single agent prompt.
 
-**EA scenarios validated:** 7 distinct usage scenarios confirmed this design — morning briefing, delegation, deep sessions, proactive crisis management, file checkout/checkin, structured check-ins, cross-project coordination, and direct Q&A. All work naturally with a single powerful agent.
+**EA scenarios validated:** 7 distinct usage scenarios confirmed this design -- morning briefing, delegation, deep sessions, proactive crisis management, file checkout/checkin, structured check-ins, cross-project coordination, and direct Q&A. All work naturally with a single powerful agent.
 
 ---
 
-### D22: Filesystem reconciliation — events as optimization, disk as truth
+### D22: Filesystem reconciliation -- events as optimization, disk as truth
 
 **Context:** Design review identified that watchdog can miss filesystem events (inotify overflow, crash during processing, no ordering guarantees, Windows falls back to polling). No acknowledgment or replay mechanism exists.
 
 **Decision:** Add periodic reconciliation. On daemon start and periodically (configurable, default 15 seconds, recommended 10-30s), scan all spec files and rebuild/verify state from disk. Filesystem events are an optimization (instant notification), not the source of truth. If an event is missed, reconciliation catches it on the next cycle. On Windows, ReadDirectoryChangesW is less reliable than inotify -- shorter intervals compensate.
 
-**Why:** This turns a fragile event-notification system into a robust state-reconciliation system. The fresh-context pattern already assumes agents read from disk — reconciliation just ensures the Pasha's view of spec states is always consistent with reality.
+**Why:** This turns a fragile event-notification system into a robust state-reconciliation system. The fresh-context pattern already assumes agents read from disk -- reconciliation just ensures the Pasha's view of spec states is always consistent with reality.
 
-**Trade-off:** Reconciliation adds a periodic scan (cheap — just reading file metadata and frontmatter). Worst case latency for a missed event is one reconciliation cycle.
+**Trade-off:** Reconciliation adds a periodic scan (cheap -- just reading file metadata and frontmatter). Worst case latency for a missed event is one reconciliation cycle.
 
 ---
 
@@ -493,7 +493,7 @@ mindmap
 
 **Decision:** Allow Workers bounded read-only exploration beyond the artifact list. Workers can read (but NOT write) any file in the project. They must log what files they read beyond the artifact list. Write access stays restricted to spec artifacts only.
 
-**Why:** In practice, Architects are 90% right about artifacts. The remaining 10% (runtime import errors, config files, test fixtures) shouldn't require a full re-decomposition cycle (Worker exits → Pasha → Architect → new spec → Worker retries). Bounded read access handles the 80% of these edge cases cheaply.
+**Why:** In practice, Architects are 90% right about artifacts. The remaining 10% (runtime import errors, config files, test fixtures) shouldn't require a full re-decomposition cycle (Worker exits, Pasha, Architect, new spec, Worker retries). Bounded read access handles the 80% of these edge cases cheaply.
 
 **Constraints:** Workers still cannot write beyond the artifact list. Any file reads beyond the artifact list are logged for Retrospective analysis (if Workers consistently read files not in specs, it indicates Architect prompt needs improvement).
 
@@ -501,19 +501,19 @@ mindmap
 
 ### D24: Permission enforcement via allowlist + denylist + Haiku
 
-**Context:** Design review noted that regex-based tool restrictions are bypassable (`rm -rf` blocked but `python -c "import os; os.system('rm -rf /')"` passes). Permissions are aspirational, not enforced.
+**Context:** Design review noted that regex-based tool restrictions are bypassable (simple patterns blocked but equivalent commands via indirect invocation pass). Permissions are aspirational, not enforced.
 
 **Decision:** Replace regex-only tool restrictions with a three-tier enforcement model via Sentinel:
 
 | Tier | Mechanism | Cost | Example |
 |---|---|---|---|
 | **Allowlist** | Deterministic pattern match | Zero | `read_file`, `write_file` to spec artifacts, `pytest`, `ruff` |
-| **Denylist** | Deterministic pattern match | Zero | `rm -rf`, `force push`, secret patterns |
-| **Ambiguous** | Haiku evaluates intent | ~$0.001/call | `python -c "..."`, unfamiliar bash commands |
+| **Denylist** | Deterministic pattern match | Zero | Destructive filesystem commands, `force push`, secret patterns |
+| **Ambiguous** | Haiku evaluates intent | ~$0.001/call | Indirect command invocation, unfamiliar bash commands |
 
 Sentinel intercepts every tool call. Allowlisted calls pass through instantly. Denylisted calls are blocked instantly. Anything else gets a Haiku evaluation of whether the call is safe given the agent's role and current spec.
 
-**Why:** Haiku can understand that `python -c "import os; os.system('rm -rf /')"` is a destructive command even though it doesn't match a string pattern. The allowlist ensures 90%+ of calls (common operations) have zero latency/cost overhead. Only unusual calls hit the LLM.
+**Why:** Haiku can understand that an indirect invocation of a destructive command is dangerous even though it doesn't match a string pattern. The allowlist ensures 90%+ of calls (common operations) have zero latency/cost overhead. Only unusual calls hit the LLM.
 
 **Trade-off:** Every tool call goes through Sentinel, adding a function call overhead. But allowlist/denylist checks are microseconds, and Haiku calls (~$0.001 each) only trigger for ambiguous cases. This is much cheaper than recovering from a destructive action.
 
@@ -528,7 +528,7 @@ Sentinel intercepts every tool call. Allowlisted calls pass through instantly. D
 | Retry | Action |
 |---|---|
 | 1-2 | Normal retry with feedback from Quality Gate |
-| 3 | Bump Worker model tier (Haiku → Sonnet → Opus) |
+| 3 | Bump Worker model tier (Haiku to Sonnet to Opus) |
 | 5 | Alert Pasha for spec review |
 | 7 | Architect re-decomposes the spec |
 | 10 | STUCK |
@@ -553,7 +553,7 @@ Sentinel intercepts every tool call. Allowlisted calls pass through instantly. D
 
 ### D27: LiteLLM as library, not proxy
 
-**Context:** Original design specified LiteLLM in proxy mode (Docker container). Design review noted Vizier is 100% Python — running a separate Docker proxy adds infrastructure, latency, and complexity for no benefit.
+**Context:** Original design specified LiteLLM in proxy mode (Docker container). Design review noted Vizier is 100% Python -- running a separate Docker proxy adds infrastructure, latency, and complexity for no benefit.
 
 **Decision:** Use `litellm.completion()` as a Python library call. No Docker container. No network hop.
 
@@ -565,7 +565,7 @@ Sentinel intercepts every tool call. Allowlisted calls pass through instantly. D
 
 ### D28: Structured logging from Phase 1
 
-**Context:** Design review noted no observability story — no logging, metrics, tracing, or cost tracking. For a system that runs autonomously and burns API budget, this is unacceptable.
+**Context:** Design review noted no observability story -- no logging, metrics, tracing, or cost tracking. For a system that runs autonomously and burns API budget, this is unacceptable.
 
 **Decision:** Every agent invocation produces a structured log entry:
 
@@ -594,7 +594,7 @@ Log destination: append to `reports/<project>/agent-log.jsonl` (per-project, EA-
 
 **Context:** Design review identified three smaller issues.
 
-**Decision (completion signal):** Remove `<promise>DONE</promise>` magic string. Worker completion is implicit: Worker exits cleanly → spec transitions to REVIEW. If Worker exits with an error or writes feedback, spec stays IN_PROGRESS or gets feedback file.
+**Decision (completion signal):** Remove magic completion string. Worker completion is implicit: Worker exits cleanly, spec transitions to REVIEW. If Worker exits with an error or writes feedback, spec stays IN_PROGRESS or gets feedback file.
 
 **Why:** LLMs can hallucinate the signal early. Implicit completion (clean exit = done) is more reliable and doesn't depend on the LLM outputting a specific string.
 
@@ -608,9 +608,9 @@ Log destination: append to `reports/<project>/agent-log.jsonl` (per-project, EA-
 
 ---
 
-### D30: Phase reordering — Sentinel to Phase 1, CLI entry point in Phase 2
+### D30: Phase reordering -- Sentinel to Phase 1, CLI entry point in Phase 2
 
-**Context:** Design review noted Sentinel is bundled with EA in Phase 6, but it's a deterministic Python service that enforces tool-call permissions (D24) — foundational infrastructure, not an afterthought. Also, Phases 2-4 can't be tested end-to-end without a way to create specs (EA is Phase 6).
+**Context:** Design review noted Sentinel is bundled with EA in Phase 6, but it's a deterministic Python service that enforces tool-call permissions (D24) -- foundational infrastructure, not an afterthought. Also, Phases 2-4 can't be tested end-to-end without a way to create specs (EA is Phase 6).
 
 **Decision:**
 - Move Sentinel (deterministic policy engine, allowlist/denylist/Haiku tool enforcement) from Phase 6 to Phase 1.
@@ -627,33 +627,33 @@ Log destination: append to `reports/<project>/agent-log.jsonl` (per-project, EA-
 
 **Decision:** Use the template in three distinct layers:
 
-**Layer 1 — Template for building Vizier (adopted)**
+**Layer 1 -- Template for building Vizier (adopted)**
 Use the template to scaffold Vizier's own monorepo, development methodology, and CI/CD. The template's 7 Claude Code agents serve as quality gates during Vizier's own development. CLAUDE.md customized for Vizier-specific conventions.
 
-**Layer 2 — Template as a Vizier project type (adopted)**
+**Layer 2 -- Template as a Vizier project type (adopted)**
 The software plugin offers claude-code-python-template as a scaffolding option for Python projects that Vizier manages. The Architect knows the template's conventions; the Worker knows its toolchain; the Quality Gate validates against its standards.
 
-**Layer 3 — Selective inspiration for Vizier's agents (partially adopted)**
+**Layer 3 -- Selective inspiration for Vizier's agents (partially adopted)**
 
 Adopted:
-- **PCC as Completion Protocol** — After any spec enters REVIEW, Quality Gate runs a structured multi-pass validation protocol inspired by the template's 11-step PCC. Adapted from interactive checklist to event-driven protocol.
-- **Deterministic checks first** — Fast mechanical checks (lint, format, type check, secret scan) run before any LLM-based review. Fail fast, fail cheap.
-- **Cumulative acceptance criteria** — Validate not just current spec criteria but relevant parent/sibling spec criteria that could be affected by the change.
-- **Parallel validation** — Independent checks run concurrently where possible (e.g., lint + type check + format in parallel).
+- **PCC as Completion Protocol** -- After any spec enters REVIEW, Quality Gate runs a structured multi-pass validation protocol inspired by the template's 11-step PCC. Adapted from interactive checklist to event-driven protocol.
+- **Deterministic checks first** -- Fast mechanical checks (lint, format, type check, secret scan) run before any LLM-based review. Fail fast, fail cheap.
+- **Cumulative acceptance criteria** -- Validate not just current spec criteria but relevant parent/sibling spec criteria that could be affected by the change.
+- **Parallel validation** -- Independent checks run concurrently where possible (e.g., lint + type check + format in parallel).
 
 Not adopted:
-- Template's agent architecture — Claude Code subagents (run in IDE session, use Claude Code tools) are fundamentally different from Vizier's agents (event-driven, filesystem-based, fresh-context, LiteLLM-backed).
-- 1:1 mapping of template's 7 agents to Vizier roles — Vizier's Quality Gate subsumes code-quality-validator + test-coverage-validator + acceptance-criteria-validator + code-reviewer into a single structured protocol.
-- Linear checklist model — Vizier uses state machines, not step-by-step interactive checklists.
-- Template's implementation-tracker and docs-updater as separate concerns — in Vizier, the Pasha handles plan tracking and the Retrospective handles documentation of learnings.
+- Template's agent architecture -- Claude Code subagents (run in IDE session, use Claude Code tools) are fundamentally different from Vizier's agents (event-driven, filesystem-based, fresh-context, LiteLLM-backed).
+- 1:1 mapping of template's 7 agents to Vizier roles -- Vizier's Quality Gate subsumes code-quality-validator + test-coverage-validator + acceptance-criteria-validator + code-reviewer into a single structured protocol.
+- Linear checklist model -- Vizier uses state machines, not step-by-step interactive checklists.
+- Template's implementation-tracker and docs-updater as separate concerns -- in Vizier, the Pasha handles plan tracking and the Retrospective handles documentation of learnings.
 
-**Why:** The template excels as development tooling (Layer 1) and as a project type offering (Layer 2). Its validation concepts (PCC, deterministic-first, cumulative criteria) are universally valuable and transfer cleanly to Vizier's architecture. Its agent implementation model doesn't transfer — Vizier's fresh-context, filesystem-based, event-driven design is fundamentally different and deliberately so (see D14).
+**Why:** The template excels as development tooling (Layer 1) and as a project type offering (Layer 2). Its validation concepts (PCC, deterministic-first, cumulative criteria) are universally valuable and transfer cleanly to Vizier's architecture. Its agent implementation model doesn't transfer -- Vizier's fresh-context, filesystem-based, event-driven design is fundamentally different and deliberately so (see D14).
 
-**Trade-off:** Layer 1 means we depend on the template's CLAUDE.md conventions during development, which is a process dependency. But since we control both projects, this is manageable. Layer 3's selective adoption means we don't get the template's agents "for free" — we implement PCC natively in the Quality Gate. But this is the right cost: Vizier's Quality Gate needs to work for any domain (documents, finance), not just Claude Code sessions.
+**Trade-off:** Layer 1 means we depend on the template's CLAUDE.md conventions during development, which is a process dependency. But since we control both projects, this is manageable. Layer 3's selective adoption means we don't get the template's agents "for free" -- we implement PCC natively in the Quality Gate. But this is the right cost: Vizier's Quality Gate needs to work for any domain (documents, finance), not just Claude Code sessions.
 
 ---
 
-### D31: Component replacement evaluation — build vs. borrow
+### D31: Component replacement evaluation -- build vs. borrow
 
 **Context:** Evaluated whether existing tools could replace any Vizier component, based on competitive landscape analysis (CrewAI, LangGraph, AutoGen, OpenAI Agents SDK, Claude Agent SDK, Temporal, Prefect, Qodo, CodeRabbit, Invariant, Lakera Guard, EvoAgentX).
 
@@ -665,15 +665,15 @@ Not adopted:
 |---|---|---|
 | Sentinel | Invariant/Snyk Guardrails + Lakera Guard | Sentinel's allowlist/denylist/Haiku model (D24) is simpler, more integrated, and purpose-built for Vizier's tool-call enforcement. Bolting on 2-3 external tools adds complexity. |
 | Quality Gate | Qodo + CodeRabbit | PR-level tools for software only. Vizier's Quality Gate works across domains (docs, finance) via plugin system + PCC (D20). |
-| Architect | LangGraph Deep Agents | Graph-driven orchestration — explicitly rejected in D14. Opposite of Vizier's event-driven model. |
-| Orchestration | Temporal / Prefect | Would replace filesystem-as-message-bus — a core principle (D4). Reconciliation (D22) addresses the reliability concern without adding infrastructure. |
+| Architect | LangGraph Deep Agents | Graph-driven orchestration -- explicitly rejected in D14. Opposite of Vizier's event-driven model. |
+| Orchestration | Temporal / Prefect | Would replace filesystem-as-message-bus -- a core principle (D4). Reconciliation (D22) addresses the reliability concern without adding infrastructure. |
 
 **Monitor for future consideration:**
 
 | Tool | Potential use | When to revisit |
 |---|---|---|
-| Lakera Guard | Prompt injection detection on inbound Telegram messages | Phase 6 (EA) — could complement Sentinel's content scanner for untrusted inbound messages |
-| EvoAgentX | Automatic prompt optimization for Retrospective | Phase 5+ — academic (EMNLP 2025), needs maturity. Could help Retrospective propose better prompt changes. |
+| Lakera Guard | Prompt injection detection on inbound Telegram messages | Phase 6 (EA) -- could complement Sentinel's content scanner for untrusted inbound messages |
+| EvoAgentX | Automatic prompt optimization for Retrospective | Phase 5+ -- academic (EMNLP 2025), needs maturity. Could help Retrospective propose better prompt changes. |
 
 **Already adopted (confirmed):** LiteLLM (library, D27), aiogram 3.x, watchdog + reconciliation (D22), Jinja2, Pydantic, uv, ruff, pyright, pytest.
 
@@ -681,17 +681,17 @@ Not adopted:
 
 ---
 
-### D32: Calendar integration — dual provider (Google + Microsoft 365)
+### D32: Calendar integration -- dual provider (Google + Microsoft 365)
 
 **Context:** Sultan uses personal Google account and company Microsoft 365 (algoenergy.cz, Outlook). Need calendar access for EA's meeting prep, deadline awareness, and scheduling.
 
-**Decision:** Use both MCP servers: workspace-mcp for Google Calendar (personal), Microsoft 365 MCP Server for Outlook (company). EA reads from both and presents a unified calendar view. MCP protocol makes multi-provider clean — EA has two calendar tool sources.
+**Decision:** Use both MCP servers: workspace-mcp for Google Calendar (personal), Microsoft 365 MCP Server for Outlook (company). EA reads from both and presents a unified calendar view. MCP protocol makes multi-provider clean -- EA has two calendar tool sources.
 
 **Why:** Real executive assistants check all their boss's calendars, not just one. Sultan's meetings span personal and company contexts. EA must see both to correlate commitments with calendar events accurately.
 
 ---
 
-### D33: Cost budget enforcement — degrade + alert
+### D33: Cost budget enforcement -- degrade + alert
 
 **Context:** Vizier runs autonomously and burns real API budget. Structured logging (D28) tracks costs, but what happens when the budget is exceeded?
 
@@ -709,17 +709,17 @@ Sultan can override any threshold via EA. Budget tracked in structured agent log
 
 ---
 
-### D34: Testing strategy — mock litellm, no API credits in CI
+### D34: Testing strategy -- mock litellm, no API credits in CI
 
 **Context:** Vizier makes LLM calls via `litellm.completion()`. Tests need to verify agent behavior without burning API credits on every test run.
 
 **Decision:** Mock `litellm.completion()` in all automated tests. Return canned responses that exercise the code paths being tested. No real LLM calls in CI, ever.
 
 **Test layers:**
-- **Unit tests**: Pure Python logic (file protocol, state machine, model router, Sentinel allowlist/denylist, plugin loader, reconciliation). No mocking needed — these don't touch LLM.
+- **Unit tests**: Pure Python logic (file protocol, state machine, model router, Sentinel allowlist/denylist, plugin loader, reconciliation). No mocking needed -- these don't touch LLM.
 - **Agent tests**: Mock `litellm.completion()`, test that agent runtime correctly handles responses (spec transitions, file writes, git commits, feedback generation).
 - **Sentinel Haiku tests**: Mock `litellm.completion()` for Haiku evaluator, test classification of safe/dangerous tool calls.
-- **Integration tests**: Run full Worker → Quality Gate loop with mocked LLM. Verify spec lifecycle from READY → REVIEW → DONE/REJECTED.
+- **Integration tests**: Run full Worker to Quality Gate loop with mocked LLM. Verify spec lifecycle from READY to REVIEW to DONE/REJECTED.
 - **Manual validation**: Real LLM calls during development only. Used to validate prompt quality, not code correctness.
 
 **Why:** 90%+ of Vizier's code is pure Python that never touches an LLM. The remaining code calls `litellm.completion()` at a single point, trivially mockable. Prompt quality is a manual concern, not a CI concern.
@@ -754,17 +754,17 @@ class StubQualityGate(BaseQualityGate):
     # Quality Gate checks that the artifact file exists and is non-empty
 ```
 
-The stub plugin is minimal but complete: it has a Worker that writes files, a Quality Gate that checks files exist, prompt templates, and one criteria (`@criteria/file_exists`). This exercises the full Worker → Quality Gate → DONE/REJECTED flow without needing real code generation.
+The stub plugin is minimal but complete: it has a Worker that writes files, a Quality Gate that checks files exist, prompt templates, and one criteria (`@criteria/file_exists`). This exercises the full Worker to Quality Gate to DONE/REJECTED flow without needing real code generation.
 
 **Why:** A stub plugin that's too simple (no tools, no checks) doesn't test the real code paths. A stub that's too complex delays Phase 2. This design hits the sweet spot: exercises all base class methods while being trivial to implement.
 
 ---
 
-### D19: Sentinel — deterministic security service with Haiku content scanner
+### D19: Sentinel -- deterministic security service with Haiku content scanner
 **Context:** Agents that web search, fetch URLs, receive files, and modify CI pipelines need security guardrails. Options: full LLM agent, deterministic service, hybrid.
 **Decision:** Sentinel is a deterministic Python service for 95% of operations (whitelists, regex secret scanning, permission enforcement, git operation classification). Spawns a Haiku-tier LLM call only for evaluating untrusted web content and inbound files from unknown sources.
-**Why:** Security checks should be fast, deterministic, and cheap. LLM-based security would burn tokens on every operation. But novel threats (prompt injection in fetched content) need intelligence — Haiku is cheap enough for on-demand scanning.
-**Dangerous operations requiring Sultan approval:** GitHub Actions changes, force push, branch delete, history rewrite, new dependencies. Sentinel blocks → EA asks Sultan → decision flows back.
+**Why:** Security checks should be fast, deterministic, and cheap. LLM-based security would burn tokens on every operation. But novel threats (prompt injection in fetched content) need intelligence -- Haiku is cheap enough for on-demand scanning.
+**Dangerous operations requiring Sultan approval:** GitHub Actions changes, force push, branch delete, history rewrite, new dependencies. Sentinel blocks, EA asks Sultan, decision flows back.
 **Lineage:** Directly inspired by EFM's MCP safety server (Tier 1/2/3 system), generalized to cover web access, file relay, and CI/CD.
 
 ---
@@ -1014,3 +1014,141 @@ litellm.failure_callback = ["langfuse"]
 **Trade-off:** Temporary loss of all agent capabilities (daemon start disabled, no plugin implementations). Acceptable because the old agents were not deployed in production and the infrastructure remains fully tested and operational.
 
 **Supersedes:** D14 (own thin runtime) is partially obsolete -- the new agents will use Claude's tool use natively rather than a custom prompt-in/response-out runtime. D35 (stub plugin) and D39 (stub as fixture) are obsolete -- the StubPlugin was simplified to test only BasePlugin without BaseWorker/BaseQualityGate.
+
+---
+
+### D47: Anthropic Python SDK with tool_use as agent foundation
+
+**Context:** After the Agent System Reset (D46), agents need to be rebuilt with tool use. Two options: (A) Claude Agent SDK (wraps CLI as subprocess), (B) Anthropic Python SDK (direct API with tool_use).
+
+**Decision:** Use the Anthropic Python SDK directly. Each agent is a tool_use loop calling `client.messages.create(tools=...)`. No Claude Agent SDK.
+
+**Why:**
+- Direct API calls -- no subprocess overhead, no ~12s startup, no 55MB binary
+- Full control over the agent loop: Sentinel PreToolUse hooks, budget enforcement, structured logging, Golden Trace
+- Stable, production-ready package (not pre-1.0 alpha)
+- Windows-friendly (no CLI binary initialization issues)
+- Custom tools needed (spec CRUD, delegation, escalation) -- Agent SDK built-in tools don't cover our use cases
+- Claude-only simplification: multi-provider (D27/litellm) adds complexity without current benefit
+
+**Supersedes:** D14 (own thin runtime -- now uses Anthropic SDK directly), D27 (litellm multi-provider -- now Claude-only).
+
+---
+
+### D48: Scout Feedback Loop -- Architect can request more research
+
+**Context:** Scout is a one-shot bottleneck. If Scout hallucinates a wrong library or declares "no research needed" for a complex task, Architect works from poisoned data.
+
+**Decision:** Architect gets a `request_more_research(spec_id, questions)` tool. This transitions the spec back to DRAFT with research questions attached, triggering a second Scout pass. Scout's output includes confidence markers; Architect evaluates them before proceeding.
+
+**Why:** One-shot research is fragile. The feedback loop is cheap (one extra Scout invocation) and prevents expensive failures downstream.
+
+---
+
+### D49: QG Model Tier Escalation -- Opus for HIGH complexity
+
+**Context:** Sonnet-Worker and Sonnet-QG share the same model capabilities. If Worker makes a subtle logic error, QG with the same "brain" has a high probability of missing it.
+
+**Decision:** Two-pronged fix: (1) QG must run real tests -- mandatory `run_tests` before any LLM pass. (2) For HIGH complexity specs, QG escalates to Opus tier for semantic/logic passes (3-5). Mechanical passes (1-2) always use Sonnet.
+
+**Why:** Real test output is ground truth. Opus-tier QG for complex specs provides a stronger "second opinion" on logic correctness.
+
+---
+
+### D50: Synchronous Supervisor Notification -- ping_supervisor
+
+**Context:** Filesystem-mediated handoffs have 0-15s latency (reconciliation interval). A Worker blocked on a question shouldn't wait 15 seconds.
+
+**Decision:** Add `ping_supervisor(spec_id, urgency, message)` tool. Writes the message file AND triggers immediate Pasha attention via watchdog filesystem event (~100ms). Three urgency levels: INFO (next reconciliation), QUESTION (immediate), BLOCKER (immediate + EA escalation).
+
+**IPC mechanism:** Watchdog filesystem events. The file write IS the signal. No new IPC mechanism needed.
+
+---
+
+### D51: Loop Guardian -- behavioral checkpoint for agent spinning
+
+**Context:** Sentinel gates individual tool calls but doesn't detect behavioral patterns like an agent looping on the same failing command.
+
+**Decision:** Loop Guardian in AgentRuntime: (1) Deterministic: identical tool calls 3+ times triggers HALT. (2) LLM checkpoint every N calls (default 5): Haiku evaluates progress. Returns CONTINUE/WARN/HALT. Cost: ~$0.001 per checkpoint.
+
+**Why:** Sentinel prevents dangerous actions. Loop Guardian prevents expensive non-progress. Complementary mechanisms.
+
+---
+
+### D52: Spec Dependency DAG -- depends_on field
+
+**Context:** Architect creates sub-specs without expressing dependencies. Pasha might assign them in wrong order.
+
+**Decision:** Extend spec frontmatter with `depends_on: list[str]`. Pasha only assigns Workers to specs whose prerequisites are DONE. Deterministic DAG validator (topological sort, no cycles, all IDs exist) runs before accepting PROPOSE_PLAN.
+
+**Why:** Prevents wasted work and enables safe parallelism for independent sub-specs.
+
+---
+
+### D53: Integration Tests from Phase 14 -- not deferred to Phase 22
+
+**Context:** Deferring integration tests to Phase 22 means building 8 phases before discovering structural problems.
+
+**Decision:** Phase 14 includes mocked integration tests from day one (simulated handoffs, Sentinel blocking, Loop Guardian, budget enforcement). Phase 22 becomes real-LLM-only validation.
+
+**Why:** Mocked integration tests are cheap and catch structural problems early.
+
+---
+
+### D54: Structured Message Schema -- typed Pydantic messages (Contract A)
+
+**Context:** First-generation agents communicated via free text parsed with regex. Fragile and a primary cause of failures.
+
+**Decision:** All inter-agent communication uses typed Pydantic models. Eight types: TASK_ASSIGNMENT, STATUS_UPDATE, REQUEST_CLARIFICATION, PROPOSE_PLAN, ESCALATION, QUALITY_VERDICT, RESEARCH_REPORT, PING. Serialized as JSON to spec directory.
+
+**Why:** Pydantic validation at serialization time. JSON Schema auto-generated. No regex parsing.
+
+---
+
+### D55: Write-set via glob patterns -- replaces fixed artifact list
+
+**Context:** Fixed artifact lists were too restrictive. Workers needed flexibility to create test files or update configs.
+
+**Decision:** Plugin defines write-set as glob patterns (e.g., `src/**/*.py`, `tests/**/*.py`). Sentinel enforces via glob matching. Individual specs can further restrict.
+
+**Why:** Categorical boundaries ("all Python in src/") give flexibility within limits. Zero-cost enforcement.
+
+---
+
+### D56: QG Structured Verdicts with evidence -- QUALITY_VERDICT
+
+**Context:** First-generation QG produced text verdicts. No machine-verification that QG actually ran tests.
+
+**Decision:** QUALITY_VERDICT is JSON with per-criterion PASS/FAIL + evidence_link (file path). Plugin declares mandatory evidence types. Pasha validates completeness deterministically.
+
+**Why:** Evidence links make verdicts auditable. Mandatory evidence prevents LLM-only verdicts.
+
+---
+
+### D57: Golden Trace per spec -- trace.jsonl
+
+**Context:** Multi-agent interactions are hard to debug.
+
+**Decision:** Every tool call, message, and state transition appended to `specs/NNN/trace.jsonl`. Retrospective reads traces for pattern analysis.
+
+**Why:** Per-spec timeline enables debugging, analysis, and improvement. JSONL is append-only and machine-readable.
+
+---
+
+### D58: Adaptive reconciliation interval
+
+**Context:** Fixed 15s interval is suboptimal -- too slow when busy, wasteful when idle.
+
+**Decision:** Interval adapts: active (5-10s), baseline (15s), idle (30s->60s->120s backoff). Watchdog events still fire instantly.
+
+**Why:** Reduces I/O when idle, increases responsiveness when busy.
+
+---
+
+### D59: EA project capability summary
+
+**Context:** EA needs informed routing decisions without being fully plugin-aware.
+
+**Decision:** EA reads per-project capability summary from ProjectRegistry (plugin type, CI signals, definition of done, critical tools, autonomy stage).
+
+**Why:** Provides routing context without coupling EA to plugin implementation.

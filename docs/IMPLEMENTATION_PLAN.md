@@ -17,6 +17,17 @@
 | 10 | Scout Agent | Complete | `feat/scout-agent` |
 | 11 | Production Wiring & CD Pipeline | Complete | `feat/production-wiring` |
 | 12 | Docker Deployment | Complete | `feat/docker-deploy` |
+| -- | Agent System Reset (D46) | Complete | `feat/llm-first-ea` |
+| 13 | Agent Protocol Design | In Progress | `feat/agent-protocol` |
+| 14 | Message Schema + Agent Runtime | Planned | -- |
+| 15 | Domain Tools | Planned | -- |
+| 16 | State + Communication Tools | Planned | -- |
+| 17 | EA Agent | Planned | -- |
+| 18 | Pasha Orchestrator | Planned | -- |
+| 19 | Inner Loop Agents | Planned | -- |
+| 20 | Plugin Rebuild | Planned | -- |
+| 21 | Retrospective Agent | Planned | -- |
+| 22 | Golden Path Validation | Planned | -- |
 
 ---
 
@@ -51,7 +62,7 @@
 
 ### Notes
 - `uv sync` (without `--all-packages`) only installs root dependencies. Use `uv sync --all-packages` to install all workspace members.
-- Branch is `master` (not `main`) — CI workflow updated accordingly.
+- Branch is `master` (not `main`) -- CI workflow updated accordingly.
 
 ---
 
@@ -822,3 +833,347 @@ All corresponding test directories and files were also deleted. Entry points for
 ### What Comes Next
 
 The specification docs and implementation plan will be reworked, then new phases will be appended for tool-using, interactive agents. The infrastructure above provides the foundation.
+
+---
+
+## Phase 13: Agent Protocol Design (Documentation Only)
+
+**Goal:** Define the communication protocol and testable use cases that will drive all subsequent implementation phases. No code -- specification documents only.
+
+### Key Decisions
+
+| Decision | ID | Summary |
+|----------|-----|---------|
+| SDK Foundation | D47 | Anthropic Python SDK with `client.messages.create(tools=...)`. Direct API, no subprocess overhead. Supersedes D14, D27. |
+| Scout Feedback | D48 | Architect can send Scout back for more research via `request_more_research` tool |
+| QG Escalation | D49 | Opus tier for HIGH complexity semantic QG passes + mandatory real test execution |
+| Sync Notification | D50 | `ping_supervisor` tool with urgency levels, uses watchdog filesystem events (~100ms) |
+| Loop Guardian | D51 | Haiku checkpoint every N tool calls, deterministic repeat detection (3x identical calls) |
+| Spec DAG | D52 | `depends_on` frontmatter field, Pasha gates scheduling on prerequisites |
+| Early Integration | D53 | Mocked integration tests from Phase 14, not deferred to Phase 22 |
+| Message Schema | D54 | All inter-agent communication uses typed Pydantic messages (Contract A) |
+| Glob Write-set | D55 | Plugin defines write-set as glob patterns, Sentinel enforces |
+| Structured Verdicts | D56 | QUALITY_VERDICT JSON with per-criterion PASS/FAIL + evidence links |
+| Golden Trace | D57 | `specs/NNN/trace.jsonl` captures all tool calls, messages, state transitions |
+| Adaptive Reconciliation | D58 | Backoff when idle (30s->120s), accelerate when busy (5s->10s), baseline 15s |
+| EA Capability Summary | D59 | EA reads per-project capability data from ProjectRegistry |
+
+### Deliverables
+
+- [x] `docs/AGENT_PROTOCOL.md` -- Communication protocol design document (3 contracts: Message Schema, Tool-use Policy, State Machine Invariants; SDK integration; agent lifecycle; supervision; error handling; integration with infrastructure; architectural alternatives)
+- [x] `docs/USE_CASES.md` -- 15 BDD scenarios in Gherkin format covering all agent pairs and new mechanisms (D48-D52)
+- [x] `docs/AGENT_SPECS.md` -- Major revision (delete Scout regex triage, add tool lists, message types, write-set patterns, structured verdicts, project capability summary, budget limits)
+- [ ] `docs/IMPLEMENTATION_PLAN.md` -- Append Phases 13-22
+- [ ] `docs/DECISIONS.md` -- Add D47-D59 (13 new decisions)
+
+### Acceptance Criteria
+- [x] AGENT_PROTOCOL.md covers all 10 sections with machine-verifiable contracts
+- [x] USE_CASES.md has 15 BDD scenarios covering all agent pairs
+- [x] AGENT_SPECS.md updated: Scout regex deleted, all agents have tool lists + message types + budgets
+- [ ] IMPLEMENTATION_PLAN.md has Phases 13-22 with sequential dependencies
+- [ ] DECISIONS.md has D47-D59 with rationale and what each supersedes
+- [ ] All documents are internally consistent (no contradictions between protocol, specs, and use cases)
+- [ ] BDD scenarios reference Contract A message types and Contract C invariants
+
+### Phase Completion Steps
+
+After this phase, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md): PIRR (`.claude/agents/spec-readiness-reviewer.md` via `subagent_type: "general-purpose"`) as pre-implementation gate, then sync remote, pre-commit hygiene, commit & push, parallel validation (`.claude/agents/code-quality-validator.md` + `.claude/agents/test-coverage-validator.md` + `.claude/agents/acceptance-criteria-validator.md` -- all invoked via `subagent_type: "general-purpose"`), Plan agent or `.claude/agents/implementation-tracker.md` for implementation check, `.claude/agents/docs-updater.md` for documentation + changelog, create PR with `.claude/agents/pr-writer.md`, verify CI, code review with `.claude/agents/code-reviewer.md` (NOT `feature-dev:code-reviewer`) or `.claude/agents/review-responder.md`, phase handoff note. Consult the Failure & Rollback Protocol if any step fails. See the Agent Reference table in the PCC section for exact invocation details.
+
+---
+
+## Phase 14: Message Schema + Agent Runtime
+
+**Goal:** Implement Contract A Pydantic models and the AgentRuntime wrapper that drives all agents. Includes Sentinel hook, Loop Guardian, Golden Trace, and mocked integration tests from day one (D53).
+
+### Components
+- [ ] Contract A Pydantic models in `libs/core/vizier/core/models/messages.py` (D54): TASK_ASSIGNMENT, STATUS_UPDATE, REQUEST_CLARIFICATION, PROPOSE_PLAN, ESCALATION, QUALITY_VERDICT, RESEARCH_REPORT, PING
+- [ ] `AgentRuntime` in `libs/core/vizier/core/runtime/`: wraps Anthropic client, tool loop, Sentinel PreToolUse hook, budget tracking, Loop Guardian (D51), Golden Trace (D57), structured logging
+- [ ] Loop Guardian: deterministic repeat detection (3x identical calls) + Haiku checkpoint every N tool calls
+- [ ] Golden Trace writer: append to `specs/NNN/trace.jsonl` per tool call and message
+- [ ] Budget tracker: per-invocation token counting, 80%/100% threshold alerts
+- [ ] `depends_on` field added to `SpecFrontmatter` in `libs/core/vizier/core/models/spec.py` (D52)
+- [ ] Mocked integration tests (D53): simulated Worker->Pasha handoff, Sentinel hook blocking, Loop Guardian triggering, budget enforcement
+
+### Acceptance Criteria
+- [ ] All 8 Contract A message types are Pydantic models with JSON Schema validation
+- [ ] AgentRuntime runs a tool loop with Anthropic API (mocked in tests)
+- [ ] Sentinel PreToolUse hook blocks denied tool calls (returns error to Claude)
+- [ ] Loop Guardian detects 3x identical calls and triggers HALT
+- [ ] Loop Guardian Haiku checkpoint fires every N calls (mocked)
+- [ ] Golden Trace appends to trace.jsonl for every tool call
+- [ ] Budget tracker alerts at 80% and forces exit at 100%
+- [ ] `depends_on` field is optional list[str] on SpecFrontmatter
+- [ ] Mocked integration tests pass: handoff, blocking, guardian, budget
+- [ ] All existing 409 tests still pass (no regressions)
+
+### Phase Completion Steps
+
+After this phase, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md).
+
+---
+
+## Phase 15: Domain Tools
+
+**Goal:** Implement the domain tools that agents use to interact with the project filesystem and execute commands.
+
+### Components
+- [ ] Tool definition framework: tool name, description, JSON Schema parameters, implementation function
+- [ ] `read_file(path)` -- read any project file
+- [ ] `write_file(path, content)` -- write within write-set (D55), Sentinel enforces glob patterns
+- [ ] `edit_file(path, old, new)` -- precise text replacement within write-set
+- [ ] `bash(command, cwd)` -- run shell command, wraps existing `ToolRunner`
+- [ ] `glob(pattern, path)` -- find files by pattern
+- [ ] `grep(pattern, path)` -- search file contents
+- [ ] `git(command)` -- git operations, Sentinel classifies safe/dangerous
+- [ ] `run_tests(command)` -- run test suite, captures output to evidence file
+- [ ] `web_search(query)` -- search the web (for Scout, Document workers)
+- [ ] Write-set enforcement in Sentinel: glob pattern matching for write_file/edit_file calls (D55)
+
+### Acceptance Criteria
+- [ ] Each tool has a JSON Schema definition compatible with Anthropic tool_use format
+- [ ] `read_file` returns file contents (any project file)
+- [ ] `write_file` succeeds within write-set, denied outside
+- [ ] `edit_file` succeeds within write-set, denied outside
+- [ ] `bash` executes commands and returns stdout/stderr
+- [ ] `glob` returns matching file paths
+- [ ] `grep` returns matching lines with file paths
+- [ ] `git` allows safe operations, blocks dangerous ones via Sentinel
+- [ ] `run_tests` captures test output to evidence file
+- [ ] Sentinel write-set enforcement works with glob patterns from plugin config
+- [ ] All tools return errors as structured tool_result (not exceptions)
+
+### Phase Completion Steps
+
+After this phase, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md).
+
+---
+
+## Phase 16: State + Communication Tools
+
+**Goal:** Implement the orchestration, state, and communication tools that enable inter-agent coordination.
+
+### Components
+- [ ] State tools wrapping `spec_io`: `create_spec`, `update_spec_status`, `read_spec`, `list_specs`, `write_feedback`
+- [ ] Delegation tools: `delegate_to_scout`, `delegate_to_architect`, `delegate_to_worker`, `delegate_to_quality_gate`
+- [ ] Escalation tools: `escalate_to_pasha`, `escalate_to_ea`
+- [ ] `request_more_research(spec_id, questions)` (D48): transitions spec back to DRAFT with research questions
+- [ ] `ping_supervisor(spec_id, urgency, message)` (D50): writes ping file detected by watchdog
+- [ ] `send_message(message)`: emits typed Contract A message to spec directory
+- [ ] `send_briefing(content)`: EA sends message to Sultan via Telegram
+- [ ] `report_progress(project, data)`: Pasha writes status report
+- [ ] `spawn_agent(role, spec_id, context)`: Pasha starts agent subprocess
+- [ ] Contract C invariant enforcement: state transition preconditions checked in `update_spec_status`
+- [ ] DAG scheduling support (D52): `depends_on` validation in Pasha's DAG validator (topological sort, no cycles)
+- [ ] Adaptive reconciliation (D58): interval adjustment based on activity
+
+### Acceptance Criteria
+- [ ] State tools correctly wrap spec_io functions with Contract C invariant checking
+- [ ] `update_spec_status` enforces all transition invariants from Contract C
+- [ ] Delegation tools write TASK_ASSIGNMENT messages and trigger agent spawning
+- [ ] `request_more_research` transitions spec back to DRAFT with questions attached
+- [ ] `ping_supervisor` writes a file that watchdog detects within ~100ms
+- [ ] `send_message` serializes Contract A Pydantic models to JSON in spec directory
+- [ ] DAG validator rejects cycles, missing IDs, and self-references
+- [ ] DAG validator accepts valid topologically-sorted dependency graphs
+- [ ] Adaptive reconciliation adjusts intervals based on spec activity
+- [ ] Evidence completeness check validates plugin-mandatory evidence types before accepting QUALITY_VERDICT
+
+### Phase Completion Steps
+
+After this phase, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md).
+
+---
+
+## Phase 17: EA Agent
+
+**Goal:** Rebuild the EA (Executive Assistant) as a tool-using Claude instance with the Anthropic Python SDK.
+
+### Components
+- [ ] EA system prompt with role, project capability summary (D59), communication modes
+- [ ] EA tool set: `read_file`, `create_spec`, `read_spec`, `list_specs`, `send_message`, `send_briefing`
+- [ ] Project capability summary reader (D59): reads plugin type, CI signals, definition of "done" from ProjectRegistry
+- [ ] JIT prompt assembly (D42): always-loaded core + conditional modules
+- [ ] Telegram integration: transport layer connects to EA AgentRuntime
+- [ ] Proactive behaviors: morning briefing, deadline warnings, escalation alerts
+
+### Acceptance Criteria
+- [ ] EA runs as AgentRuntime with Opus model and correct tool set
+- [ ] EA reads project capability summaries for informed routing
+- [ ] EA creates DRAFT spec seeds (minimal, not detailed)
+- [ ] EA handles all communication modes (delegation, status, control, session, briefing, check-in, query)
+- [ ] EA sends briefings via Telegram
+- [ ] JIT prompt assembly loads correct modules per message type
+- [ ] Proactive behaviors trigger on schedule and events
+
+### Phase Completion Steps
+
+After this phase, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md).
+
+---
+
+## Phase 18: Pasha Orchestrator
+
+**Goal:** Rebuild the Pasha orchestrator as a tool-using Claude instance with event-driven loop, DAG-aware scheduling, and ping handling.
+
+### Components
+- [ ] Pasha system prompt with project context, orchestration responsibilities
+- [ ] Pasha tool set: delegation tools, state tools, communication tools, `report_progress`, `spawn_agent`
+- [ ] Event-driven loop: watchdog events + adaptive reconciliation (D58)
+- [ ] Agent spawning: subprocess with AgentRuntime for each role
+- [ ] DAG-aware scheduling (D52): only assign Workers to specs with all `depends_on` DONE
+- [ ] Deterministic DAG validator: topological sort on PROPOSE_PLAN acceptance
+- [ ] Evidence completeness checker: validates plugin-mandatory evidence types before accepting QUALITY_VERDICT
+- [ ] Ping handling (D50): watchdog detects ping files, processes by urgency
+- [ ] Graduated retry orchestration: model bump at retry 3, re-decomposition at retry 7, STUCK at retry 10
+- [ ] Graceful shutdown: IN_PROGRESS -> INTERRUPTED
+
+### Acceptance Criteria
+- [ ] Pasha runs as AgentRuntime with Opus model and correct tool set
+- [ ] Pasha reacts to spec lifecycle events via watchdog
+- [ ] Pasha spawns correct agent role for each spec state transition
+- [ ] DAG scheduling holds specs with unmet dependencies
+- [ ] DAG validator rejects invalid dependency graphs
+- [ ] Evidence completeness check validates all mandatory evidence types
+- [ ] Ping handling processes QUESTION urgency immediately, BLOCKER escalates to EA
+- [ ] Adaptive reconciliation adjusts intervals (5s active, 15s baseline, 120s idle)
+- [ ] Graduated retry follows D25 thresholds
+- [ ] Graceful shutdown transitions active specs to INTERRUPTED
+
+### Phase Completion Steps
+
+After this phase, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md).
+
+---
+
+## Phase 19: Inner Loop Agents
+
+**Goal:** Rebuild Scout, Architect, Worker, and Quality Gate as tool-using Claude instances.
+
+### Components
+- [ ] Scout agent: LLM-based triage (no regex), `web_search` tool, structured `RESEARCH_REPORT` output, confidence markers
+- [ ] Architect agent: `request_more_research` (D48), `PROPOSE_PLAN` with `depends_on` DAG (D52), write-set declaration per sub-spec
+- [ ] Worker agent: full domain tool set, glob-pattern write-set (D55), `ping_supervisor` (D50), `REQUEST_CLARIFICATION`
+- [ ] Quality Gate agent: mandatory `run_tests` before LLM passes, structured `QUALITY_VERDICT` (D56) with evidence links, Opus escalation for HIGH complexity (D49)
+
+### Acceptance Criteria
+- [ ] Scout uses LLM judgment for triage (no keyword/regex patterns)
+- [ ] Scout produces structured RESEARCH_REPORT with confidence field
+- [ ] Architect evaluates Scout confidence and can send back for more research (D48)
+- [ ] Architect produces PROPOSE_PLAN with depends_on DAG (D52)
+- [ ] Worker writes only within glob-pattern write-set (Sentinel enforces)
+- [ ] Worker can request clarification and ping supervisor
+- [ ] QG calls run_tests before any LLM-assisted pass
+- [ ] QG produces QUALITY_VERDICT with per-criterion results and evidence links
+- [ ] QG uses Opus for HIGH complexity semantic passes (D49)
+- [ ] All agents produce Golden Trace entries via AgentRuntime
+
+### Phase Completion Steps
+
+After this phase, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md).
+
+---
+
+## Phase 20: Plugin Rebuild
+
+**Goal:** Rebuild Software and Documents plugins with new agent architecture: write-set patterns, criteria, system prompts, evidence types.
+
+### Components
+- [ ] `BasePlugin` extensions: `worker_write_set`, `required_evidence`, `system_prompts`, `tool_overrides`
+- [ ] Software plugin: write-set patterns (`src/**/*.py`, `tests/**/*.py`, etc.), required evidence (test_output, lint_output, type_check_output, diff), system prompt templates per role, criteria library
+- [ ] Documents plugin: write-set patterns (`docs/**`, `templates/**`, etc.), required evidence (link_check_output, structure_validation, rendered_preview_path), system prompt templates per role, criteria library
+- [ ] Plugin entry point registration in pyproject.toml
+
+### Acceptance Criteria
+- [ ] BasePlugin has worker_write_set, required_evidence, system_prompts, tool_overrides properties
+- [ ] Software plugin defines correct write-set glob patterns
+- [ ] Software plugin requires test_output, lint_output, type_check_output, diff evidence
+- [ ] Documents plugin defines correct write-set glob patterns
+- [ ] Documents plugin requires link_check_output, structure_validation, rendered_preview_path evidence
+- [ ] Plugin discovery works via entry points
+- [ ] Sentinel enforces plugin write-set boundaries
+
+### Phase Completion Steps
+
+After this phase, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md).
+
+---
+
+## Phase 21: Retrospective Agent
+
+**Goal:** Rebuild the Retrospective agent with Golden Trace analysis and process debt register.
+
+### Components
+- [ ] Retrospective system prompt with analysis responsibilities
+- [ ] Retrospective tool set: `read_file`, `glob`, `grep`, `read_spec`, `list_specs`, `send_message`
+- [ ] Golden Trace analysis (D57): reads trace.jsonl files for behavioral patterns
+- [ ] Process debt register: tracks recurring patterns (rejection types, stuck patterns, budget overruns)
+- [ ] Evidence-based proposals: every proposal cites specific trace data
+- [ ] Metrics tracking: rejection rate, stuck rate, average retries, cycle time, cost per spec
+
+### Acceptance Criteria
+- [ ] Retrospective runs as AgentRuntime with Opus model
+- [ ] Reads and analyzes trace.jsonl files for behavioral patterns
+- [ ] Maintains process debt register with recurring pattern tracking
+- [ ] Produces evidence-based proposals citing specific trace data
+- [ ] Updates learnings.md directly (append-only)
+- [ ] All proposals require Sultan approval (no auto-approve)
+- [ ] Tracks improvement metrics across cycles
+
+### Phase Completion Steps
+
+After this phase, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md).
+
+---
+
+## Phase 22: Golden Path Validation
+
+**Goal:** End-to-end validation with real LLM calls. All prior phases used mocked LLM; this phase confirms the system works with actual Claude API calls.
+
+### Components
+- [ ] Golden path test: Sultan message -> EA -> Pasha -> Scout -> Architect -> Worker -> QG -> DONE
+- [ ] Escalation path test: Worker stuck -> graduated retry -> STUCK -> Retrospective
+- [ ] Rejection loop test: QG rejects -> Worker retries with feedback -> QG approves
+- [ ] DAG test: Architect creates sub-spec DAG, Pasha schedules respecting dependencies
+- [ ] Multi-project test: EA routes tasks to multiple Pashas
+
+### Acceptance Criteria
+- [ ] Happy path completes end-to-end with real Claude API calls
+- [ ] All Contract C invariants hold during real execution
+- [ ] Golden Trace correctly captures all tool calls and state transitions
+- [ ] Budget tracking accurately reflects real token usage
+- [ ] Escalation path works with real agent decision-making
+- [ ] System recovers from agent crashes during real execution
+- [ ] Cost per golden path run is documented
+
+### Phase Completion Steps
+
+After this phase, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md).
+
+---
+
+## Decisions & Trade-offs (Phases 0-12)
+
+| ID | Decision | Alternatives Considered | Rationale |
+|----|----------|------------------------|-----------|
+| D1 | LiteLLM for model routing | Direct API calls | Standard interface, provider switching |
+| D2 | Fresh context per task | Persistent agent memory | Reproducibility, no state corruption |
+| D3 | Deterministic EA classification | LLM-based intent detection | Zero cost routing, predictable behavior |
+| D4 | Filesystem as message bus | Redis/RabbitMQ/PostgreSQL | Simplicity, debuggability, git-compatible |
+| D5 | Plugin system via entry points | Config-based plugin loading | Standard Python pattern, pip-installable |
+| D14 | Own thin runtime over Claude Agent SDK | Claude Agent SDK | Full control, simpler debugging (partially obsolete -- see D47) |
+| D22 | 15s reconciliation interval | Longer intervals, event-only | Compensates for watchdog unreliability on Windows |
+| D25 | Graduated retry (model bump at 3, Pasha at 5, Architect at 7, STUCK at 10) | Flat retry | Progressive escalation matches problem severity |
+| D27 | LiteLLM as library (multi-provider) | Direct API per provider | Provider independence (superseded by D47) |
+| D33 | 3-tier budget enforcement (80%/100%/120%) | Single threshold | Graduated response matches graduated risk |
+| D34 | Mocked LLM for CI, real LLM for golden paths | All real or all mocked | Cost-effective CI, confidence in production |
+| D35 | Stub plugin for testing | Test with real plugins | Isolation, no external dependencies |
+| D36 | Telegram long polling | Webhooks | Simpler deployment, no public URL needed |
+| D37 | asyncio subprocess per agent | Threads, in-process | Process isolation, crash containment |
+| D39 | Programmatic plugin registration in tests | Entry points in tests | Avoids pip install during test runs |
+| D40 | Atomic writes via os.replace() | Direct file writes | Prevents partial writes on crash |
+| D41 | VCR test infrastructure | Inline mocks only | Reproducible LLM responses, cheaper test development |
+| D42 | JIT prompt assembly for EA | Static prompt | ~40% token savings, modular prompt construction |
+| D43 | MCP plugin discovery | Hardcoded tool routing | Deferred -- requires runtime plugin MCP integration |
+| D44 | Progressive autonomy (4 stages) | All-or-nothing | Graduated trust building with human |
+| D45 | Langfuse for observability | Custom logging only | Deferred, then removed during reset |
+| D46 | Agent System Reset | Incremental refactor | Clean break from rigid agents, rebuild with tool use |
