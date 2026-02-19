@@ -3,18 +3,13 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from vizier.core.plugins.base_quality_gate import BaseQualityGate
-    from vizier.core.plugins.base_worker import BaseWorker
 
 
 class BasePlugin(ABC):
     """Abstract base class for Vizier plugins.
 
-    Plugins define domain-specific behavior: worker class, quality gate class,
-    default model tiers, architect guide, and criteria library.
+    Plugins define domain-specific behavior: default model tiers,
+    architect guide, scout guide, and criteria library.
     """
 
     @property
@@ -27,18 +22,6 @@ class BasePlugin(ABC):
     @abstractmethod
     def description(self) -> str:
         """Human-readable plugin description."""
-        ...
-
-    @property
-    @abstractmethod
-    def worker_class(self) -> type[BaseWorker]:
-        """The worker class this plugin uses."""
-        ...
-
-    @property
-    @abstractmethod
-    def quality_gate_class(self) -> type[BaseQualityGate]:
-        """The quality gate class this plugin uses."""
         ...
 
     @property

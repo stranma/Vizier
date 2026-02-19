@@ -1,8 +1,6 @@
 """Plugin framework: base classes, discovery, templates, criteria, tool registry."""
 
 from vizier.core.plugins.base_plugin import BasePlugin
-from vizier.core.plugins.base_quality_gate import BaseQualityGate
-from vizier.core.plugins.base_worker import BaseWorker
 from vizier.core.plugins.criteria_loader import CriteriaLibraryLoader
 from vizier.core.plugins.discovery import discover_plugins, load_plugin, register_plugin
 from vizier.core.plugins.templates import PromptTemplateRenderer
@@ -10,8 +8,6 @@ from vizier.core.plugins.tool_registry import ToolRegistry
 
 __all__ = [
     "BasePlugin",
-    "BaseQualityGate",
-    "BaseWorker",
     "CriteriaLibraryLoader",
     "PromptTemplateRenderer",
     "ToolRegistry",

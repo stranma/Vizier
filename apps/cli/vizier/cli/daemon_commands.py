@@ -110,77 +110,8 @@ def daemon_register(name: str, repo: str, local_path: str, plugin: str, root: st
 @click.option("--once", is_flag=True, help="Run a single reconciliation cycle and exit.")
 def daemon_start(root: str | None, once: bool) -> None:
     """Start the Vizier daemon."""
-    import asyncio
-    import logging
-
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
-
-    vizier_root = root or _default_root()
-    config = load_daemon_config(_config_path(vizier_root))
-    config = config.model_copy(update={"vizier_root": vizier_root})
-    registry = load_project_registry(_registry_path(vizier_root))
-
-    if not registry.active_projects():
-        click.echo("No active projects registered. Use 'vizier register' first.", err=True)
-        raise SystemExit(1)
-
-    from vizier.core.llm.factory import create_llm_callable
-    from vizier.core.secrets.startup import create_secret_store, load_bootstrap_credentials, sanitize_environment
-    from vizier.daemon.process import VizierDaemon, install_signal_handlers
-
-    bootstrap = load_bootstrap_credentials(vizier_root)
-    store = create_secret_store(
-        vizier_root,
-        azure_vault_url=config.azure_vault_url,
-        azure_tenant_id=bootstrap["azure_tenant_id"],
-        azure_client_id=bootstrap["azure_client_id"],
-        azure_client_secret=bootstrap["azure_client_secret"],
-    )
-
-    llm_callable = None
-    sentinel_llm = None
-    try:
-        llm_callable = create_llm_callable(store)
-        sentinel_llm = create_llm_callable(store)
-        click.echo("  LLM: configured")
-    except Exception as e:
-        click.echo(f"  LLM: not configured ({e})", err=True)
-
-    sanitize_environment(store.keys())
-
-    daemon = VizierDaemon(config, registry, llm_callable=llm_callable, sentinel_llm=sentinel_llm, secret_store=store)
-
-    if once:
-        click.echo(f"Running single cycle for {len(registry.active_projects())} project(s)...")
-        results = asyncio.run(daemon.run_once())
-        for name, result in results.items():
-            status = result.get("status", "unknown")
-            click.echo(f"  {name}: {status}")
-        return
-
-    pid_file = _pid_path(vizier_root)
-    pid_file.write_text(str(os.getpid()), encoding="utf-8")
-
-    click.echo(f"Starting Vizier daemon (PID {os.getpid()})...")
-    click.echo(f"  Projects: {len(registry.active_projects())}")
-    click.echo(f"  Max concurrent agents: {config.max_concurrent_agents}")
-    click.echo(f"  Autonomy stage: {config.autonomy.stage}")
-    click.echo(f"  Health check: http://0.0.0.0:{config.health_check_port}/health")
-    telegram_status = "configured" if config.telegram.token else "not configured"
-    click.echo(f"  Telegram: {telegram_status}")
-
-    import contextlib
-
-    with contextlib.suppress(NotImplementedError):
-        install_signal_handlers(daemon)
-
-    try:
-        asyncio.run(daemon.run())
-    finally:
-        if pid_file.exists():
-            pid_file.unlink()
-
-    click.echo("Daemon stopped.")
+    click.echo("Error: Daemon process module not available (agent system reset in progress).", err=True)
+    raise SystemExit(1)
 
 
 @click.command("stop")

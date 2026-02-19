@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Removed
+
+- **Agent system reset (D46)** -- Deleted the entire first-generation agent layer: BaseAgent, AgentRunner, all agent runtimes (Architect, Worker, QualityGate, Scout, Retrospective, EA), Pasha orchestrator, lifecycle management (SpecLifecycle, GraduatedRetry), AgentLogger, BaseWorker, BaseQualityGate, plugin implementations (SoftwarePlugin, DocumentsPlugin), VizierDaemon, and Heartbeat. The rigid prompt-in/response-out pattern could not support tool use, supervisor interaction, or dynamic decision-making. Infrastructure preserved: models, file protocol, LLM factory, model router, secrets, Sentinel, watcher, tools, plugin framework, daemon config/health/telegram, CLI, deployment. System will be rebuilt with tool-using, interactive agents.
+
 ### Added
 
 - **EA conversation history** -- The EA now maintains persistent, multi-turn conversation history across messages and bot restarts. User and assistant turns are stored in `ea/sessions/conversation.jsonl` (append-only JSONL). The last 10 turns are included in every LLM call for general messages, enabling the EA to reference earlier context in the same conversation.

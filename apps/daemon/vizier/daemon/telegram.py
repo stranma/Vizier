@@ -1,7 +1,7 @@
 """Telegram bot transport layer for EA communication.
 
 Thin adapter between aiogram 3.x and the EA runtime. All message classification
-and routing is handled by EARuntime; this module only handles I/O.
+and routing is handled by the message handler; this module only handles I/O.
 """
 
 from __future__ import annotations
@@ -9,26 +9,24 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from vizier.core.ea.runtime import EARuntime  # noqa: TC001
-
 logger = logging.getLogger(__name__)
 
 
 class TelegramTransport:
     """Telegram bot transport wrapping aiogram 3.x.
 
-    Connects Sultan's Telegram messages to the EA runtime and relays
+    Connects Sultan's Telegram messages to a message handler and relays
     responses back.
 
     :param token: Telegram bot API token.
-    :param ea: EA runtime instance for message handling.
+    :param ea: Message handler instance (must have handle_message(str) -> str method).
     :param allowed_user_ids: List of authorized Sultan user IDs.
     """
 
     def __init__(
         self,
         token: str,
-        ea: EARuntime,
+        ea: Any,
         allowed_user_ids: list[int] | None = None,
     ) -> None:
         self._token = token

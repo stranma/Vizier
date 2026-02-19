@@ -96,11 +96,10 @@ class TestRegister:
 
 
 class TestStart:
-    def test_start_no_projects_fails(self, runner: CliRunner, vizier_root: str) -> None:
+    def test_start_fails_agent_reset(self, runner: CliRunner, vizier_root: str) -> None:
         runner.invoke(main, ["init", "--root", vizier_root])
         result = runner.invoke(main, ["start", "--root", vizier_root])
         assert result.exit_code != 0
-        assert "No active projects" in result.output
 
 
 class TestStop:

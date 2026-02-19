@@ -37,7 +37,7 @@ mindmap
         Why: every agent naturally has access
         Why: git-trackable history
         Alt rejected: Redis pub/sub - adds ops complexity for no benefit at this scale
-    Agent Roles
+    Agent Roles -- RESET D46, rigid agents deleted, rebuilding with tool use
       EA - Executive Assistant singleton
         Replaces Secretary - much broader scope
         Why: single human interface to everything
@@ -973,3 +973,44 @@ litellm.failure_callback = ["langfuse"]
 **Why:** Langfuse is open-source, self-hostable (no data leaves the server), and has native LiteLLM integration. The setup is ~5 lines of Python + a Docker Compose service. It provides prompt versioning, cost breakdown per trace, and latency analysis that JSONL logs cannot.
 
 **Trade-off:** Adds a Docker Compose dependency (Langfuse server + PostgreSQL). Acceptable for a production deployment. Langfuse is optional -- the system works without it (JSONL logs are the primary layer).
+
+---
+
+### D46: Agent System Reset -- delete rigid agents, rebuild with tool use
+
+**Context:** The first-generation agent system (Phases 1f, 2-6, 8-10) followed a rigid prompt-in/response-out pattern: agents received a single prompt, returned a single response, and were parsed for structured output. This prevented tool use, supervisor interaction, partial progress, and long-horizon reasoning. The system needed to be rebuilt from scratch with Claude's native tool use capabilities.
+
+**Decision:** Delete the entire agent layer (BaseAgent, AgentRunner, all *Runtime classes, Pasha orchestrator, lifecycle management, plugin implementations). Keep all infrastructure (models, file protocol, LLM factory, secrets, sentinel, watcher, tools, plugin framework, deployment). Rebuild agents in a new iteration with tool-using, interactive patterns.
+
+**What was deleted:**
+- Agent base classes and subprocess runner (agent/, agent_runner/)
+- All agent runtimes (architect/, worker/, quality_gate/, scout/, retrospective/, ea/)
+- Orchestration (pasha/, lifecycle/, logging/)
+- Plugin interfaces for rigid agents (BaseWorker, BaseQualityGate)
+- Plugin implementations (SoftwarePlugin, DocumentsPlugin)
+- Daemon process orchestration (VizierDaemon, Heartbeat)
+- 565 tests covering deleted code
+
+**What was kept (infrastructure):**
+- Models, file protocol, state manager, criteria
+- LLM factory, model router
+- Secrets (Azure, EnvFile, Composite)
+- Sentinel (policy engine, content scanner)
+- Watcher (filesystem monitoring, reconciler)
+- Tools (ToolExecutor, secret_check)
+- Plugin framework (BasePlugin, discovery, templates, criteria_loader, tool_registry)
+- Daemon config, health check, Telegram transport
+- CLI, deployment, CI/CD
+
+**Why delete rather than refactor:**
+- The rigid pattern was baked into every agent: BaseAgent forced a single prompt/response cycle, AgentRunner was a subprocess harness for this pattern, all runtimes parsed LLM output as text. Converting to tool use would mean rewriting every file anyway.
+- Clean deletion makes it explicit that the new agents are a new design, not a patch on the old one.
+- Infrastructure is orthogonal to agent architecture -- it works unchanged with any agent pattern.
+
+**Why now:**
+- Before investing in new features (LLM-first EA, interactive agents), the old code needed to be removed to avoid confusion about what's active vs. deprecated.
+- The infrastructure foundation (409 passing tests, 0 lint/pyright errors) provides a stable base for the rebuild.
+
+**Trade-off:** Temporary loss of all agent capabilities (daemon start disabled, no plugin implementations). Acceptable because the old agents were not deployed in production and the infrastructure remains fully tested and operational.
+
+**Supersedes:** D14 (own thin runtime) is partially obsolete -- the new agents will use Claude's tool use natively rather than a custom prompt-in/response-out runtime. D35 (stub plugin) and D39 (stub as fixture) are obsolete -- the StubPlugin was simplified to test only BasePlugin without BaseWorker/BaseQualityGate.

@@ -6,10 +6,7 @@ import asyncio
 import contextlib
 import json
 import logging
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from vizier.daemon.process import VizierDaemon
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +14,12 @@ logger = logging.getLogger(__name__)
 class HealthCheckServer:
     """Minimal HTTP server returning daemon health status.
 
-    :param daemon: The VizierDaemon instance to report on.
+    :param daemon: The daemon instance to report on (must have get_status() method).
     :param port: TCP port to listen on.
     :param host: Host address to bind to.
     """
 
-    def __init__(self, daemon: VizierDaemon, port: int = 8080, host: str = "0.0.0.0") -> None:
+    def __init__(self, daemon: Any, port: int = 8080, host: str = "0.0.0.0") -> None:
         self._daemon = daemon
         self._port = port
         self._host = host
