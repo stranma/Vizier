@@ -9,9 +9,6 @@ dependencies = [
     "openpyxl>=3.0",
 ]
 
-[project.entry-points."vizier.plugins"]
-documents = "vizier.plugins.documents:DocumentsPlugin"
-
 [dependency-groups]
 dev = [
     "pyright>=1.1.390",

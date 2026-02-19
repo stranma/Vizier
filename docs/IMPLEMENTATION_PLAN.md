@@ -237,7 +237,7 @@ Key features: LLM response parsing into sub-specs, parent->child relationships, 
 - [x] Graduated retry orchestration (model bumping, Pasha review, Architect re-decomposition at thresholds)
 - [x] Graceful shutdown (IN_PROGRESS specs -> INTERRUPTED, kill running agent subprocesses)
 - [x] Spec state-age monitoring: Pasha checks `time_in_state` during reconciliation, detects silently stuck specs, plugin-configurable thresholds
-- [ ] Langfuse integration (D45): configure LiteLLM success/failure callbacks, optional self-hosted Langfuse for trace-level agent debugging
+- [x] ~~Langfuse integration (D45)~~: deferred, then removed during agent system reset
 - [x] Session mode: direct Sultan-Pasha back-and-forth for spec design and architecture discussions
 - [x] Session summary writing (ea/sessions/YYYY-MM-DD-project.md after session ends)
 
@@ -256,7 +256,7 @@ Key features: LLM response parsing into sub-specs, parent->child relationships, 
 - [x] Blockers escalated to escalations/ directory
 - [x] Graceful shutdown transitions IN_PROGRESS specs to INTERRUPTED and kills running subprocesses
 - [x] Spec state-age monitoring: specs stuck in IN_PROGRESS beyond threshold (default 30 min) trigger warning log and agent subprocess health check
-- [ ] Langfuse traces appear for agent invocations when Langfuse is configured (optional, system works without it)
+- [x] ~~Langfuse traces~~: deferred, then removed during agent system reset
 - [x] Session mode: Sultan can connect to Pasha for extended conversation with full project context
 - [x] Session summary written to ea/sessions/ when session ends
 
@@ -327,8 +327,8 @@ Key features: stuck/rejected/high-retry pattern detection, feedback file theme a
 - [x] EA agent (monolithic, powerful, Opus-tier -- Claude Code pattern: Python event loop + fresh LLM call per message)
 - [x] JIT prompt assembly (D42): always-loaded core (~2,500 tokens) + conditional modules loaded by deterministic classifier (regex + keyword + slash command detection)
 - [x] priorities.yaml behavioral anchor: Sultan-maintained priorities file, EA reads on every LLM invocation
-- [ ] MCP plugin discovery (D43): EA discovers per-project plugin MCP tools at startup, routes quick queries to plugin tools without spec creation
-- [ ] Telegram bot integration (aiogram 3.x, long polling mode per D36)
+- [x] ~~MCP plugin discovery (D43)~~: deferred, then removed during agent system reset
+- [x] Telegram bot integration (aiogram 3.x, long polling mode per D36): transport layer preserved, EA runtime removed
 - [x] Telegram slash commands: `/status`, `/ask`, `/checkin`, `/focus`, `/session`, `/approve`, `/budget`, `/priorities`
 - [x] Message handling (delegation / status / control / quick query / session / briefing / check-in / file ops / cross-project / direct Q&A / focus mode)
 - [x] Task routing (Sultan message -> DRAFT spec in target project)
@@ -358,7 +358,7 @@ Key features: stuck/rejected/high-retry pattern detection, feedback file theme a
 - [x] JIT prompt assembly: deterministic classifier correctly loads relevant modules based on message content
 - [x] JIT prompt assembly: average EA prompt size is ~3,000-4,000 tokens (not ~7,000+ without JIT)
 - [x] priorities.yaml: EA reads and incorporates Sultan's current priorities in every response
-- [ ] MCP plugin discovery: EA can invoke plugin MCP tools for quick queries without creating specs
+- [x] ~~MCP plugin discovery~~: deferred, then removed during agent system reset
 - [x] Telegram slash commands: all 8 slash commands (`/status`, `/ask`, `/checkin`, `/focus`, `/session`, `/approve`, `/budget`, `/priorities`) are handled correctly
 - [x] EA watches reports/ and sends relevant updates to Sultan
 - [x] Escalations trigger immediate Sultan notification
@@ -446,7 +446,7 @@ Telegram bot integration (aiogram 3.x) deferred to Phase 7 -- the EA runtime han
 - [x] CLI commands (init, register, start, stop, status)
 - [x] Server config loader (reads /opt/vizier/config.yaml, merges with env vars)
 - [x] Health check endpoint (simple HTTP endpoint for monitoring)
-- [ ] Structured log rotation (agent-log.jsonl rotation by size/date)
+- [x] ~~Structured log rotation~~: deferred, then removed during agent system reset
 
 ### Deployment Infrastructure
 - [x] Progressive autonomy rollout (D44): four-stage deployment (Shadow -> Gated -> Supervised -> Autonomous), stage config in config.yaml, graduation criteria enforcement, stage history logging
@@ -456,7 +456,7 @@ Telegram bot integration (aiogram 3.x) deferred to Phase 7 -- the EA runtime han
 - [x] systemd unit file (`vizier.service`, Type=simple, Restart=always)
 - [x] Server setup script (`scripts/setup_server.sh`): create /opt/vizier/ directory structure, install dependencies, configure systemd
 - [x] Example .vizier/config.yaml for a target project
-- [ ] EA data git repo initialization (ea/ directory as its own git repo)
+- [x] ~~EA data git repo initialization~~: deferred, then removed during agent system reset
 - [x] Deployment documentation (docs/DEPLOYMENT.md)
 
 ### Acceptance Criteria
@@ -487,7 +487,7 @@ Telegram bot integration (aiogram 3.x) deferred to Phase 7 -- the EA runtime han
 - [x] `docker compose up` starts Vizier daemon + Langfuse + PostgreSQL with all required volumes
 - [x] Server setup script creates correct directory structure under /opt/vizier/
 - [x] systemd unit file starts daemon on boot
-- [ ] Agent logs rotate without manual intervention
+- [x] ~~Agent logs rotate without manual intervention~~: deferred, then removed during agent system reset
 - [x] .env file is loaded for API keys and secrets (never baked into image)
 - [x] DEPLOYMENT.md documents: server requirements, setup steps, configuration, monitoring
 
@@ -752,6 +752,73 @@ Phase 12 fixed critical bugs in the existing Docker deployment infrastructure an
 
 All 9 acceptance criteria verified as PASS. Docker deployment is now production-ready.
 
-### Phase Completion Steps
+---
 
-After implementation, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md).
+## Agent System Reset
+
+**Date:** 2026-02-19 | **Branch:** `feat/llm-first-ea`
+
+### What Happened
+
+The entire agent layer (Phases 1f, 2-6, 8-10) was deleted. The agents followed a rigid prompt-in/response-out pattern without tool use, supervisor interaction, or dynamic decision-making. The system will be rebuilt with tool-using, interactive agents.
+
+### What Was Deleted
+
+| Module | Path | Reason |
+|--------|------|--------|
+| BaseAgent, AgentContext | `libs/core/vizier/core/agent/` | Rigid prompt-in/response-out pattern |
+| AgentRunner, RunResult | `libs/core/vizier/core/agent_runner/` | Subprocess harness for rigid agents |
+| ArchitectRuntime | `libs/core/vizier/core/architect/` | Rigid decomposition agent |
+| WorkerRuntime | `libs/core/vizier/core/worker/` | Rigid worker agent |
+| QualityGateRuntime | `libs/core/vizier/core/quality_gate/` | Rigid 5-pass PCC agent |
+| ScoutRuntime | `libs/core/vizier/core/scout/` | Rigid research agent |
+| RetrospectiveRuntime | `libs/core/vizier/core/retrospective/` | Rigid meta-improvement agent |
+| EARuntime | `libs/core/vizier/core/ea/` | Monolithic EA agent |
+| PashaOrchestrator | `libs/core/vizier/core/pasha/` | Rigid orchestration |
+| SpecLifecycle, GraduatedRetry | `libs/core/vizier/core/lifecycle/` | Tightly coupled to rigid agent flow |
+| AgentLogger | `libs/core/vizier/core/logging/` | Agent-specific structured logging |
+| BaseWorker | `libs/core/vizier/core/plugins/base_worker.py` | Rigid worker interface |
+| BaseQualityGate | `libs/core/vizier/core/plugins/base_quality_gate.py` | Rigid quality gate interface |
+| SoftwarePlugin | `plugins/software/vizier/plugins/software/plugin.py` | Plugin implementation using rigid agents |
+| DocumentsPlugin | `plugins/documents/vizier/plugins/documents/plugin.py` | Plugin implementation using rigid agents |
+| VizierDaemon, Heartbeat | `apps/daemon/vizier/daemon/process.py` | Daemon orchestration using rigid agents |
+| e2e_smoke_test.py | `scripts/e2e_smoke_test.py` | Tests EA conversation via daemon |
+
+All corresponding test directories and files were also deleted. Entry points for plugin discovery were removed from plugin pyproject.toml files.
+
+### What Was Kept (Infrastructure Inventory)
+
+| Module | Path | Purpose |
+|--------|------|---------|
+| Models | `libs/core/vizier/core/models/` | Spec, Config, Events, State, LogEntry |
+| File Protocol | `libs/core/vizier/core/file_protocol/` | Spec CRUD, StateManager, Criteria |
+| LLM Factory | `libs/core/vizier/core/llm/` | Closure-based LLM callable creation |
+| Model Router | `libs/core/vizier/core/model_router/` | Tier-to-model mapping |
+| Secrets | `libs/core/vizier/core/secrets/` | Azure, EnvFile, Composite stores |
+| Sentinel | `libs/core/vizier/core/sentinel/` | Security policy engine |
+| Watcher | `libs/core/vizier/core/watcher/` | Filesystem monitoring + reconciler |
+| Tools | `libs/core/vizier/core/tools/` | ToolExecutor, secret_check |
+| Testing | `libs/core/vizier/core/testing/` | VCR infrastructure |
+| Plugin Framework | `libs/core/vizier/core/plugins/` | BasePlugin, discovery, templates, criteria_loader, tool_registry |
+| Daemon Config | `apps/daemon/vizier/daemon/config.py` | DaemonConfig, ProjectRegistry |
+| Health Check | `apps/daemon/vizier/daemon/health.py` | HTTP health endpoint |
+| Telegram | `apps/daemon/vizier/daemon/telegram.py` | Telegram transport (broken until new agent) |
+| CLI | `apps/cli/` | All CLI commands (start disabled until new daemon) |
+| Criteria | `plugins/*/criteria/` | Domain quality criteria |
+| Deployment | `Dockerfile`, `docker-compose.yml`, `scripts/` | Docker deployment |
+| CI/CD | `.github/workflows/` | Build, test, deploy pipelines |
+
+### Test Counts After Reset
+
+| Package | Tests |
+|---------|-------|
+| Core | 334 |
+| Daemon | 43 |
+| CLI | 32 |
+| Software plugin | 0 |
+| Documents plugin | 0 |
+| **Total** | **409** |
+
+### What Comes Next
+
+The specification docs and implementation plan will be reworked, then new phases will be appended for tool-using, interactive agents. The infrastructure above provides the foundation.
