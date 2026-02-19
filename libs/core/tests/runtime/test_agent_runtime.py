@@ -68,9 +68,7 @@ class TestToolUse:
             make_tool_use_response("echo", {"message": "hello"}),
             make_text_response("I called the echo tool."),
         )
-        runtime = AgentRuntime(
-            client=client, model="test", system_prompt="test", tools=[ECHO_TOOL]
-        )
+        runtime = AgentRuntime(client=client, model="test", system_prompt="test", tools=[ECHO_TOOL])
 
         result = runtime.run("Echo hello")
 
@@ -88,9 +86,7 @@ class TestToolUse:
             make_tool_use_response("echo", {"message": "second"}, tool_id="t2"),
             make_text_response("Both done."),
         )
-        runtime = AgentRuntime(
-            client=client, model="test", system_prompt="test", tools=[ECHO_TOOL]
-        )
+        runtime = AgentRuntime(client=client, model="test", system_prompt="test", tools=[ECHO_TOOL])
 
         result = runtime.run("Do two things")
 
@@ -121,9 +117,7 @@ class TestToolUse:
             make_tool_use_response("fail", {}),
             make_text_response("I handled the error."),
         )
-        runtime = AgentRuntime(
-            client=client, model="test", system_prompt="test", tools=[failing]
-        )
+        runtime = AgentRuntime(client=client, model="test", system_prompt="test", tools=[failing])
 
         result = runtime.run("Try the failing tool")
 
@@ -135,17 +129,19 @@ class TestToolUse:
 class TestSentinelIntegration:
     def test_sentinel_allows(self) -> None:
         sentinel = MagicMock(spec=SentinelEngine)
-        sentinel.evaluate.return_value = SentinelResult(
-            decision=PolicyDecision.ALLOW, reason="Allowed", policy="test"
-        )
+        sentinel.evaluate.return_value = SentinelResult(decision=PolicyDecision.ALLOW, reason="Allowed", policy="test")
         client = make_mock_client(
             make_tool_use_response("echo", {"message": "ok"}),
             make_text_response("Done"),
         )
         runtime = AgentRuntime(
-            client=client, model="test", system_prompt="test",
-            tools=[ECHO_TOOL], sentinel=sentinel,
-            agent_role="worker", spec_id="001",
+            client=client,
+            model="test",
+            system_prompt="test",
+            tools=[ECHO_TOOL],
+            sentinel=sentinel,
+            agent_role="worker",
+            spec_id="001",
         )
 
         result = runtime.run("Test")
@@ -168,8 +164,11 @@ class TestSentinelIntegration:
             make_text_response("Blocked, moving on."),
         )
         runtime = AgentRuntime(
-            client=client, model="test", system_prompt="test",
-            tools=[ECHO_TOOL], sentinel=sentinel,
+            client=client,
+            model="test",
+            system_prompt="test",
+            tools=[ECHO_TOOL],
+            sentinel=sentinel,
         )
 
         result = runtime.run("Do bad thing")
@@ -184,7 +183,9 @@ class TestBudgetEnforcement:
             make_text_response("Turn 1", input_tokens=500, output_tokens=500),
         )
         runtime = AgentRuntime(
-            client=client, model="test", system_prompt="test",
+            client=client,
+            model="test",
+            system_prompt="test",
             budget=BudgetConfig(max_tokens=500),
         )
 
@@ -198,7 +199,9 @@ class TestBudgetEnforcement:
             make_tool_use_response("echo", {"message": "hi"}, input_tokens=400, output_tokens=200),
         )
         runtime = AgentRuntime(
-            client=client, model="test", system_prompt="test",
+            client=client,
+            model="test",
+            system_prompt="test",
             tools=[ECHO_TOOL],
             budget=BudgetConfig(max_tokens=500),
         )
@@ -215,7 +218,9 @@ class TestBudgetEnforcement:
             make_tool_use_response("echo", {"message": "2"}, tool_id="t2"),
         )
         runtime = AgentRuntime(
-            client=client, model="test", system_prompt="test",
+            client=client,
+            model="test",
+            system_prompt="test",
             tools=[ECHO_TOOL],
             budget=BudgetConfig(max_tokens=1_000_000, max_turns=2),
         )
@@ -231,8 +236,12 @@ class TestTraceLogging:
         trace = TraceLogger()
         client = make_mock_client(make_text_response("Done"))
         runtime = AgentRuntime(
-            client=client, model="test", system_prompt="test",
-            trace=trace, agent_role="worker", spec_id="001",
+            client=client,
+            model="test",
+            system_prompt="test",
+            trace=trace,
+            agent_role="worker",
+            spec_id="001",
         )
 
         runtime.run("Test task")
@@ -248,8 +257,11 @@ class TestTraceLogging:
             make_text_response("Done"),
         )
         runtime = AgentRuntime(
-            client=client, model="test", system_prompt="test",
-            tools=[ECHO_TOOL], trace=trace,
+            client=client,
+            model="test",
+            system_prompt="test",
+            tools=[ECHO_TOOL],
+            trace=trace,
         )
 
         runtime.run("Test")
@@ -260,16 +272,18 @@ class TestTraceLogging:
     def test_trace_records_sentinel_block(self) -> None:
         trace = TraceLogger()
         sentinel = MagicMock(spec=SentinelEngine)
-        sentinel.evaluate.return_value = SentinelResult(
-            decision=PolicyDecision.DENY, reason="Blocked", policy="test"
-        )
+        sentinel.evaluate.return_value = SentinelResult(decision=PolicyDecision.DENY, reason="Blocked", policy="test")
         client = make_mock_client(
             make_tool_use_response("echo", {}),
             make_text_response("OK"),
         )
         runtime = AgentRuntime(
-            client=client, model="test", system_prompt="test",
-            tools=[ECHO_TOOL], sentinel=sentinel, trace=trace,
+            client=client,
+            model="test",
+            system_prompt="test",
+            tools=[ECHO_TOOL],
+            sentinel=sentinel,
+            trace=trace,
         )
 
         runtime.run("Test")
@@ -293,9 +307,7 @@ class TestApiError:
         trace = TraceLogger()
         client = MagicMock()
         client.messages.create.side_effect = ConnectionError("Timeout")
-        runtime = AgentRuntime(
-            client=client, model="test", system_prompt="test", trace=trace
-        )
+        runtime = AgentRuntime(client=client, model="test", system_prompt="test", trace=trace)
 
         runtime.run("Test")
 

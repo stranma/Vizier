@@ -5,7 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class StopReason(StrEnum):
@@ -17,12 +20,6 @@ class StopReason(StrEnum):
     ERROR = "error"
 
 
-class ToolHandler(Protocol):
-    """Protocol for tool execution handlers."""
-
-    def __call__(self, **kwargs: Any) -> Any: ...
-
-
 @dataclass
 class ToolDefinition:
     """A tool available to an agent.
@@ -30,13 +27,13 @@ class ToolDefinition:
     :param name: Tool name (must match what Claude calls).
     :param description: Human-readable description for Claude's system prompt.
     :param input_schema: JSON Schema for the tool's input parameters.
-    :param handler: Callable that executes the tool.
+    :param handler: Callable that executes the tool (called with **kwargs from tool input).
     """
 
     name: str
     description: str
     input_schema: dict[str, Any]
-    handler: ToolHandler
+    handler: Callable[..., Any]
 
 
 @dataclass

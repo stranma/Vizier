@@ -88,22 +88,28 @@ class AgentRuntime:
         self._guardian.reset()
         tool_calls: list[ToolCallRecord] = []
 
-        self._trace.log("run_start", {
-            "agent_role": self._agent_role,
-            "spec_id": self._spec_id,
-            "model": self._model,
-            "task": task[:500],
-        })
+        self._trace.log(
+            "run_start",
+            {
+                "agent_role": self._agent_role,
+                "spec_id": self._spec_id,
+                "model": self._model,
+                "task": task[:500],
+            },
+        )
 
         api_tools = self._build_api_tools()
         messages: list[dict[str, Any]] = [{"role": "user", "content": task}]
 
         while True:
             if self._budget.is_exhausted():
-                self._trace.log("budget_exhausted", {
-                    "tokens_used": self._budget.tokens_used,
-                    "turns": self._budget.turns,
-                })
+                self._trace.log(
+                    "budget_exhausted",
+                    {
+                        "tokens_used": self._budget.tokens_used,
+                        "turns": self._budget.turns,
+                    },
+                )
                 return RunResult(
                     stop_reason=StopReason.BUDGET_EXHAUSTED,
                     tool_calls=tool_calls,
@@ -131,11 +137,14 @@ class AgentRuntime:
 
             if stop_reason == "end_turn":
                 final_text = self._extract_text(response)
-                self._trace.log("run_complete", {
-                    "final_text": final_text[:500],
-                    "tokens_used": self._budget.tokens_used,
-                    "turns": self._budget.turns,
-                })
+                self._trace.log(
+                    "run_complete",
+                    {
+                        "final_text": final_text[:500],
+                        "tokens_used": self._budget.tokens_used,
+                        "turns": self._budget.turns,
+                    },
+                )
                 return RunResult(
                     stop_reason=StopReason.COMPLETED,
                     final_text=final_text,
@@ -165,30 +174,37 @@ class AgentRuntime:
                         result_preview=str(record.tool_result)[:200],
                     )
                     if verdict == GuardianVerdict.HALT:
-                        self._trace.log("guardian_halt", {
-                            "tool": record.tool_name,
-                            "total_calls": self._guardian.total_calls,
-                        })
+                        self._trace.log(
+                            "guardian_halt",
+                            {
+                                "tool": record.tool_name,
+                                "total_calls": self._guardian.total_calls,
+                            },
+                        )
                         halted = True
 
                     if record.sentinel_decision == "DENY":
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": json.dumps({"error": "Permission denied by Sentinel"}),
-                            "is_error": True,
-                        })
+                        tool_results.append(
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": json.dumps({"error": "Permission denied by Sentinel"}),
+                                "is_error": True,
+                            }
+                        )
                     else:
                         result_str = (
                             json.dumps(record.tool_result, default=str)
                             if not isinstance(record.tool_result, str)
                             else record.tool_result
                         )
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": result_str,
-                        })
+                        tool_results.append(
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": result_str,
+                            }
+                        )
 
                 if halted:
                     return RunResult(
@@ -242,10 +258,13 @@ class AgentRuntime:
             sentinel_result = self._sentinel.evaluate(request)
 
             if sentinel_result.decision == PolicyDecision.DENY:
-                self._trace.log("tool_blocked", {
-                    "tool": name,
-                    "reason": sentinel_result.reason,
-                })
+                self._trace.log(
+                    "tool_blocked",
+                    {
+                        "tool": name,
+                        "reason": sentinel_result.reason,
+                    },
+                )
                 return ToolCallRecord(
                     tool_name=name,
                     tool_input=input_data,
@@ -267,10 +286,13 @@ class AgentRuntime:
             result = tool_def.handler(**input_data)
             duration = int((time.monotonic() - start) * 1000)
 
-            self._trace.log("tool_call", {
-                "tool": name,
-                "duration_ms": duration,
-            })
+            self._trace.log(
+                "tool_call",
+                {
+                    "tool": name,
+                    "duration_ms": duration,
+                },
+            )
 
             return ToolCallRecord(
                 tool_name=name,
@@ -281,11 +303,14 @@ class AgentRuntime:
             )
         except Exception as e:
             duration = int((time.monotonic() - start) * 1000)
-            self._trace.log("tool_error", {
-                "tool": name,
-                "error": str(e),
-                "duration_ms": duration,
-            })
+            self._trace.log(
+                "tool_error",
+                {
+                    "tool": name,
+                    "error": str(e),
+                    "duration_ms": duration,
+                },
+            )
             return ToolCallRecord(
                 tool_name=name,
                 tool_input=input_data,
@@ -321,10 +346,12 @@ class AgentRuntime:
             if block_type == "text":
                 blocks.append({"type": "text", "text": block.text})
             elif block_type == "tool_use":
-                blocks.append({
-                    "type": "tool_use",
-                    "id": block.id,
-                    "name": block.name,
-                    "input": block.input,
-                })
+                blocks.append(
+                    {
+                        "type": "tool_use",
+                        "id": block.id,
+                        "name": block.name,
+                        "input": block.input,
+                    }
+                )
         return blocks

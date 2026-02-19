@@ -172,7 +172,9 @@ class TestQualityVerdict:
 class TestResearchReport:
     def test_with_candidates(self) -> None:
         candidates = [
-            ResearchCandidate(name="PyJWT", source="pypi", url="https://pypi.org/project/PyJWT/", description="JWT lib"),
+            ResearchCandidate(
+                name="PyJWT", source="pypi", url="https://pypi.org/project/PyJWT/", description="JWT lib"
+            ),
         ]
         msg = ResearchReport(
             spec_id="001",

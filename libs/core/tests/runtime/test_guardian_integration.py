@@ -31,7 +31,9 @@ class TestGuardianHaltsSpinningAgent:
             make_tool_use_response("echo", {"message": "same"}, tool_id="t3"),
         )
         runtime = AgentRuntime(
-            client=client, model="test", system_prompt="test",
+            client=client,
+            model="test",
+            system_prompt="test",
             tools=[ECHO_TOOL],
             guardian=GuardianConfig(max_identical_calls=3),
         )
@@ -51,7 +53,9 @@ class TestGuardianHaltsSpinningAgent:
             make_text_response("Done"),
         )
         runtime = AgentRuntime(
-            client=client, model="test", system_prompt="test",
+            client=client,
+            model="test",
+            system_prompt="test",
             tools=[ECHO_TOOL],
             guardian=GuardianConfig(max_identical_calls=3),
         )
@@ -68,7 +72,9 @@ class TestGuardianHaltsSpinningAgent:
             make_tool_use_response("echo", {"message": "x"}, tool_id="t2"),
         )
         runtime = AgentRuntime(
-            client=client, model="test", system_prompt="test",
+            client=client,
+            model="test",
+            system_prompt="test",
             tools=[ECHO_TOOL],
             guardian=GuardianConfig(max_identical_calls=2),
             trace=trace,
@@ -83,6 +89,7 @@ class TestGuardianHaltsSpinningAgent:
 class TestGuardianWithLLMCheckpoint:
     def test_llm_checkpoint_halts(self) -> None:
         """LLM checkpoint says HALT -> agent stops."""
+
         def always_halt(summary: str) -> GuardianVerdict:
             return GuardianVerdict.HALT
 
@@ -91,7 +98,9 @@ class TestGuardianWithLLMCheckpoint:
             make_tool_use_response("echo", {"message": "2"}, tool_id="t2"),
         )
         runtime = AgentRuntime(
-            client=client, model="test", system_prompt="test",
+            client=client,
+            model="test",
+            system_prompt="test",
             tools=[ECHO_TOOL],
             guardian=GuardianConfig(checkpoint_interval=2, max_identical_calls=100),
             guardian_llm_checkpoint=always_halt,
@@ -116,7 +125,9 @@ class TestGuardianWithLLMCheckpoint:
             make_text_response("Done"),
         )
         runtime = AgentRuntime(
-            client=client, model="test", system_prompt="test",
+            client=client,
+            model="test",
+            system_prompt="test",
             tools=[ECHO_TOOL],
             guardian=GuardianConfig(checkpoint_interval=2, max_identical_calls=100),
             guardian_llm_checkpoint=track_and_continue,

@@ -163,6 +163,7 @@ class TestHelpers:
 
     def test_format_call_summary(self) -> None:
         from vizier.core.runtime.loop_guardian import ToolCallSummary
+
         calls = [
             ToolCallSummary(tool_name="bash", tool_input_hash="h1", success=True, result_preview="files"),
             ToolCallSummary(tool_name="bash", tool_input_hash="h2", success=False, result_preview="error"),
