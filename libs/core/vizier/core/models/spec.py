@@ -55,6 +55,7 @@ class SpecFrontmatter(BaseModel):
     retries: int = Field(default=0, ge=0)
     max_retries: int = Field(default=10, ge=1)
     parent: str | None = None
+    depends_on: list[str] | None = None
     plugin: str = "software"
     created: datetime = Field(default_factory=datetime.utcnow)
     updated: datetime = Field(default_factory=datetime.utcnow)
