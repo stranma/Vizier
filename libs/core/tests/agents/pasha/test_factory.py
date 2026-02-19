@@ -85,9 +85,7 @@ class TestCreatePashaRuntime:
 
     def test_runtime_project_context(self) -> None:
         client = make_mock_client(make_text_response("Done"))
-        runtime = create_pasha_runtime(
-            client=client, project_name="alpha", project_context="Uses FastAPI"
-        )
+        runtime = create_pasha_runtime(client=client, project_name="alpha", project_context="Uses FastAPI")
         runtime.run("test")
         call_kwargs = client.messages.create.call_args.kwargs
         assert "alpha" in call_kwargs["system"]
