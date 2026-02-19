@@ -213,24 +213,24 @@ class TestPing:
 
 class TestParseMessage:
     def test_parse_task_assignment(self) -> None:
-        data = {"type": "TASK_ASSIGNMENT", "spec_id": "001", "goal": "Test"}
+        data: dict[str, object] = {"type": "TASK_ASSIGNMENT", "spec_id": "001", "goal": "Test"}
         msg = parse_message(data)
         assert isinstance(msg, TaskAssignment)
         assert msg.spec_id == "001"
 
     def test_parse_status_update(self) -> None:
-        data = {"type": "STATUS_UPDATE", "spec_id": "001", "state": "REVIEW"}
+        data: dict[str, object] = {"type": "STATUS_UPDATE", "spec_id": "001", "state": "REVIEW"}
         msg = parse_message(data)
         assert isinstance(msg, StatusUpdate)
 
     def test_parse_ping(self) -> None:
-        data = {"type": "PING", "spec_id": "001", "urgency": "BLOCKER", "message": "help"}
+        data: dict[str, object] = {"type": "PING", "spec_id": "001", "urgency": "BLOCKER", "message": "help"}
         msg = parse_message(data)
         assert isinstance(msg, Ping)
         assert msg.urgency == PingUrgency.BLOCKER
 
     def test_parse_quality_verdict(self) -> None:
-        data = {
+        data: dict[str, object] = {
             "type": "QUALITY_VERDICT",
             "spec_id": "001",
             "pass_fail": "PASS",
