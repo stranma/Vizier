@@ -8,6 +8,7 @@ import time
 from typing import Any
 
 from vizier.core.runtime.budget import BudgetConfig, BudgetTracker
+from vizier.core.runtime.loop_guardian import GuardianConfig, GuardianVerdict, LoopGuardian
 from vizier.core.runtime.trace import TraceLogger
 from vizier.core.runtime.types import RunResult, StopReason, ToolCallRecord, ToolDefinition
 from vizier.core.sentinel.engine import SentinelEngine  # noqa: TC001
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class AgentRuntime:
-    """Agent execution runtime with Sentinel, budget, and trace.
+    """Agent execution runtime with Sentinel, budget, Loop Guardian, and trace.
 
     Wraps the Anthropic messages.create API in an agentic tool loop.
     Each call to run() starts fresh (no conversation history carried between runs).
@@ -28,6 +29,8 @@ class AgentRuntime:
     :param tools: List of tool definitions available to the agent.
     :param sentinel: Optional Sentinel engine for tool call security.
     :param budget: Optional budget configuration.
+    :param guardian: Optional Loop Guardian configuration (D51).
+    :param guardian_llm_checkpoint: Optional LLM callable for guardian checkpoints.
     :param trace: Optional trace logger for Golden Trace.
     :param agent_role: Agent role name for Sentinel and logging.
     :param spec_id: Spec ID for context.
@@ -42,6 +45,8 @@ class AgentRuntime:
         tools: list[ToolDefinition] | None = None,
         sentinel: SentinelEngine | None = None,
         budget: BudgetConfig | None = None,
+        guardian: GuardianConfig | None = None,
+        guardian_llm_checkpoint: Any | None = None,
         trace: TraceLogger | None = None,
         agent_role: str = "",
         spec_id: str = "",
@@ -52,6 +57,7 @@ class AgentRuntime:
         self._tools = {t.name: t for t in (tools or [])}
         self._sentinel = sentinel
         self._budget = BudgetTracker(budget)
+        self._guardian = LoopGuardian(guardian, guardian_llm_checkpoint)
         self._trace = trace or TraceLogger()
         self._agent_role = agent_role
         self._spec_id = spec_id
@@ -60,6 +66,11 @@ class AgentRuntime:
     def budget(self) -> BudgetTracker:
         """Access the budget tracker."""
         return self._budget
+
+    @property
+    def guardian(self) -> LoopGuardian:
+        """Access the Loop Guardian."""
+        return self._guardian
 
     @property
     def trace(self) -> TraceLogger:
@@ -74,6 +85,7 @@ class AgentRuntime:
         :returns: RunResult with final output and metadata.
         """
         self._budget.reset()
+        self._guardian.reset()
         tool_calls: list[ToolCallRecord] = []
 
         self._trace.log("run_start", {
@@ -136,12 +148,28 @@ class AgentRuntime:
                 messages.append({"role": "assistant", "content": self._serialize_content(response)})
 
                 tool_results = []
+                halted = False
                 for block in response.content:
                     if getattr(block, "type", None) != "tool_use":
                         continue
 
                     record = self._execute_tool(block.name, block.input)
                     tool_calls.append(record)
+
+                    # Loop Guardian check after each tool call
+                    success = record.sentinel_decision != "DENY" and "error" not in str(record.tool_result)
+                    verdict = self._guardian.record_call(
+                        tool_name=record.tool_name,
+                        tool_input=record.tool_input,
+                        success=success,
+                        result_preview=str(record.tool_result)[:200],
+                    )
+                    if verdict == GuardianVerdict.HALT:
+                        self._trace.log("guardian_halt", {
+                            "tool": record.tool_name,
+                            "total_calls": self._guardian.total_calls,
+                        })
+                        halted = True
 
                     if record.sentinel_decision == "DENY":
                         tool_results.append({
@@ -161,6 +189,15 @@ class AgentRuntime:
                             "tool_use_id": block.id,
                             "content": result_str,
                         })
+
+                if halted:
+                    return RunResult(
+                        stop_reason=StopReason.ERROR,
+                        error="Loop Guardian halted: agent spinning detected",
+                        tool_calls=tool_calls,
+                        tokens_used=self._budget.tokens_used,
+                        turns=self._budget.turns,
+                    )
 
                 messages.append({"role": "user", "content": tool_results})
                 continue
