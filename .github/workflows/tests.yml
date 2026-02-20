@@ -24,7 +24,7 @@ jobs:
       - name: Check linting
         run: uv run ruff check .
 
-  test-core:
+  test-mcp:
     runs-on: ubuntu-latest
     needs: lint
     steps:
@@ -37,56 +37,8 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: uv sync --all-packages --group dev
-      - name: Run core tests
-        run: uv run pytest libs/core/ -v --tb=short
-
-  test-daemon:
-    runs-on: ubuntu-latest
-    needs: lint
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-        with:
-          version: ">=0.5.0"
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: uv sync --all-packages --group dev
-      - name: Run daemon tests
-        run: uv run pytest apps/daemon/ -v --tb=short
-
-  test-cli:
-    runs-on: ubuntu-latest
-    needs: lint
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-        with:
-          version: ">=0.5.0"
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: uv sync --all-packages --group dev
-      - name: Run CLI tests
-        run: uv run pytest apps/cli/ -v --tb=short
-
-  test-root:
-    runs-on: ubuntu-latest
-    needs: lint
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-        with:
-          version: ">=0.5.0"
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: uv sync --all-packages --group dev
-      - name: Run root tests
-        run: uv run pytest tests/ -v --tb=short
+      - name: Run vizier-mcp tests
+        run: uv run pytest vizier-mcp/tests/ -v --tb=short
 
   typecheck:
     runs-on: ubuntu-latest
