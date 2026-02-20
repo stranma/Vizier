@@ -73,7 +73,10 @@ class TelegramTransport:
                 text = f"[Replying to: {quoted}]\n\n{text}"
 
             try:
-                response = self._ea.handle_message(text)
+                import asyncio
+
+                loop = asyncio.get_running_loop()
+                response = await loop.run_in_executor(None, self._ea.handle_message, text)
                 if response:
                     for chunk in self._split_message(response):
                         await message.answer(chunk)
@@ -89,10 +92,15 @@ class TelegramTransport:
             if self._allowed_user_ids and message.from_user.id not in self._allowed_user_ids:
                 return
 
+            import asyncio
+
+            loop = asyncio.get_running_loop()
             if message.caption:
-                response = self._ea.handle_message(f"[file attached] {message.caption}")
+                response = await loop.run_in_executor(
+                    None, self._ea.handle_message, f"[file attached] {message.caption}"
+                )
             else:
-                response = self._ea.handle_message("[file attached]")
+                response = await loop.run_in_executor(None, self._ea.handle_message, "[file attached]")
 
             if response:
                 await message.answer(response)
