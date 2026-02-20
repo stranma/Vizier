@@ -96,10 +96,44 @@ class TestRegister:
 
 
 class TestStart:
-    def test_start_fails_agent_reset(self, runner: CliRunner, vizier_root: str) -> None:
-        runner.invoke(main, ["init", "--root", vizier_root])
-        result = runner.invoke(main, ["start", "--root", vizier_root])
+    def test_start_missing_root(self, runner: CliRunner, tmp_path: Any) -> None:
+        missing = str(tmp_path / "nonexistent")
+        result = runner.invoke(main, ["start", "--root", missing])
         assert result.exit_code != 0
+        assert "not found" in result.output.lower()
+
+    def test_start_once_mock(self, runner: CliRunner, vizier_root: str) -> None:
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        runner.invoke(main, ["init", "--root", vizier_root])
+        (Path(vizier_root) / ".env").write_text("ANTHROPIC_API_KEY=sk-test\n", encoding="utf-8")
+
+        mock_daemon = MagicMock()
+        mock_daemon.run_once = AsyncMock(return_value={"test": {"status": "idle"}})
+
+        with patch("vizier.daemon.process.VizierDaemon", return_value=mock_daemon):
+            result = runner.invoke(main, ["start", "--root", vizier_root, "--once"])
+
+        assert result.exit_code == 0
+        mock_daemon.setup.assert_called_once()
+        mock_daemon.run_once.assert_awaited_once()
+
+    def test_start_writes_pid(self, runner: CliRunner, vizier_root: str) -> None:
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        runner.invoke(main, ["init", "--root", vizier_root])
+        (Path(vizier_root) / ".env").write_text("ANTHROPIC_API_KEY=sk-test\n", encoding="utf-8")
+
+        mock_daemon = MagicMock()
+        mock_daemon.run_forever = AsyncMock(return_value=None)
+
+        pid_file = Path(vizier_root) / "vizier.pid"
+
+        with patch("vizier.daemon.process.VizierDaemon", return_value=mock_daemon):
+            result = runner.invoke(main, ["start", "--root", vizier_root])
+
+        mock_daemon.setup.assert_called_once()
+        assert not pid_file.exists()
 
 
 class TestStop:

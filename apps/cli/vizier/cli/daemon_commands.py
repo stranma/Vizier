@@ -110,8 +110,52 @@ def daemon_register(name: str, repo: str, local_path: str, plugin: str, root: st
 @click.option("--once", is_flag=True, help="Run a single reconciliation cycle and exit.")
 def daemon_start(root: str | None, once: bool) -> None:
     """Start the Vizier daemon."""
-    click.echo("Error: Daemon process module not available (agent system reset in progress).", err=True)
-    raise SystemExit(1)
+    import asyncio
+
+    from vizier.core.secrets.startup import create_secret_store, load_bootstrap_credentials
+    from vizier.daemon.process import VizierDaemon
+
+    vizier_root = root or _default_root()
+    root_path = Path(vizier_root)
+
+    if not root_path.exists():
+        click.echo(f"Error: Vizier root not found: {vizier_root}", err=True)
+        click.echo("Run 'vizier init' first.", err=True)
+        raise SystemExit(1)
+
+    config = load_daemon_config(_config_path(vizier_root))
+    config = config.model_copy(update={"vizier_root": vizier_root})
+    registry = load_project_registry(_registry_path(vizier_root))
+
+    bootstrap = load_bootstrap_credentials(vizier_root)
+    secret_store = create_secret_store(
+        vizier_root,
+        azure_vault_url=config.azure_vault_url,
+        azure_tenant_id=bootstrap.get("azure_tenant_id", ""),
+        azure_client_id=bootstrap.get("azure_client_id", ""),
+        azure_client_secret=bootstrap.get("azure_client_secret", ""),
+    )
+
+    daemon = VizierDaemon(config, registry, secret_store)
+    try:
+        daemon.setup()
+    except RuntimeError as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1) from None
+
+    if once:
+        result = asyncio.run(daemon.run_once())
+        click.echo(json.dumps(result, indent=2))
+    else:
+        pid_file = _pid_path(vizier_root)
+        pid_file.write_text(str(os.getpid()), encoding="utf-8")
+        try:
+            click.echo(f"Starting Vizier daemon (PID {os.getpid()})...")
+            asyncio.run(daemon.run_forever())
+        except KeyboardInterrupt:
+            click.echo("\nDaemon interrupted.")
+        finally:
+            pid_file.unlink(missing_ok=True)
 
 
 @click.command("stop")
