@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Deployment phase added to implementation plan** -- Phase 6 covers Dockerfile, docker-compose.yml, CI/CD workflow updates, Azure Key Vault integration (D60), health endpoint, and docs/DEPLOYMENT.md setup guide.
 - **MVP Build Priority** (D80) -- Split 15 v1 tools into 11 MVP (Phase A) and 4 deferred-to-need (Phase B). Phase A: minimum to get first spec from DRAFT to DONE. Phase B: orch_scan_specs, orch_check_ready, orch_assign_worker, dag_check_dependencies -- build when multi-spec projects start. All 8 states preserved. D76-D79 decisions kept as design docs. Sentinel auto-promote set to false (Haiku 3-tier eval unchanged).
 - **Architecture simplification for v1** (D75) -- Reduced tool surface from 35+ to 15 tools across 5 groups, agent roles from 7 to 4 (Vizier, Pasha, Worker, QG). Scout, Architect, and Retrospective deferred to v2.
 - **One Voice Policy** (D75) -- Only Vizier communicates with the Sultan. Escalation chain: Worker -> Pasha -> Vizier -> Sultan. Prevents notification overload.

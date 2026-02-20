@@ -910,6 +910,21 @@ Phase A (MVP -- 11 tools) is the minimum to get the first spec from DRAFT to DON
 | orch_assign_worker | When concurrent workers need claim semantics |
 | dag_check_dependencies | When specs have dependency graphs |
 
+### 12.5 Deployment Artifacts (Phase 6)
+
+Phase 6 produces the deployment infrastructure for the Vizier MCP server:
+
+| Artifact | Purpose |
+|----------|---------|
+| `Dockerfile` | Multi-stage build (Python 3.11-slim + uv + FastMCP entrypoint) |
+| `docker-compose.yml` | MCP server service + volumes. Langfuse via `observability` profile. |
+| `.env.example` | Local-dev-only env vars. Production uses Azure Key Vault (D60). |
+| `.github/workflows/deploy.yml` | Docker build -> GHCR push -> SSH deploy with health check |
+| `.github/workflows/tests.yml` | Lint + type check + tests for vizier-mcp/ |
+| `docs/DEPLOYMENT.md` | Setup guide: local dev, Docker, Azure Key Vault, OpenClaw connection |
+
+**Secrets model:** Azure Key Vault (`https://vizier.vault.azure.net/`, D60) is the production secret store. The MCP server reads ANTHROPIC_API_KEY (for Sentinel Haiku) from the vault via managed identity. `.env` is the local-dev fallback only. OpenClaw manages secrets for agent sessions independently.
+
 ### 12.3 v2 Feature Roadmap
 
 After v1 delivers a working end-to-end loop, these features can be added incrementally:
