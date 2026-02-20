@@ -120,6 +120,15 @@ class TestOrchWritePing:
         result = orch_write_ping(config, PROJECT_ID, SPEC_ID, "QUESTION", "test")
         assert result["written"] is True
 
+    def test_project_id_traversal_rejected(self, config: ServerConfig, project_dir: Path) -> None:
+        result = orch_write_ping(config, "../../etc", SPEC_ID, "QUESTION", "test")
+        assert "error" in result
+
+    def test_spec_id_traversal_rejected(self, config: ServerConfig, project_dir: Path) -> None:
+        _create_spec_dir(project_dir)
+        result = orch_write_ping(config, PROJECT_ID, "../../../tmp/evil", "QUESTION", "test")
+        assert "error" in result
+
 
 class TestProjectGetConfig:
     """Tests for project_get_config (AC-O4, AC-O5)."""
@@ -172,6 +181,10 @@ class TestProjectGetConfig:
         result = project_get_config(config, PROJECT_ID)
         assert result["type"] is None
         assert result["settings"] == {}
+
+    def test_project_id_traversal_rejected(self, config: ServerConfig, project_dir: Path) -> None:
+        result = project_get_config(config, "../../etc")
+        assert "error" in result
 
     def test_extra_fields_preserved(self, config: ServerConfig, project_dir: Path) -> None:
         """Unknown fields in config.yaml should be preserved in settings or returned."""

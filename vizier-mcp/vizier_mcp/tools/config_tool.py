@@ -11,6 +11,7 @@ import logging
 from typing import TYPE_CHECKING
 
 import yaml
+from pydantic import ValidationError
 
 from vizier_mcp.models.orchestration import ProjectConfig
 
@@ -36,6 +37,8 @@ def project_get_config(
     """
     assert config.projects_dir is not None
     project_dir = config.projects_dir / project_id
+    if not str(project_dir.resolve()).startswith(str(config.projects_dir.resolve())):
+        return {"error": f"Invalid project ID: '{project_id}'"}
     if not project_dir.is_dir():
         return {"error": f"Project '{project_id}' not found"}
 
@@ -53,7 +56,7 @@ def project_get_config(
 
     try:
         project_config = ProjectConfig(**raw)
-    except Exception as exc:
+    except (ValidationError, TypeError) as exc:
         return {"error": f"Invalid config.yaml: {exc}"}
 
     return project_config.model_dump()

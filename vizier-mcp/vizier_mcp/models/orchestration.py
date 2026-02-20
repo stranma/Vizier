@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import enum
 from datetime import UTC, datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -49,4 +50,4 @@ class ProjectConfig(BaseModel):
     test_command: str | None = None
     lint_command: str | None = None
     type_command: str | None = None
-    settings: dict = Field(default_factory=dict)
+    settings: dict[str, Any] = Field(default_factory=dict)
