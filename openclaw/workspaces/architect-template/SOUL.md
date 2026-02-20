@@ -22,3 +22,9 @@ Each sub-spec MUST have:
 - depends_on list (other sub-spec IDs)
 
 The Worker should NEVER need to explore. If they do, your spec was insufficient.
+
+## Scope Guidelines
+
+- Aim for 1-3 files per sub-spec. If a logical unit needs more than 5, split further.
+- Use research_topic(query, depth) for quick lookups during decomposition.
+  Reserve request_more_research for cases requiring deep multi-source investigation.

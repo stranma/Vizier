@@ -8,6 +8,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Ottoman Empire architecture improvements** (D67-D74) -- Eight new decisions addressing real-world weaknesses found via claude-code-ultimate-guide analysis:
+  - **Sentinel enforcement via tool policy** (D67) -- Native bash/exec and web_fetch blocked by OpenClaw tool policy; agents forced through `run_command_checked` and `web_fetch_checked` MCP tools
+  - **Worker mandatory self-verification** (D68) -- Workers must pass `verify_tests`, `verify_lint`, `verify_types` before REVIEW; QG reduced from 5 to 4 passes
+  - **Lightweight research tool** (D69) -- `research_topic(query, depth)` for quick lookups during decomposition without spawning full Scout pipeline
+  - **Learnings injection** (D70) -- `get_relevant_learnings` MCP tool; Pasha injects relevant learnings into agent spawn context
+  - **Dynamic pipeline selection** (D71) -- Pasha decides which agents to spawn per spec (bugfix skips Scout/Architect, research skips Worker, etc.)
+  - **Agent behavior eval suite** (D72) -- Mocked scenarios testing SOUL.md behavioral contracts (tool call sequences, decision patterns)
+  - **Context management for persistent agents** (D73) -- SOUL.md memory management guidance + OpenClaw compaction settings
+  - **Scope guidance for Architect** (D74) -- Soft guidance for 1-3 files per sub-spec
+- **Verification tool scaffolds** -- `vizier-mcp/vizier_mcp/tools/verification.py` (verify_tests, verify_lint, verify_types)
+- **Research tool scaffold** -- `vizier-mcp/vizier_mcp/tools/research.py` (research_topic)
+- **Sentinel-wrapped execution tools** -- `run_command_checked` and `web_fetch_checked` added to sentinel.py
+- **Learnings injection tool** -- `get_relevant_learnings` added to orchestration.py
+- **OpenClaw compaction settings** -- `openclaw/config/openclaw.json` configured for persistent agent sessions
+
+### Changed
+
+- **SOUL.md updates** -- Vizier (memory management), Pasha (pipeline flexibility, learnings injection, memory), Architect (scope guidelines, research_topic), Worker (mandatory self-verification, run_command_checked, web_fetch_checked), Quality Gate (4-pass protocol), Retrospective (data sources, learnings format)
+- **ARCHITECTURE.md expanded** -- New tool groups (verification, sentinel-wrapped, research, learnings), updated SOUL.md sketches, sentinel enforcement model (5.4), state machine shortcut annotations, agent behavior eval section
+
 - **Vizier-on-OpenClaw architecture spec** (D63) -- Complete architecture document (`docs/ARCHITECTURE.md`) specifying the new system: OpenClaw as runtime, Vizier MCP server for domain logic, all agents as OpenClaw sessions, per-project Sentinels via MCP tools
 - **Vizier MCP server scaffold** -- `vizier-mcp/` package with module structure for tools (spec, sentinel, orchestration, DAG, evidence, plugin, budget), models, sentinel policy engine, and plugins
 - **OpenClaw workspace templates** -- SOUL.md files for all 7 agent roles (Vizier, Pasha, Scout, Architect, Worker, Quality Gate, Retrospective) plus agent and config scaffolds

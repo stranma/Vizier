@@ -1,3 +1,28 @@
 {
-  "$schema": "OpenClaw gateway configuration -- to be filled during OpenClaw setup"
+  "$schema": "OpenClaw gateway configuration",
+  "sessions": {
+    "compaction": {
+      "enabled": true,
+      "max_context_tokens": 150000,
+      "compaction_trigger_pct": 80,
+      "memory_flush_on_compact": true,
+      "notes": "Persistent sessions (Vizier, Pasha) compact at 80% of context window. On compaction, critical state is flushed to MEMORY.md per SOUL.md instructions."
+    },
+    "persistent": {
+      "vizier": {
+        "model": "claude-opus-4-6",
+        "compaction": true,
+        "memory_enabled": true
+      },
+      "pasha_template": {
+        "model": "claude-opus-4-6",
+        "compaction": true,
+        "memory_enabled": true
+      }
+    },
+    "spawned": {
+      "default_timeout_minutes": 30,
+      "max_concurrent": 5
+    }
+  }
 }

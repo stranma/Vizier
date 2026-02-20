@@ -1245,3 +1245,99 @@ litellm.failure_callback = ["langfuse"]
 **Why:** Per-project Sentinel allows different security policies per project (a docs project has different write-sets than a software project). MCP tool enforcement means agents explicitly check permissions, making the security model visible in agent prompts and tool calls rather than hidden in runtime hooks.
 
 **Trade-off:** Agents must explicitly call Sentinel tools (vs automatic interception in old architecture). Mitigated by: SOUL.md prompts instruct agents to always check, and the MCP server can refuse operations that weren't pre-validated.
+
+---
+
+### D67: Sentinel Enforcement via OpenClaw Tool Policy
+
+**Context:** D66 moved Sentinel to MCP tools, but agents could still bypass Sentinel by using OpenClaw's native bash/exec or web_fetch tools directly, since SOUL.md instructions are not enforceable.
+
+**Decision:** Block native bash/exec and web_fetch via OpenClaw tool policy configuration. Force all agents through `run_command_checked` and `web_fetch_checked` MCP tools, which combine Sentinel validation with execution. In-scope file writes remain unrestricted (OpenClaw native file_write within project workspace). Out-of-scope writes still require `sentinel_check_write`.
+
+**Why:** Tool policy enforcement is physical, not behavioral. An agent cannot bypass what is not available to it. This closes the "agents skip MCP calls" loophole without relying on prompt compliance.
+
+**Trade-off:** Adds latency to every command/fetch (Sentinel check + execution in one round trip). Acceptable because the alternative (no enforcement) means Sentinel is advisory-only.
+
+---
+
+### D68: Worker Mandatory Self-Verification
+
+**Context:** Workers previously transitioned to REVIEW immediately after implementation. Quality Gate's 5-pass protocol included mechanical checks (tests, lint, types) that should have been caught earlier, wasting a QG invocation on easily fixable issues.
+
+**Decision:** Workers must run `verify_tests`, `verify_lint`, and `verify_types` before transitioning to REVIEW. All three must pass. QG protocol reduced from 5 passes to 4 (mechanical checks shifted to Worker). QG now focuses on semantic quality: hygiene, criteria evaluation, consistency, and verdict.
+
+**Why:** Shifting mechanical verification to the Worker saves a full QG round-trip for every lint error or test failure. Workers fix their own messes. QG spends its (potentially Opus-tier) budget on semantic evaluation, not catching missing semicolons.
+
+**Trade-off:** Workers take slightly longer per spec (running verification). Net positive because fewer rejection cycles.
+
+---
+
+### D69: Lightweight Research-on-Demand Tool
+
+**Context:** The full Scout pipeline (spawn sub-session, web search, write research.md, transition spec) is heavyweight for simple "does library X support feature Y?" queries during Architect decomposition.
+
+**Decision:** New `research_topic(query, depth)` MCP tool provides lightweight research. `depth="shallow"` does a quick web search and summary. `depth="deep"` does thorough multi-source investigation. The full Scout pipeline is preserved for standalone research tasks (DRAFT -> SCOUTED).
+
+**Why:** Architect currently has to either guess or request a full Scout round-trip for simple lookups. `research_topic` gives Architect on-demand research without the overhead of spawning a sub-session and transitioning spec state.
+
+**Trade-off:** Duplicates some Scout capability. Acceptable because the use cases are different: Scout produces comprehensive research reports; `research_topic` answers quick questions.
+
+---
+
+### D70: Learnings Injection via MCP
+
+**Context:** Retrospective writes learnings to `learnings.md`, but no agent reads them systematically. Learnings accumulate without being actionable. All agents reading the entire file on startup (as originally envisioned) would waste context window.
+
+**Decision:** New `get_relevant_learnings(project_id, spec_id?, agent_role?)` MCP tool returns keyword-matched learnings relevant to the current task. Pasha calls it before spawning any agent and includes results in the spawn context.
+
+**Why:** Targeted injection is more effective than dumping the entire learnings file. Keyword matching keeps the implementation simple and deterministic. Makes Retrospective output directly actionable.
+
+**Trade-off:** Keyword matching may miss relevant learnings with different phrasing. Mitigated by Retrospective SOUL.md guidance on writing learnings with clear keywords.
+
+---
+
+### D71: Dynamic Pipeline Selection by Pasha
+
+**Context:** The spec lifecycle forces every spec through the full pipeline (Scout -> Architect -> Worker -> QG), even when simpler paths would suffice. A typo fix doesn't need research or decomposition.
+
+**Decision:** No formal `task_type` field. Pasha decides dynamically which agents to spawn per spec based on complexity, description, and context. SOUL.md provides guidance for common shortcuts: bugfix (skip Scout/Architect), research-only (Scout only), documentation (lighter QG), complex feature (full pipeline). Existing state machine transitions already support these shortcuts (e.g., DRAFT -> READY bypasses Scout and Architect).
+
+**Why:** A formal task_type taxonomy would need constant maintenance and wouldn't capture edge cases. Pasha (Opus-tier) can judge spec nature from context. The state machine already permits the shortcuts.
+
+**Trade-off:** Less predictable pipeline per spec. Acceptable because Pasha's judgment is informed by learnings and the full spec context.
+
+---
+
+### D72: Agent Behavior Eval Suite
+
+**Context:** SOUL.md prompts define agent behavior (Worker must call verify_tests before REVIEW, Pasha must inject learnings, etc.), but there's no way to test that these instructions produce the expected behavior patterns.
+
+**Decision:** Formal eval suite in `tests/test_agent_evals.py` testing SOUL.md behavioral contracts via mocked scenarios. Tests validate expected tool call sequences (Worker calls run_command_checked, not native bash) and decision patterns (Pasha skips Scout for bugfixes). Uses mock MCP servers returning controlled responses.
+
+**Why:** TDD for agent prompts. If a SOUL.md change breaks expected behavior (e.g., Worker stops calling verify_tests), the eval catches it. Mocked scenarios test behavioral patterns, not LLM output quality.
+
+**Trade-off:** Evals are fragile if SOUL.md wording changes significantly. Mitigated by testing tool call patterns (stable) rather than exact response text (volatile).
+
+---
+
+### D73: Context Management for Persistent Agents
+
+**Context:** Persistent agents (Vizier, Pasha) accumulate context over long sessions. Without active management, they degrade -- forgetting commitments, losing track of project state, making contradictory decisions.
+
+**Decision:** Rely on OpenClaw's compaction, memory flush, and MEMORY.md. SOUL.md instructs Vizier and Pasha to proactively write critical state to memory (commitments, pending decisions, project priorities). Compaction settings configured for orchestrator sessions (80% trigger, memory flush on compact).
+
+**Why:** OpenClaw already provides the infrastructure. SOUL.md guidance ensures agents use it proactively rather than reactively (writing to memory after important updates, not just when compaction triggers). No custom code needed.
+
+**Trade-off:** Depends on agents following SOUL.md memory instructions. Mitigated by compaction + memory flush as a safety net.
+
+---
+
+### D74: Scope Guidance for Architect
+
+**Context:** Analysis of claude-code-ultimate-guide (19K-line research) found that Workers perform best with focused, narrow tasks. Architect sub-specs that touch 10+ files often exceed Worker's ability to maintain coherence.
+
+**Decision:** Soft guidance only. Architect SOUL.md recommends 1-3 files per sub-spec, suggests splitting at 5+. No enforcement mechanism. Trust the Architect (Opus-tier).
+
+**Why:** Hard enforcement would be brittle (some logical changes genuinely touch many files). Soft guidance achieves 90% of the benefit. The Architect is Opus-tier and can exercise judgment about when to deviate.
+
+**Trade-off:** No guarantee of compliance. Acceptable because strict limits would cause more harm (artificial splits) than good.

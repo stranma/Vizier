@@ -44,11 +44,15 @@ Sultan (any channel: Telegram, WhatsApp, Discord, iMessage, Web UI, mobile)
     +-- Vizier MCP Server (Python, FastMCP)
           +-- Spec tools (CRUD, state machine, lifecycle)
           +-- Sentinel tools (write-set enforcement, policy engine)
+          +-- Sentinel-wrapped tools (run_command_checked, web_fetch_checked)
           +-- Orchestration tools (scan, assign, schedule)
           +-- DAG tools (validate, check dependencies)
           +-- Evidence tools (check completeness, write verdict)
           +-- Plugin tools (domain-specific operations)
           +-- Budget tools (track costs, check thresholds)
+          +-- Verification tools (verify_tests, verify_lint, verify_types)
+          +-- Research tool (research_topic)
+          +-- Learnings tool (get_relevant_learnings)
 ```
 
 **Key insight:** OpenClaw handles everything above the line (channels, sessions, routing, memory, tool infra). Vizier's MCP server handles everything below (domain logic, security, orchestration). The agents themselves are OpenClaw sessions with SOUL.md prompts that call MCP tools.
@@ -123,6 +127,35 @@ All Vizier domain logic is exposed as MCP tools via a **FastMCP** Python server.
 | `budget_track` | Record an agent invocation cost | project_id, agent_role, model, tokens_in, tokens_out, cost_usd | updated totals |
 | `budget_check` | Check current spend against thresholds | project_id? | spend summary + threshold status |
 | `budget_get_summary` | Get cost breakdown by project/agent/model | period? | detailed cost report |
+
+#### Verification (D68)
+
+| Tool | Description | Inputs | Returns |
+|------|-------------|--------|---------|
+| `verify_tests` | Run plugin's test suite for spec artifacts | project_id, spec_id | pass/fail + test output |
+| `verify_lint` | Run linter on spec's modified files | project_id, spec_id | pass/fail + lint output |
+| `verify_types` | Run type checker on spec's modified files | project_id, spec_id | pass/fail + type errors |
+
+#### Sentinel-Wrapped Execution (D67)
+
+| Tool | Description | Inputs | Returns |
+|------|-------------|--------|---------|
+| `run_command_checked` | Execute shell command after Sentinel validation | project_id, command, agent_role | allow/deny + command output |
+| `web_fetch_checked` | Fetch URL and scan content for injection | url, agent_role | safe/suspicious + content |
+
+Note: `write_file_checked` is not needed for in-scope writes. Standard in-scope writes go through OpenClaw native file_write (allowed by tool policy within workspace). The existing `sentinel_check_write` handles out-of-scope write validation.
+
+#### Research (D69)
+
+| Tool | Description | Inputs | Returns |
+|------|-------------|--------|---------|
+| `research_topic` | Lightweight research on a topic (web search + analysis) | query, depth (shallow/deep) | structured findings |
+
+#### Learnings (D70)
+
+| Tool | Description | Inputs | Returns |
+|------|-------------|--------|---------|
+| `get_relevant_learnings` | Get learnings relevant to a spec/role | project_id, spec_id?, agent_role? | list of relevant learning entries |
 
 ### 3.2 Server Configuration
 
@@ -203,6 +236,11 @@ Each project has a dedicated Pasha (sub-session). You communicate with
 Pashas via sessions_send for async updates and spec_create for new work.
 Never do a Pasha's job -- delegate and coordinate.
 
+## Memory Management
+- Proactively write critical state to memory: active commitments, pending decisions, project priorities
+- Don't rely on conversation history for important state -- write it to MEMORY.md or daily logs
+- After receiving important updates, confirm key details are in memory
+
 ## Communication Style
 - Concise, actionable, no fluff
 - Proactive about risks and deadlines
@@ -244,6 +282,21 @@ You report to the Grand Vizier and manage all work within your project.
 - Retry 5: Review spec yourself, consider re-scoping
 - Retry 7: Spawn Architect for re-decomposition
 - Retry 10: Mark STUCK, escalate to Vizier
+
+## Pipeline Flexibility
+You decide which agents to spawn based on the spec's nature:
+- Simple bugfix: skip Scout and Architect, assign Worker directly (DRAFT -> READY)
+- Documentation task: skip Scout, lighter QG (no test passes)
+- Research-only task: spawn Scout, mark spec DONE when research complete
+- Complex feature: full pipeline (Scout -> Architect -> Worker -> QG)
+
+## Learnings Injection
+Before spawning any agent, call get_relevant_learnings(project_id, spec_id, agent_role).
+Include relevant learnings in the agent's spawn context.
+
+## Memory Management
+- Write project status, active specs, and pending decisions to memory proactively
+- After compaction, re-read project state via orch_scan_specs
 
 ## Sentinel
 Your project has a dedicated Sentinel enforcing security policies.
@@ -322,6 +375,11 @@ Each sub-spec MUST have:
 - depends_on list (other sub-spec IDs)
 
 The Worker should NEVER need to explore. If they do, your spec was insufficient.
+
+## Scope Guidelines
+- Aim for 1-3 files per sub-spec. If a logical unit needs more than 5, split further.
+- Use research_topic(query, depth) for quick lookups during decomposition.
+  Reserve request_more_research for cases requiring deep multi-source investigation.
 ```
 
 **Inputs:** SCOUTED spec ID, research report
@@ -349,8 +407,23 @@ You receive a spec ID. Read it, implement it, transition to REVIEW.
 2. Read any QG feedback from previous attempts
 3. Implement the artifacts listed in the spec
 4. All file writes are validated by Sentinel (sentinel_check_write)
-5. All shell commands are validated by Sentinel (sentinel_check_command)
-6. When done, transition spec to REVIEW (spec_transition)
+5. Run mandatory self-verification (see below)
+6. When all checks pass, transition spec to REVIEW (spec_transition)
+
+## Mandatory Self-Verification
+Before transitioning to REVIEW, you MUST:
+1. Run verify_tests(project_id, spec_id) -- fix failures
+2. Run verify_lint(project_id, spec_id) -- fix violations
+3. Run verify_types(project_id, spec_id) -- fix type errors
+Iterate until all three PASS. Only then call spec_transition(spec_id, "REVIEW").
+
+## Command Execution
+All shell commands go through run_command_checked(project_id, command, "worker").
+You cannot run commands directly -- Sentinel validates every command.
+
+## Web Access
+All URL fetches go through web_fetch_checked(url, "worker").
+Content is scanned for prompt injection before you see it.
 
 ## Rules
 - Write ONLY files listed in the spec's artifact list
@@ -380,15 +453,19 @@ You receive a spec ID. Read it, implement it, transition to REVIEW.
 You are a Quality Gate -- you validate completed work using a
 structured multi-pass protocol. You are the last line of defense.
 
-## Completion Protocol (5 passes)
+## Completion Protocol (4 passes)
+Worker now handles mechanical verification (tests, lint, types) before REVIEW.
+Your role shifts to semantic quality:
+
 Pass 1 (Hygiene): Check for debug prints, breakpoints, TODOs, hardcoded values
-Pass 2 (Mechanical): Run plugin's automated checks (tests, lint, types)
-Pass 3 (Criteria): Evaluate each acceptance criterion from the spec
-Pass 4 (Consistency): Check for regressions against related specs
-Pass 5 (Verdict): Write structured verdict with per-criterion PASS/FAIL + evidence
+Pass 2 (Criteria): Evaluate each acceptance criterion from the spec
+Pass 3 (Consistency): Check for regressions against related specs
+Pass 4 (Verdict): Write structured verdict with per-criterion PASS/FAIL + evidence
+
+If Worker missed mechanical issues (tests failing, lint errors), that's a REJECT
+with feedback noting Worker's self-verification was insufficient.
 
 ## Rules
-- You MUST run tests (bash) before any LLM-based evaluation
 - You MUST check all required evidence is present (evidence_check)
 - ACCEPT: all criteria pass, all evidence present
 - REJECT: write detailed feedback (spec_write_feedback) so Worker can fix
@@ -423,6 +500,12 @@ patterns, extract learnings, and propose improvements.
 - A spec reaches STUCK state
 - Periodic review (weekly)
 
+## Data Sources
+- Per-spec traces (trace.jsonl) -- tool calls, transitions, decisions
+- OpenClaw session transcripts -- full agent conversations
+- learnings.md -- previously captured learnings
+- Agent logs -- cost, duration, model tier per invocation
+
 ## Analysis
 1. Review completed specs: rejection rates, retry counts, time to completion
 2. Review STUCK specs: root causes, common failure patterns
@@ -432,6 +515,11 @@ patterns, extract learnings, and propose improvements.
 ## Outputs
 - Append learnings to project learnings.md (direct write)
 - Write proposals to proposals/ directory (require Sultan approval)
+
+## Learnings Retrieval
+Your learnings are served to agents via get_relevant_learnings.
+Write learnings with clear keywords so the retrieval matches correctly.
+Structure: "When [context], [problem] because [root cause]. Fix: [solution]."
 
 ## Constraints
 - You may update learnings and propose prompt/criteria changes
@@ -508,7 +596,7 @@ role_permissions:
 | **Denylist** | Glob/regex match | Zero | `git push --force` matches denylist |
 | **Ambiguous** | Haiku evaluation | ~$0.001 | Unfamiliar bash command, indirect invocation |
 
-The MCP server handles all three tiers internally. Agents just call `sentinel_check_write` or `sentinel_check_command` and get allow/deny.
+The MCP server handles all three tiers internally. Agents call `sentinel_check_write` or `sentinel_check_command` and get allow/deny. For command execution and web fetches, the Sentinel-wrapped tools (`run_command_checked`, `web_fetch_checked`) combine validation and execution in a single call, enforced at the OpenClaw tool policy level (see section 5.4).
 
 ### 5.3 Haiku Fallback
 
@@ -531,6 +619,23 @@ async def sentinel_check_command(project_id: str, command: str, agent_role: str)
     verdict = await haiku_evaluate(command, agent_role, policy)
     return {"decision": verdict.decision, "tier": "haiku", "reason": verdict.reason}
 ```
+
+### 5.4 Enforcement via Tool Policy (OpenClaw Integration)
+
+Sentinel enforcement uses a combination of OpenClaw tool policy (mandatory)
+and MCP tools (convenience):
+
+| Operation | Enforcement | Mechanism |
+|-----------|------------|-----------|
+| Shell commands | MANDATORY | Native bash/exec blocked by tool policy. All commands via `run_command_checked` MCP tool. |
+| File writes (in scope) | ALLOWED | OpenClaw native file_write within project workspace. No Sentinel check needed. |
+| File writes (out of scope) | MANDATORY | `sentinel_check_write` MCP tool required. Tool policy restricts writes outside workspace. |
+| Web fetch | MANDATORY | Native web fetch blocked. All fetches via `web_fetch_checked` MCP tool (content scanner). |
+| File reads | ALLOWED | Any file readable (bounded exploration, D23). |
+
+This means agents physically cannot bypass Sentinel for high-risk operations
+(commands, out-of-scope writes, web access). Low-risk operations
+(in-scope file writes, file reads) proceed without friction.
 
 ---
 
@@ -557,6 +662,11 @@ Pashas report back to Vizier via:
 Pasha spawns inner agents via **`sessions_spawn`** (OpenClaw native). Each spawned session receives:
 - The spec ID to work on
 - Any relevant context (QG feedback for retries, research report for Architect)
+
+Pasha enriches spawn context with:
+- Relevant learnings (via `get_relevant_learnings` MCP tool)
+- QG feedback from previous attempts (for retries)
+- Research report (for Architect)
 
 Inner agents communicate back to Pasha via:
 - **`orch_write_ping`** (Vizier MCP): For questions, blockers, and status pings
@@ -689,6 +799,7 @@ The following domain logic will be **ported** from the old codebase (available i
 | Write-set glob matching | `libs/core/vizier/core/tools/domain/write_file.py` | `vizier-mcp/vizier_mcp/sentinel/write_set.py` | WriteSetChecker (glob pattern enforcement) |
 | Plugin base | `libs/core/vizier/core/plugins/` | `vizier-mcp/vizier_mcp/plugins/` | BasePlugin, criteria loader, template renderer |
 | Budget tracker | `libs/core/vizier/core/runtime/budget.py` | `vizier-mcp/vizier_mcp/tools/budget.py` | Cost tracking, threshold enforcement |
+| Verification wrappers | NEW | `vizier-mcp/vizier_mcp/tools/verification.py` | Plugin-aware test/lint/type runners |
 
 ---
 
@@ -710,6 +821,8 @@ vizier/
         evidence.py                  # Evidence checking
         plugin.py                    # Plugin tool exposure
         budget.py                    # Cost tracking
+        verification.py              # Worker self-verification (tests, lint, types)
+        research.py                  # Lightweight on-demand research
       models/                        # Pydantic models (ported from old core)
         __init__.py
         spec.py                      # Spec, SpecState, SpecMetadata
@@ -737,6 +850,9 @@ vizier/
       test_models.py
       test_sentinel_policy.py
       test_write_set.py
+      test_verification_tools.py
+      test_research_tools.py
+      test_agent_evals.py            # SOUL.md behavioral contract tests
       conftest.py
     pyproject.toml                   # Package config (fastmcp, anthropic, pydantic)
   openclaw/                          # OpenClaw workspace configuration
@@ -818,6 +934,11 @@ Valid transitions (enforced by MCP server):
 - REJECTED -> READY (retry)
 - READY -> STUCK (retry 10 exhausted)
 
+Note: Pasha dynamically decides which transitions to use based on spec nature (D71).
+- Bugfix: DRAFT -> READY (skip Scout, Architect)
+- Research: DRAFT -> SCOUTED -> DONE (no Worker)
+- Documentation: DRAFT -> DECOMPOSED -> READY -> IN_PROGRESS -> REVIEW -> DONE (lighter QG)
+
 ---
 
 ## 11. Testing Strategy
@@ -834,6 +955,22 @@ The MCP server is a standard Python package tested with pytest:
 ### Agent Tests
 
 Agent behavior is tested through OpenClaw's testing infrastructure. SOUL.md prompts are validated by running agents against mock MCP servers.
+
+### Agent Behavior Evals (D72)
+
+`tests/test_agent_evals.py` tests SOUL.md behavioral contracts:
+
+- Worker calls `run_command_checked` (not native bash)
+- Worker calls `verify_tests`/`verify_lint`/`verify_types` before transitioning to REVIEW
+- Worker calls `web_fetch_checked` for URLs
+- Architect decomposes to sub-specs with <=5 artifacts each
+- QG rejects when mandatory evidence is missing
+- Pasha calls `get_relevant_learnings` before spawning agents
+- Pasha skips Scout for simple bugfix specs
+
+These are mocked scenarios testing the expected tool call sequences,
+not the quality of LLM output. They validate that SOUL.md instructions
+produce the correct behavioral patterns.
 
 ### No LLM Calls in CI
 

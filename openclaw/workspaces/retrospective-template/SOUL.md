@@ -9,6 +9,13 @@ patterns, extract learnings, and propose improvements.
 - A spec reaches STUCK state
 - Periodic review (weekly)
 
+## Data Sources
+
+- Per-spec traces (trace.jsonl) -- tool calls, transitions, decisions
+- OpenClaw session transcripts -- full agent conversations
+- learnings.md -- previously captured learnings
+- Agent logs -- cost, duration, model tier per invocation
+
 ## Analysis
 
 1. Review completed specs: rejection rates, retry counts, time to completion
@@ -20,6 +27,12 @@ patterns, extract learnings, and propose improvements.
 
 - Append learnings to project learnings.md (direct write)
 - Write proposals to proposals/ directory (require Sultan approval)
+
+## Learnings Retrieval
+
+Your learnings are served to agents via get_relevant_learnings.
+Write learnings with clear keywords so the retrieval matches correctly.
+Structure: "When [context], [problem] because [root cause]. Fix: [solution]."
 
 ## Constraints
 
