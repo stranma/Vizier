@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -50,10 +51,8 @@ class Heartbeat:
         """Stop the heartbeat background task."""
         if self._task is not None:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
             self._task = None
             logger.info("Heartbeat stopped")
 
@@ -107,10 +106,10 @@ class PingWatcher:
         self._loop = asyncio.get_event_loop()
 
         class _PingHandler(FileSystemEventHandler):
-            def __init__(inner_self) -> None:  # noqa: N805
+            def __init__(inner_self) -> None:  # noqa: N805  # pyright: ignore[reportSelfClsParameterName]
                 super().__init__()
 
-            def on_created(inner_self, event: FileSystemEvent) -> None:  # noqa: N805
+            def on_created(inner_self, event: FileSystemEvent) -> None:  # noqa: N805  # pyright: ignore[reportSelfClsParameterName]
                 if event.is_directory:
                     return
                 path = str(event.src_path)
@@ -176,9 +175,7 @@ class AgentSpawner:
 
         return _callback
 
-    def _spawn_sync(
-        self, role: str, spec_id: str, context: dict[str, Any], project_root: str
-    ) -> dict[str, Any]:
+    def _spawn_sync(self, role: str, spec_id: str, context: dict[str, Any], project_root: str) -> dict[str, Any]:
         """Dispatch to the appropriate factory, run the agent, return result.
 
         :param role: Agent role name.
@@ -390,7 +387,7 @@ class VizierDaemon:
         :param api_key: Anthropic API key.
         :returns: Anthropic client instance.
         """
-        import anthropic
+        import anthropic  # pyright: ignore[reportMissingImports]
 
         return anthropic.Anthropic(api_key=api_key)
 
@@ -451,10 +448,8 @@ class VizierDaemon:
 
         for task in tasks:
             task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
 
         await self.shutdown()
 
@@ -506,10 +501,8 @@ class VizierDaemon:
 
             interval = reconciler.record_cycle(0)
             assert self._wakeup_event is not None
-            try:
+            with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(self._wakeup_event.wait(), timeout=interval)
-            except TimeoutError:
-                pass
             self._wakeup_event.clear()
 
     async def _reconcile_project(self, project: Any) -> dict[str, Any]:

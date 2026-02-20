@@ -4,19 +4,18 @@ from __future__ import annotations
 
 import asyncio
 import json
-from pathlib import Path
+
+# Re-use the mock_anthropic helpers from core tests
+import sys
+from pathlib import Path as _Path
 from typing import Any
 
 import pytest
 
 from vizier.daemon.process import AgentSpawner, Heartbeat, PingWatcher, VizierDaemon
 
-# Re-use the mock_anthropic helpers from core tests
-import sys
-from pathlib import Path as _Path
-
 sys.path.insert(0, str(_Path(__file__).resolve().parents[3] / "libs" / "core" / "tests" / "runtime"))
-from mock_anthropic import make_mock_client, make_text_response  # noqa: E402
+from mock_anthropic import make_mock_client, make_text_response  # pyright: ignore[reportMissingImports]
 
 
 class TestHeartbeat:
@@ -129,9 +128,7 @@ class TestAgentSpawner:
     def test_spawn_sync_worker(self) -> None:
         client = make_mock_client(make_text_response("Implementation done."))
         spawner = AgentSpawner(client)
-        result = spawner._spawn_sync(
-            "worker", "002", {"task": "Implement auth", "goal": "Add login"}, "/tmp/project"
-        )
+        result = spawner._spawn_sync("worker", "002", {"task": "Implement auth", "goal": "Add login"}, "/tmp/project")
         assert result["role"] == "worker"
         assert "stop_reason" in result
 
@@ -207,7 +204,6 @@ class TestVizierDaemon:
 
     @pytest.mark.asyncio()
     async def test_run_once_idle_project(self, tmp_path: Any) -> None:
-        from unittest.mock import patch
 
         from vizier.daemon.config import ProjectEntry
 

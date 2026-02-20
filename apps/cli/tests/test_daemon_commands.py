@@ -130,7 +130,7 @@ class TestStart:
         pid_file = Path(vizier_root) / "vizier.pid"
 
         with patch("vizier.daemon.process.VizierDaemon", return_value=mock_daemon):
-            result = runner.invoke(main, ["start", "--root", vizier_root])
+            runner.invoke(main, ["start", "--root", vizier_root])
 
         mock_daemon.setup.assert_called_once()
         assert not pid_file.exists()
