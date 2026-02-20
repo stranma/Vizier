@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import os
+import re
 import tempfile
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -39,6 +41,8 @@ if TYPE_CHECKING:
 
     from vizier_mcp.config import ServerConfig
 
+logger = logging.getLogger(__name__)
+
 FRONTMATTER_SEPARATOR = "---"
 
 _MUTABLE_FIELDS = {"retry_count", "assigned_agent", "complexity", "claimed_at", "depends_on"}
@@ -51,8 +55,12 @@ def _specs_dir(config: ServerConfig, project_id: str) -> Path:
 
 
 def _spec_dir(config: ServerConfig, project_id: str, spec_id: str) -> Path:
-    """Return the directory for a specific spec."""
-    return _specs_dir(config, project_id) / spec_id
+    """Return the directory for a specific spec, with path containment check."""
+    specs_path = _specs_dir(config, project_id)
+    result = specs_path / spec_id
+    if not str(result.resolve()).startswith(str(specs_path.resolve())):
+        raise ValueError(f"Spec ID escapes project directory: {spec_id}")
+    return result
 
 
 def _spec_file(config: ServerConfig, project_id: str, spec_id: str) -> Path:
@@ -153,16 +161,28 @@ def _atomic_write(path: Path, content: str) -> None:
         raise
 
 
-def _next_spec_id(config: ServerConfig, project_id: str) -> str:
-    """Generate the next sequential spec ID for a project."""
-    specs_path = _specs_dir(config, project_id)
+def _compute_next_seq(specs_path: Path) -> str:
+    """Compute the next 3-digit sequence number from existing spec directories.
+
+    Supports up to 999 specs per project.
+    """
     if not specs_path.exists():
         return "001"
-    existing = sorted(d.name for d in specs_path.iterdir() if d.is_dir() and d.name[:3].isdigit())
+    existing = sorted(
+        (d.name for d in specs_path.iterdir() if d.is_dir() and d.name[:3].isdigit()),
+        key=lambda n: int(n.split("-")[0]),
+    )
     if not existing:
         return "001"
     last_num = int(existing[-1].split("-")[0])
     return f"{last_num + 1:03d}"
+
+
+def _sanitize_slug(title: str) -> str:
+    """Create a filesystem-safe slug from a title."""
+    slug = title.lower().replace(" ", "-")
+    slug = re.sub(r"[^a-z0-9-]", "", slug)
+    return slug[:40]
 
 
 def spec_create(
@@ -177,6 +197,8 @@ def spec_create(
 ) -> dict:
     """Create a new spec in DRAFT state.
 
+    Uses atomic directory creation (os.mkdir) for race-safe ID generation.
+
     :param config: Server configuration.
     :param project_id: Project identifier.
     :param title: Spec title.
@@ -187,9 +209,21 @@ def spec_create(
     :param depends_on: List of spec IDs this depends on.
     :return: {"spec_id": str, "path": str}
     """
-    slug = title.lower().replace(" ", "-")[:40]
-    seq = _next_spec_id(config, project_id)
-    spec_id = f"{seq}-{slug}"
+    slug = _sanitize_slug(title)
+    specs_path = _specs_dir(config, project_id)
+    specs_path.mkdir(parents=True, exist_ok=True)
+
+    for _ in range(10):
+        seq = _compute_next_seq(specs_path)
+        spec_id = f"{seq}-{slug}"
+        spec_dir = specs_path / spec_id
+        try:
+            spec_dir.mkdir(parents=False)
+            break
+        except FileExistsError:
+            continue
+    else:
+        return {"error": "Failed to allocate spec ID after 10 attempts"}
 
     now = datetime.now(UTC)
     metadata = SpecMetadata(
@@ -264,7 +298,8 @@ def spec_list(
             content = spec_file.read_text()
             meta_dict, _, _, _ = _parse_spec(content)
             metadata = SpecMetadata(**meta_dict)
-        except (ValueError, Exception):
+        except (ValueError, yaml.YAMLError) as exc:
+            logger.warning("Skipping corrupt spec at %s: %s", spec_file, exc)
             continue
 
         if status_filter and metadata.status.value != status_filter:
@@ -404,6 +439,10 @@ def spec_write_feedback(
     :param reviewer: Agent writing the feedback.
     :return: {"path": str} or {"error": str}
     """
+    valid_verdicts = {"ACCEPT", "REJECT"}
+    if verdict not in valid_verdicts:
+        return {"error": f"Invalid verdict: {verdict}. Must be one of: {valid_verdicts}"}
+
     spec_path = _spec_file(config, project_id, spec_id)
     if not spec_path.exists():
         return {"error": f"Spec not found: {spec_id}"}
