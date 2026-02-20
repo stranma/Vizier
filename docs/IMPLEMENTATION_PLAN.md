@@ -5,7 +5,7 @@
 | Phase | Name | Status | Tools |
 |-------|------|--------|-------|
 | 1 | Spec Lifecycle | Complete | spec_create, spec_read, spec_list, spec_transition, spec_update, spec_write_feedback |
-| 2 | Sentinel | In Progress | sentinel_check_write, run_command_checked, web_fetch_checked |
+| 2 | Sentinel | Complete | sentinel_check_write, run_command_checked, web_fetch_checked |
 | 3 | Orchestration | Not Started | orch_write_ping, project_get_config |
 | 4 | Integration | Not Started | Wire FastMCP server, end-to-end test |
 | 5 | OpenClaw Connection | Not Started | SOUL.md tuning, real agent test |
@@ -57,14 +57,14 @@
 **Goal:** Policy engine + 3 MCP tools for security enforcement (write-set validation, command checking, web fetch scanning).
 
 **Deliverables:**
-- [ ] Pydantic models: SentinelPolicy, SentinelRule, WriteSetPattern, CommandCheckResult, WebFetchResult
-- [ ] Policy engine: load project sentinel.yaml, evaluate allowlist -> denylist -> Haiku
-- [ ] sentinel_check_write: validate file path against project write-set
-- [ ] run_command_checked: validate command, execute, return three-shape result (D78)
-- [ ] web_fetch_checked: fetch URL, scan content for injection, return result
-- [ ] Haiku evaluator: mock in tests, real Haiku call for ambiguous commands
-- [ ] Unit tests for all tools and policy evaluation tiers
-- [ ] Integration test: command allow/deny/Haiku flow
+- [x] Pydantic models: SentinelPolicy, SentinelRule, WriteSetPattern, CommandCheckResult, WebFetchResult
+- [x] Policy engine: load project sentinel.yaml, evaluate allowlist -> denylist -> Haiku
+- [x] sentinel_check_write: validate file path against project write-set
+- [x] run_command_checked: validate command, execute, return three-shape result (D78)
+- [x] web_fetch_checked: fetch URL, scan content for injection, return result
+- [x] Haiku evaluator: mock in tests, real Haiku call for ambiguous commands
+- [x] Unit tests for all tools and policy evaluation tiers
+- [x] Integration test: command allow/deny/Haiku flow
 
 **Acceptance Criteria:**
 - AC-S1: SentinelPolicy loads from a project's sentinel.yaml file. Missing file returns a sensible default policy (empty allowlist, empty denylist, empty write-set). Malformed YAML returns {"error": str} (not exception).

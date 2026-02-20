@@ -8,6 +8,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+## [0.2.0] - 2026-02-20
+
+Phase 2: Sentinel. Policy engine and three MCP security enforcement tools. Agents can no longer run shell commands or fetch URLs directly -- all such operations are gated through Sentinel, which enforces per-project allowlists, denylists, write-set restrictions, and role permissions.
+
+### Added
+
+- **sentinel_check_write tool** -- Agents call this tool before writing any file. The tool loads the project's `sentinel.yaml`, matches the target path against write-set glob patterns (supporting `**`, `*`, and `?`), and returns `{"allowed": true}` or `{"allowed": false, "reason": str}`. Write-set is path-only -- no content inspection. An empty write-set allows all paths. Agents whose role has `can_write: false` in `role_permissions` are denied regardless of the path.
+- **run_command_checked tool** -- Agents call this tool instead of native bash to run shell commands. The tool enforces a three-tier evaluation (D78): commands on the project allowlist are approved and executed immediately with no LLM cost; commands on the denylist are rejected immediately with no LLM cost; ambiguous commands (not in either list) are forwarded to Claude Haiku for a safe/unsafe judgment. The tool returns one of three shapes: denied (`{"allowed": false, "reason": str}`), succeeded (`{"allowed": true, "exit_code": 0, "stdout": str, "stderr": str}`), or failed (`{"allowed": true, "exit_code": N, "stdout": str, "stderr": str}`). Agents whose role has `can_bash: false` are denied before any tier is checked.
+- **web_fetch_checked tool** -- Agents call this tool to fetch URLs. After downloading content, the tool runs a regex prompt-injection scanner before returning the content. Clean responses return `{"safe": true, "content": str, "status_code": 200}`. Content containing known injection patterns (such as "ignore previous instructions", "you are now", "disregard your system prompt", `SYSTEM:`, or `assistant:` role spoofing) returns `{"safe": false, "reason": str}`. Fetch failures (connection error, DNS, HTTP 4xx/5xx) return `{"safe": true, "content": "", "status_code": N, "error": str}` so agents can distinguish a blocked page from an injection.
+- **Sentinel policy engine** -- `sentinel/policy.py` loads per-project `sentinel.yaml`, parses denylist entries as either plain strings or `{pattern: regex, reason: str}` objects (AC-S11), evaluates commands through the allowlist-denylist-Haiku three-tier pipeline, and checks per-role `can_write`/`can_bash`/`can_read` permissions with fail-closed defaults for unknown roles (AC-S12).
+- **WriteSetChecker** -- `sentinel/write_set.py` converts glob patterns to compiled regexes at construction time and validates file paths at zero cost per check. Supports `**` (any path depth), `*` (any characters within one segment), and `?` (single character).
+- **Haiku evaluator** -- `sentinel/haiku.py` provides a protocol-based `LLMCallable` interface for dependency injection, enabling mock LLM calls in all automated tests (no real API credits consumed in CI). Fail-closed: if the Haiku call raises an exception, the command is denied.
+- **Prompt injection scanner** -- `sentinel/injection.py` implements eight regex patterns covering the most common prompt injection vectors. Used by `web_fetch_checked` to screen fetched web content before returning it to agents.
+- **Sentinel Pydantic models** -- `SentinelPolicy`, `DenylistEntry`, `RolePermissions`, `CommandCheckResult`, `WebFetchResult`, and `HaikuVerdict` provide strict typed contracts for all policy and result data.
+- **D78 three-shape response contract** -- `run_command_checked` and `web_fetch_checked` return exactly three shapes each (denied / succeeded / failed) with no overlap, so agent code can branch cleanly on a single field (`allowed` or `safe`).
+- **Unit and integration tests** -- Full test coverage for all Sentinel tools, policy evaluation tiers, write-set matching, Haiku evaluation (mocked), and prompt injection scanner. Integration test exercises all three command-evaluation paths (allowlist -> execute, denylist -> deny, ambiguous -> Haiku -> execute/deny) in a single test.
+
 ## [0.1.0] - 2026-02-20
 
 Phase 1: Spec Lifecycle. First functional delivery of the vizier-mcp MCP server: Pydantic models, 8-state spec state machine, and 6 MCP tools covering the full spec lifecycle from creation to completion.
