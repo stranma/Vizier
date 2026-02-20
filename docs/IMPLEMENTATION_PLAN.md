@@ -6,7 +6,7 @@
 |-------|------|--------|-------|
 | 1 | Spec Lifecycle | Complete | spec_create, spec_read, spec_list, spec_transition, spec_update, spec_write_feedback |
 | 2 | Sentinel | Complete | sentinel_check_write, run_command_checked, web_fetch_checked |
-| 3 | Orchestration | Not Started | orch_write_ping, project_get_config |
+| 3 | Orchestration | Complete | orch_write_ping, project_get_config |
 | 4 | Integration | Not Started | Wire FastMCP server, end-to-end test |
 | 5 | OpenClaw Connection | Not Started | SOUL.md tuning, real agent test |
 | 6 | Deployment | Not Started | Dockerfile, docker-compose, CI/CD, deployment guide |
@@ -99,11 +99,11 @@
 **Goal:** 2 remaining MVP tools: supervisor pings and project configuration.
 
 **Deliverables:**
-- [ ] orch_write_ping: write ping file with urgency (QUESTION, BLOCKER, IMPOSSIBLE)
-- [ ] project_get_config: load and return project config.yaml
-- [ ] Pydantic models: PingMessage, ProjectConfig
-- [ ] Unit tests for both tools
-- [ ] Integration test: Worker writes ping, ping file appears in correct location
+- [x] orch_write_ping: write ping file with urgency (QUESTION, BLOCKER, IMPOSSIBLE)
+- [x] project_get_config: load and return project config.yaml
+- [x] Pydantic models: PingMessage, ProjectConfig
+- [x] Unit tests for both tools
+- [x] Integration test: Worker writes ping, ping file appears in correct location
 
 **Acceptance Criteria:**
 - AC-O1: orch_write_ping accepts config, project_id, spec_id, urgency, message. Valid urgencies are QUESTION, BLOCKER, IMPOSSIBLE. Returns {"written": true, "path": str} where path is the ping file location and matches the AC-O2 path formula.

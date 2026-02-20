@@ -8,6 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+## [0.3.0] - 2026-02-20
+
+Phase 3: Orchestration. Two MVP tools enabling inner agents to communicate status back to their Pasha and read project configuration without direct filesystem access.
+
+### Added
+
+- **orch_write_ping tool** -- Inner agents (Worker, Quality Gate) call this tool to notify their Pasha supervisor of issues that need human or orchestrator attention. Accepts a required urgency level -- QUESTION (needs clarification), BLOCKER (agent is stuck and cannot proceed), or IMPOSSIBLE (the spec itself is defective and no retry will fix it, per D77) -- and a free-form message. Writes a timestamped JSON file to `{spec_dir}/pings/{timestamp}-{urgency}.json`. Returns `{"written": true, "path": str}` so the caller can confirm the file exists. Invalid urgency, non-existent project, or non-existent spec all return `{"error": str}` without writing a file. Multiple pings for the same spec with different urgencies coexist without collision.
+- **project_get_config tool** -- Agents call this tool to read the project's `config.yaml` rather than accessing the filesystem directly. Returns a dict with type, language, framework, test_command, lint_command, type_command, and settings fields. Missing `config.yaml` returns `{"type": null, "settings": {}}` as a sensible default so agents can proceed without erroring. Non-existent project and malformed YAML both return `{"error": str}`. Replaces the five plugin_get_* tools from the v1 design (D75).
+- **PingUrgency enum** -- StrEnum with exactly three values: QUESTION, BLOCKER, IMPOSSIBLE. IMPOSSIBLE is a deliberate retention from D77 over D80's drop recommendation: the semantic distinction between "I am stuck" (BLOCKER) and "the spec is wrong" (IMPOSSIBLE) allows Pasha to route escalations differently with no extra implementation cost.
+- **PingMessage Pydantic model** -- Typed container for ping data: spec_id, urgency (validated against PingUrgency), message, and created_at (auto-set to UTC now). JSON-serialisable via model_dump(mode="json").
+- **ProjectConfig Pydantic model** -- Typed container for project configuration with all fields optional and sensible defaults. Settings field is a free-form dict for project-specific overrides.
+- **38 new tests** -- 17 model tests (PingUrgency, PingMessage, ProjectConfig) and 21 tool/integration tests (TestOrchWritePing, TestProjectGetConfig, TestOrchIntegration), bringing the total test count to 197.
+
 ## [0.2.0] - 2026-02-20
 
 Phase 2: Sentinel. Policy engine and three MCP security enforcement tools. Agents can no longer run shell commands or fetch URLs directly -- all such operations are gated through Sentinel, which enforces per-project allowlists, denylists, write-set restrictions, and role permissions.
