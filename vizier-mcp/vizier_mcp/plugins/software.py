@@ -1,1 +1,1 @@
-"""Software development plugin."""
+"""[v2] Software development plugin."""

@@ -1341,3 +1341,49 @@ litellm.failure_callback = ["langfuse"]
 **Why:** Hard enforcement would be brittle (some logical changes genuinely touch many files). Soft guidance achieves 90% of the benefit. The Architect is Opus-tier and can exercise judgment about when to deviate.
 
 **Trade-off:** No guarantee of compliance. Acceptable because strict limits would cause more harm (artificial splits) than good.
+
+---
+
+### D75: Architecture Simplification for v1
+
+**Context:** After the OpenClaw reset (D63) and the D67-D74 improvements, the architecture specifies 35+ MCP tools, 11 tool groups, 7 agent roles -- but the codebase has 0 lines of working code. A combined overengineering review and independent product review identified 17 issues across 4 urgency levels. The over-specification blocks forward progress: there is too much to implement before anything works end-to-end. Two resets and 74 decisions without a single task processed is a pattern that must be broken.
+
+**Decision:** Simplify to a v1 scope that enables the first working end-to-end loop (Sultan -> Vizier -> Pasha -> Worker -> QG -> Done). Specific changes:
+
+1. **Tool surface reduced from 35+ to 15.** v1 keeps: spec_create, spec_read, spec_list, spec_transition, spec_update, spec_write_feedback, run_command_checked, sentinel_check_write, web_fetch_checked, orch_scan_specs, orch_check_ready, orch_assign_worker, orch_write_ping, dag_check_dependencies, project_get_config. Everything else deferred to v2.
+
+2. **Agent roles reduced from 7 to 4.** v1: Vizier, Pasha, Worker, Quality Gate. Scout deferred (Worker uses web_search directly). Architect deferred (Pasha decomposes simple specs or delegates to Worker). Retrospective deferred (manual learnings for v1).
+
+3. **Pasha trigger model: Vizier-initiated.** No polling loop. Vizier creates spec + sends message to Pasha. Pasha handles it and reports back when done. Eliminates expensive Opus-as-doorbell-watcher anti-pattern.
+
+4. **One Voice policy.** Only the Grand Vizier communicates with the Sultan. No other agent messages the Sultan directly. All status updates, questions, and escalations flow through the chain: Worker -> Pasha -> Vizier -> Sultan.
+
+5. **Graduated retry simplified from 5 levels to 2.** Retry 1-3: normal retry with QG feedback. Retry 4+: mark STUCK, escalate to Vizier. Model bumping, re-decomposition, and self-review are v2 refinements.
+
+6. **Plugin framework deferred.** project_get_config tool returns hardcoded software project configuration (write-set patterns, criteria). No BasePlugin, no entry points, no plugin discovery.
+
+7. **Budget system deferred entirely.** No usage data exists. OpenClaw tracks token usage natively. Add budget enforcement when real cost patterns emerge.
+
+8. **Evidence system deferred.** Quality Gate writes markdown verdict via spec_write_feedback. No evidence_check, no evidence_write_verdict, no structured evidence links.
+
+9. **DAG simplified.** 1 tool (dag_check_dependencies) instead of 3. dag_validate and dag_get_order are v2.
+
+10. **Spec state machine simplified.** v1 removes SCOUTED and DECOMPOSED states (no Scout or Architect). DRAFT -> READY directly. Full state machine preserved for v2.
+
+11. **File locking.** MCP server uses file locking on spec writes to prevent race conditions between concurrent agents. Atomic writes (D40) preserved.
+
+12. **Sentinel Learning.** After a command is approved by Haiku 3 times for the same project, auto-promote to the project allowlist. Reduces repeated Haiku latency for common operations. Stored in sentinel_learned.yaml.
+
+13. **Mandatory context read for Workers.** Worker SOUL.md requires reading the project's learnings.md file at task start. Simple file read, no MCP tool needed.
+
+**Why:**
+- The system must process its first task before optimizing for its hundredth
+- Every deferred feature can be added incrementally after v1 works
+- 15 tools is still a substantial server; the reduction is from "overwhelming" to "ambitious but achievable"
+- Independent review flagged Pasha polling and notification overload as UX-breaking issues that must be solved pre-v1
+
+**Supersedes/modifies:** D25 (graduated retry simplified from 5 to 2 levels), D68 (verification tools deferred -- Worker uses run_command_checked directly), D69 (research tool deferred -- Architect not in v1), D70 (learnings tool deferred -- Workers read file directly), D72 (agent evals deferred until agents exist), D74 (Architect scope guidance deferred with Architect).
+
+**Preserved unchanged:** D67 (Sentinel enforcement via tool policy), D71 (dynamic pipeline selection -- simplified for v1 to Worker-only or escalate), D73 (context management for persistent agents).
+
+**Trade-off:** v1 lacks the full pipeline (no Scout research, no Architect decomposition, no Retrospective learning loop). Pasha must handle decomposition directly or push it to Workers. This limits complexity of tasks v1 can handle. Acceptable because: getting the basic loop working validates the entire architecture, and v2 features can be added incrementally.

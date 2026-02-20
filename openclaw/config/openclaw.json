@@ -5,8 +5,7 @@
       "enabled": true,
       "max_context_tokens": 150000,
       "compaction_trigger_pct": 80,
-      "memory_flush_on_compact": true,
-      "notes": "Persistent sessions (Vizier, Pasha) compact at 80% of context window. On compaction, critical state is flushed to MEMORY.md per SOUL.md instructions."
+      "memory_flush_on_compact": true
     },
     "persistent": {
       "vizier": {
@@ -17,12 +16,25 @@
       "pasha_template": {
         "model": "claude-opus-4-6",
         "compaction": true,
-        "memory_enabled": true
+        "memory_enabled": true,
+        "trigger": "message_from_parent"
       }
     },
     "spawned": {
-      "default_timeout_minutes": 30,
+      "worker": {
+        "model": "claude-sonnet-4-6",
+        "default_timeout_minutes": 30
+      },
+      "quality_gate": {
+        "model": "claude-sonnet-4-6",
+        "default_timeout_minutes": 15
+      },
       "max_concurrent": 5
     }
+  },
+  "one_voice_policy": {
+    "enabled": true,
+    "sultan_contact": "vizier",
+    "escalation_chain": ["worker", "pasha", "vizier", "sultan"]
   }
 }

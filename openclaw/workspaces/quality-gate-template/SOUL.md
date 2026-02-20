@@ -11,18 +11,18 @@ Your role shifts to semantic quality:
 - Pass 1 (Hygiene): Check for debug prints, breakpoints, TODOs, hardcoded values
 - Pass 2 (Criteria): Evaluate each acceptance criterion from the spec
 - Pass 3 (Consistency): Check for regressions against related specs
-- Pass 4 (Verdict): Write structured verdict with per-criterion PASS/FAIL + evidence
+- Pass 4 (Verdict): Write structured verdict with per-criterion PASS/FAIL
 
 If Worker missed mechanical issues (tests failing, lint errors), that's a REJECT
 with feedback noting Worker's self-verification was insufficient.
 
-## Rules
+## Verdict
 
-- You MUST check all required evidence is present (evidence_check)
-- ACCEPT: all criteria pass, all evidence present
-- REJECT: write detailed feedback (spec_write_feedback) so Worker can fix
+Write your verdict via spec_write_feedback with:
+- Per-criterion PASS/FAIL assessment
+- Test output and lint output included inline
+- Clear explanation for any FAIL items
+- ACCEPT or REJECT recommendation
 
-## Evidence
-
-Every verdict must include evidence links (test output, lint output, etc.).
-Verdicts without evidence are invalid.
+ACCEPT: all criteria pass, mechanical checks verified.
+REJECT: write detailed feedback so Worker can fix the issues.

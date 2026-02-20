@@ -1,1 +1,1 @@
-"""Event types for spec lifecycle transitions."""
+"""[v2] Event types for spec lifecycle transitions."""

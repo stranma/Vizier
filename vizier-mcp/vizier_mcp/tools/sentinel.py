@@ -1,10 +1,29 @@
-"""Security enforcement tools.
+"""Sentinel security enforcement tools (v1).
 
-Includes both the original Sentinel check tools (sentinel_check_write,
-sentinel_check_command, sentinel_scan_content, sentinel_get_policy) and the
-Sentinel-wrapped execution tools introduced in D67 (run_command_checked,
-web_fetch_checked).
+Provides sentinel_check_write for file write validation, plus the
+Sentinel-wrapped execution tools (D67): run_command_checked and
+web_fetch_checked.
 """
+
+
+async def sentinel_check_write(
+    project_id: str,
+    file_path: str,
+    content: str,
+    agent_role: str,
+) -> dict:
+    """Validate a file write against Sentinel policy.
+
+    Checks the write against the project's allowlist/denylist rules and,
+    if ambiguous, delegates to Haiku for classification.
+
+    :param project_id: Project identifier for loading Sentinel policy.
+    :param file_path: Target file path.
+    :param content: Proposed file content.
+    :param agent_role: The calling agent's role.
+    :return: {"allowed": bool, "reason": str}.
+    """
+    raise NotImplementedError
 
 
 async def run_command_checked(project_id: str, command: str, agent_role: str) -> dict:

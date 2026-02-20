@@ -8,6 +8,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Architecture simplification for v1** (D75) -- Reduced tool surface from 35+ to 15 tools across 5 groups, agent roles from 7 to 4 (Vizier, Pasha, Worker, QG). Scout, Architect, and Retrospective deferred to v2.
+- **One Voice Policy** (D75) -- Only Vizier communicates with the Sultan. Escalation chain: Worker -> Pasha -> Vizier -> Sultan. Prevents notification overload.
+- **Pasha trigger model** (D75) -- Vizier-initiated activation replaces autonomous polling. Eliminates expensive Opus-as-doorbell-watcher pattern.
+- **Sentinel Learning** (D75) -- After 3 Haiku approvals for the same command pattern in a project, auto-promote to allowlist. Stored in sentinel_learned.yaml.
+- **project_get_config tool** (D75) -- Single config tool replaces 5 plugin_get_* tools. Returns project type, language, test/lint commands.
+
+### Changed
+
+- **Graduated retry simplified** (D75) -- From 5 levels (10 retries) to 2 levels: retry 1-3 normal, retry 4+ STUCK.
+- **Spec state machine simplified** (D75) -- v1 removes SCOUTED and DECOMPOSED states. DRAFT transitions directly to READY. Full state machine preserved for v2.
+- **Worker self-verification** (D75) -- Uses run_command_checked directly instead of dedicated verify_tests/verify_lint/verify_types tools. Workers read learnings.md at task start.
+- **Quality Gate simplified** (D75) -- Verdicts via spec_write_feedback only. Evidence system deferred to v2.
+- **SOUL.md files updated** -- Vizier (One Voice + delegation), Pasha (trigger model + 2-level retry), Worker (run_command_checked + learnings.md), QG (inline verdicts)
+- **openclaw.json updated** -- Pasha trigger config, spawned agent templates (worker/QG with Sonnet), one_voice_policy section
+
+### Removed
+
+- **v2 agent templates moved** -- Scout, Architect, Retrospective SOUL.md files moved to openclaw/workspaces/v2-deferred/
+- **v2 tool stubs deleted** -- verification.py (verify_tests/verify_lint/verify_types) and research.py (research_topic) removed
+- **get_relevant_learnings removed** -- Workers read learnings.md directly instead of using MCP tool
+- **plugin.py renamed** -- Renamed to config_tool.py with project_get_config stub
+
+### Deferred to v2
+
+- Budget system (budget_track, budget_check, budget_get_summary)
+- Evidence system (evidence_check, evidence_write_verdict)
+- Plugin framework (5 plugin_get_* tools, BasePlugin, SoftwarePlugin, DocumentsPlugin)
+- Agent behavior eval suite (D72)
+- Sentinel additional tools (sentinel_check_command, sentinel_scan_content, sentinel_get_policy)
+- DAG additional tools (dag_validate, dag_get_order)
+- Orchestration pings (orch_scan_pings)
+
+---
+
 - **Ottoman Empire architecture improvements** (D67-D74) -- Eight new decisions addressing real-world weaknesses found via claude-code-ultimate-guide analysis:
   - **Sentinel enforcement via tool policy** (D67) -- Native bash/exec and web_fetch blocked by OpenClaw tool policy; agents forced through `run_command_checked` and `web_fetch_checked` MCP tools
   - **Worker mandatory self-verification** (D68) -- Workers must pass `verify_tests`, `verify_lint`, `verify_types` before REVIEW; QG reduced from 5 to 4 passes
@@ -22,6 +56,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Sentinel-wrapped execution tools** -- `run_command_checked` and `web_fetch_checked` added to sentinel.py
 - **Learnings injection tool** -- `get_relevant_learnings` added to orchestration.py
 - **OpenClaw compaction settings** -- `openclaw/config/openclaw.json` configured for persistent agent sessions
+- **Lobster workflow runtime** -- Documented as future enhancement (ARCHITECTURE.md section 12.1). Lobster is an OpenClaw plugin for deterministic multi-step pipelines with approval gates. Identified fit for Worker self-verification, Sentinel command execution, Pasha agent spawn, and Retrospective approval flows. Adopt after core MCP tools are implemented.
 
 ### Changed
 

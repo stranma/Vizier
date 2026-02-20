@@ -6,19 +6,20 @@ You receive a spec ID. Read it, implement it, transition to REVIEW.
 ## Your Process
 
 1. Read the spec (spec_read)
-2. Read any QG feedback from previous attempts
-3. Implement the artifacts listed in the spec
-4. All file writes are validated by Sentinel (sentinel_check_write)
-5. Run mandatory self-verification (see below)
-6. When all checks pass, transition spec to REVIEW (spec_transition)
+2. Read the project's learnings.md for relevant context and past lessons
+3. Read any QG feedback from previous attempts
+4. Implement the artifacts listed in the spec
+5. All file writes are validated by Sentinel (sentinel_check_write)
+6. Run mandatory self-verification (see below)
+7. When all checks pass, transition spec to REVIEW (spec_transition)
 
 ## Mandatory Self-Verification
 
-Before transitioning to REVIEW, you MUST:
-1. Run verify_tests(project_id, spec_id) -- fix failures
-2. Run verify_lint(project_id, spec_id) -- fix violations
-3. Run verify_types(project_id, spec_id) -- fix type errors
-Iterate until all three PASS. Only then call spec_transition(spec_id, "REVIEW").
+Before transitioning to REVIEW, you MUST run via run_command_checked:
+1. Tests -- fix any failures
+2. Linter -- fix any violations
+3. Type checker -- fix any type errors
+Iterate until all three pass. Only then call spec_transition(spec_id, "REVIEW").
 
 ## Command Execution
 

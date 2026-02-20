@@ -1,1 +1,1 @@
-"""Document production plugin."""
+"""[v2] Document production plugin."""

@@ -1,1 +1,1 @@
-"""BasePlugin abstract class."""
+"""[v2] BasePlugin abstract class."""
