@@ -62,3 +62,8 @@ class TestWriteSetChecker:
         checker = WriteSetChecker(["src/file.name+extra.py"])
         assert checker.is_allowed("src/file.name+extra.py") is True
         assert checker.is_allowed("src/fileXnameXextra.py") is False
+
+    def test_double_star_without_trailing_slash(self) -> None:
+        checker = WriteSetChecker(["src/**"])
+        assert checker.is_allowed("src/file.py") is True
+        assert checker.is_allowed("src/deep/nested/file.py") is True

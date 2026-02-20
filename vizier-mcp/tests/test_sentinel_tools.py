@@ -110,9 +110,6 @@ class TestRunCommandChecked:
     async def test_ambiguous_command_haiku_allow(self, config: ServerConfig, project_dir: Path) -> None:
         _write_sentinel_yaml(project_dir, {"command_allowlist": ["echo"]})
         mock_llm = AsyncMock(return_value="ALLOW")
-        result = await run_command_checked(config, PROJECT_ID, "echo haiku-allowed", "worker", llm_callable=mock_llm)
-        # "echo haiku-allowed" is not in allowlist (allowlist matches "echo" prefix, so actually it IS allowlisted)
-        # Let me use a truly ambiguous command
         result = await run_command_checked(
             config, PROJECT_ID, "curl http://example.com", "worker", llm_callable=mock_llm
         )
@@ -203,6 +200,15 @@ class TestRunCommandChecked:
         assert result["allowed"] is True
         assert "out" in result["stdout"]
         assert "err" in result["stderr"]
+
+    @pytest.mark.anyio
+    async def test_subprocess_oserror(self, config: ServerConfig, project_dir: Path) -> None:
+        _write_sentinel_yaml(project_dir, {"command_allowlist": ["badcmd"]})
+        with patch("vizier_mcp.tools.sentinel.asyncio.create_subprocess_shell", side_effect=OSError("No such file")):
+            result = await run_command_checked(config, PROJECT_ID, "badcmd", "worker")
+            assert result["allowed"] is True
+            assert result["exit_code"] == 1
+            assert "No such file" in result["stderr"]
 
 
 class TestWebFetchChecked:

@@ -174,6 +174,11 @@ class TestIsDenylisted:
         assert is_denylisted(policy, "git push --force") is not None
         assert is_denylisted(policy, "git push origin main") is None
 
+    def test_invalid_regex_falls_back_to_substring(self) -> None:
+        policy = SentinelPolicy(command_denylist=["[invalid"])
+        result = is_denylisted(policy, "command with [invalid in it")
+        assert result is not None
+
 
 class TestCheckRolePermission:
     """Tests for role permission checking (AC-S12)."""
