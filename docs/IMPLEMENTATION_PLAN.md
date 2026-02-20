@@ -5,7 +5,7 @@
 | Phase | Name | Status | Tools |
 |-------|------|--------|-------|
 | 1 | Spec Lifecycle | Complete | spec_create, spec_read, spec_list, spec_transition, spec_update, spec_write_feedback |
-| 2 | Sentinel | Not Started | sentinel_check_write, run_command_checked, web_fetch_checked |
+| 2 | Sentinel | In Progress | sentinel_check_write, run_command_checked, web_fetch_checked |
 | 3 | Orchestration | Not Started | orch_write_ping, project_get_config |
 | 4 | Integration | Not Started | Wire FastMCP server, end-to-end test |
 | 5 | OpenClaw Connection | Not Started | SOUL.md tuning, real agent test |
@@ -67,12 +67,26 @@
 - [ ] Integration test: command allow/deny/Haiku flow
 
 **Acceptance Criteria:**
-- Allowlist commands approved with zero LLM cost
-- Denylist commands blocked with zero LLM cost
-- Ambiguous commands evaluated by Haiku (mocked in tests)
-- run_command_checked returns correct three-shape responses (D78)
-- web_fetch_checked scans content for prompt injection patterns
-- Write-set enforcement uses glob patterns
+- AC-S1: SentinelPolicy loads from a project's sentinel.yaml file. Missing file returns a sensible default policy (empty allowlist, empty denylist, empty write-set). Malformed YAML returns {"error": str} (not exception).
+- AC-S2: sentinel_check_write with a path matching write-set glob returns {"allowed": true}. Path not matching returns {"allowed": false, "reason": str}. Glob patterns support `**`, `*`, and `?` wildcards. No `content` parameter -- write-set is path-only (matching ARCHITECTURE.md section 3.1).
+- AC-S3: run_command_checked with an allowlisted command executes it and returns {"allowed": true, "exit_code": 0, "stdout": str, "stderr": str}. No LLM call made.
+- AC-S4: run_command_checked with a denylisted command returns {"allowed": false, "reason": str}. No execution occurs. No LLM call made.
+- AC-S5: run_command_checked with an ambiguous command (not in allowlist or denylist) calls the Haiku evaluator. If Haiku returns ALLOW, command executes. If DENY, returns {"allowed": false, "reason": str}.
+- AC-S6: run_command_checked for a command that executes but fails returns {"allowed": true, "exit_code": N, "stdout": str, "stderr": str} where N != 0.
+- AC-S7: web_fetch_checked fetches a URL and returns {"safe": true, "content": str, "status_code": 200} for clean content. Content containing prompt injection patterns (at minimum: "ignore previous instructions", "you are now", "disregard your system prompt", "SYSTEM:", "assistant:") returns {"safe": false, "reason": str}. HTTP 4xx/5xx responses are treated as fetch failures (see AC-S8).
+- AC-S8: web_fetch_checked for a URL that fails to fetch (connection error, DNS failure, or HTTP status >= 400) returns {"safe": true, "content": "", "status_code": N, "error": str} where N is the HTTP status or 0 for connection errors.
+- AC-S9: Haiku evaluator is mocked in all tests (no real API calls). Fail-closed: if Haiku call fails, command is denied.
+- AC-S10: Integration test: command flows through allowlist -> execute, denylist -> deny, ambiguous -> Haiku -> execute/deny. All three paths verified in one test.
+- AC-S11: Denylist entries support both simple strings and {pattern: regex, reason: str} objects.
+- AC-S12: role_permissions from sentinel.yaml are checked: agent with can_bash=false gets denied for run_command_checked. Agent role absent from role_permissions defaults to deny (fail-closed).
+
+**PIRR Acknowledgments (WARN items):**
+- Deployment Readiness WARN: sentinel.yaml is a per-project config file loaded from disk. No deployment artifacts needed beyond the code. Production deployment is Phase 6.
+- Architectural Decision Coverage WARN: web_fetch_checked uses regex-based prompt injection scanning (not Haiku). Haiku evaluator is only used for ambiguous commands. This matches ARCHITECTURE.md section 5.
+- sentinel_check_write content parameter WARN: Stub had `content` parameter not in ARCHITECTURE.md section 3.1. Resolved by removing `content` -- write-set is path-only validation per architecture.
+- httpx dependency WARN: Added `httpx>=0.27.0` to explicit dependencies. Previously only available as transitive dep of fastmcp.
+- Malformed YAML error shape WARN: AC-S1 updated to specify {"error": str} return shape (matching Phase 1 convention).
+- Missing role default WARN: AC-S12 updated to specify fail-closed default when agent_role absent from role_permissions.
 
 ### Phase Completion Steps
 
