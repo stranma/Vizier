@@ -1,5 +1,10 @@
-"""Pydantic models (spec, sentinel, messages, events)."""
+"""Pydantic models (spec, sentinel, orchestration, messages, events)."""
 
+from vizier_mcp.models.orchestration import (
+    PingMessage,
+    PingUrgency,
+    ProjectConfig,
+)
 from vizier_mcp.models.sentinel import (
     CommandCheckResult,
     DenylistEntry,
@@ -27,7 +32,10 @@ __all__ = [
     "CommandCheckResult",
     "DenylistEntry",
     "HaikuVerdict",
+    "PingMessage",
+    "PingUrgency",
     "PolicyDecision",
+    "ProjectConfig",
     "RolePermissions",
     "SentinelPolicy",
     "Spec",
