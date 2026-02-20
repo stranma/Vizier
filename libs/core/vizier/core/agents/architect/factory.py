@@ -80,7 +80,7 @@ def create_architect_runtime(
 
     return AgentRuntime(
         client=client,
-        model=model or "claude-opus-4-20250514",
+        model=model or "claude-opus-4-6",
         system_prompt=system_prompt,
         tools=tools,
         sentinel=sentinel,

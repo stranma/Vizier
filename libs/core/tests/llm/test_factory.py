@@ -30,11 +30,11 @@ class TestCreateLLMCallable:
 
         mock_response = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="hello"))])
         with patch("litellm.completion", return_value=mock_response) as mock_completion:
-            result = llm(model="claude-sonnet-4-5-20250929", messages=[{"role": "user", "content": "test"}])
+            result = llm(model="claude-sonnet-4-6", messages=[{"role": "user", "content": "test"}])
 
         mock_completion.assert_called_once_with(
             api_key="sk-captured",
-            model="claude-sonnet-4-5-20250929",
+            model="claude-sonnet-4-6",
             messages=[{"role": "user", "content": "test"}],
         )
         assert result == mock_response

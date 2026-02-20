@@ -71,7 +71,7 @@ def create_scout_runtime(
 
     return AgentRuntime(
         client=client,
-        model=model or "claude-sonnet-4-20250514",
+        model=model or "claude-sonnet-4-6",
         system_prompt=system_prompt,
         tools=tools,
         sentinel=sentinel,

@@ -60,7 +60,7 @@ class EAHandler:
     ) -> None:
         self._client = client
         self._project_root = project_root
-        self._model = model or "claude-opus-4-20250514"
+        self._model = model or "claude-opus-4-6"
         self._capabilities = capabilities or []
         self._priorities = priorities
         self._sentinel = sentinel

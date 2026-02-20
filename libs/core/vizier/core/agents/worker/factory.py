@@ -73,8 +73,8 @@ def _resolve_model(complexity: str, retry_count: int) -> str:
     :returns: Model identifier string.
     """
     if complexity == "HIGH" or retry_count >= 3:
-        return "claude-opus-4-20250514"
-    return "claude-sonnet-4-20250514"
+        return "claude-opus-4-6"
+    return "claude-sonnet-4-6"
 
 
 def create_worker_runtime(

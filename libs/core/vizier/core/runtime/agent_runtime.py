@@ -24,7 +24,7 @@ class AgentRuntime:
     Each call to run() starts fresh (no conversation history carried between runs).
 
     :param client: An object with a .messages.create() method (Anthropic client or mock).
-    :param model: Model identifier string (e.g. "claude-sonnet-4-5-20250929").
+    :param model: Model identifier string (e.g. "claude-sonnet-4-6").
     :param system_prompt: System prompt for the agent.
     :param tools: List of tool definitions available to the agent.
     :param sentinel: Optional Sentinel engine for tool call security.

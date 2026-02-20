@@ -49,14 +49,14 @@ class TestSimpleCompletion:
         client = make_mock_client(make_text_response("Done"))
         runtime = AgentRuntime(
             client=client,
-            model="claude-sonnet-4-5-20250929",
+            model="claude-sonnet-4-6",
             system_prompt="Test prompt",
         )
 
         runtime.run("My task", max_tokens_per_turn=2048)
 
         call_kwargs = client.messages.create.call_args.kwargs
-        assert call_kwargs["model"] == "claude-sonnet-4-5-20250929"
+        assert call_kwargs["model"] == "claude-sonnet-4-6"
         assert call_kwargs["max_tokens"] == 2048
         assert call_kwargs["system"] == "Test prompt"
         assert call_kwargs["messages"] == [{"role": "user", "content": "My task"}]

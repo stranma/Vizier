@@ -8,9 +8,9 @@ from pydantic import BaseModel, Field
 class ModelTierConfig(BaseModel):
     """Maps tier names to concrete model identifiers."""
 
-    opus: str = "anthropic/claude-opus-4-6"
-    sonnet: str = "anthropic/claude-sonnet-4-5-20250929"
-    haiku: str = "anthropic/claude-haiku-4-5-20251001"
+    opus: str = "claude-opus-4-6"
+    sonnet: str = "claude-sonnet-4-6"
+    haiku: str = "claude-haiku-4-5-20251001"
 
 
 class ProjectConfig(BaseModel):

@@ -51,7 +51,7 @@ class ModelRouter:
 
         :param role: Agent role (e.g. "worker", "architect", "quality_gate").
         :param spec_complexity: Spec complexity (only applies to worker role).
-        :returns: Concrete model string (e.g. "anthropic/claude-sonnet-4-5-20250929").
+        :returns: Concrete model string (e.g. "claude-sonnet-4-6").
         """
         tier = self._resolve_tier(role, spec_complexity)
         return self._tier_to_model(tier)
