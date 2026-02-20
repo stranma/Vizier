@@ -31,42 +31,45 @@ Work through the implementation plan (`docs/IMPLEMENTATION_PLAN.md`) phase by ph
 
 ## Project Context
 
-**Vizier** is an autonomous multi-agent work system using the Ottoman court metaphor:
+**Vizier** is an autonomous multi-agent work system using the Ottoman court metaphor, built on **OpenClaw** as its runtime.
 
-| Role | Description |
-|------|-------------|
-| **Sultan** | Human operator (CEO/CTO) |
-| **Vizier / EA** | Executive Assistant -- singleton, always-on, Opus-tier agent. Receives tasks, routes to projects, reports to Sultan |
-| **Pasha** | Per-project orchestrator -- event-driven, owns project lifecycle |
-| **Architect** | Decomposes tasks into specs using plugin-specific patterns |
-| **Worker** | Fresh-context, one-spec-at-a-time executor (Ralph Wiggum pattern) |
-| **Quality Gate** | Validates completed work via automated checks + LLM review |
-| **Retrospective** | Analyzes failures, updates learnings and prompts |
-| **Sentinel** | Deterministic security service (not an LLM agent) |
+| Role | Description | Runtime |
+|------|-------------|---------|
+| **Sultan** | Human operator (CEO/CTO) | OpenClaw user (any channel) |
+| **Vizier** | Grand Vizier -- main agent, singleton, Opus-tier | OpenClaw persistent session |
+| **Pasha** | Per-project orchestrator | OpenClaw sub-session per project |
+| **Scout** | Prior art researcher | OpenClaw spawned sub-session |
+| **Architect** | Decomposes tasks into specs | OpenClaw spawned sub-session |
+| **Worker** | Fresh-context, one-spec-at-a-time executor | OpenClaw spawned sub-session |
+| **Quality Gate** | Validates completed work | OpenClaw spawned sub-session |
+| **Retrospective** | Analyzes failures, updates learnings | OpenClaw spawned sub-session |
+| **Sentinel** | Deterministic security service (not an LLM agent) | MCP tools |
 
-Core principles: fresh context per task, filesystem is the message bus, specs are the contract, human approval at boundaries, plugin extensibility.
+Core principles: fresh context per task, filesystem is the message bus (via MCP server), specs are the contract, human approval at boundaries, plugin extensibility.
 
-**Agent architecture (post-D46 reset):** All agents are Claude API instances using `anthropic.Anthropic` with `client.messages.create(tools=...)` (D47). Communication via typed Pydantic messages (D54). See `docs/AGENT_PROTOCOL.md` for the 3-contract protocol and `docs/AGENT_SPECS.md` for per-agent details.
+**Architecture:** OpenClaw provides multi-channel messaging, session management, tool infrastructure, Web UI, and mobile apps. Vizier's domain intelligence (spec lifecycle, agent orchestration, quality gates, Sentinel security) is exposed as a **FastMCP server** that OpenClaw agents call via tool use. See `docs/ARCHITECTURE.md` for full system topology and `docs/DECISIONS.md` for the decision log.
 
 ---
 
 ## Repository Structure
 
-This is a **monorepo** using uv workspaces:
-
 ```
 vizier/
-  apps/                    # Executable applications (entry points)
-    daemon/                # Vizier daemon (EA + event loop + Telegram bot)
-    cli/                   # Vizier CLI (init, register, start, status)
-  libs/                    # Reusable libraries (imported, not executed)
-    core/                  # Core library (runtime, models, tools, plugins base)
-  plugins/                 # Domain-specific plugins
-    software/              # Software development plugin
-    documents/             # Document production plugin
-  tests/                   # Root-level tests
-  scripts/                 # Development and maintenance scripts
-  docs/                    # Design documents (ARCHITECTURE, TECH_STACK, etc.)
+  vizier-mcp/              # FastMCP server (Python package) -- Vizier's domain logic
+    vizier_mcp/
+      server.py            # FastMCP app entry point
+      tools/               # MCP tool implementations (spec, sentinel, orchestration, etc.)
+      models/              # Pydantic models (spec, messages, events)
+      sentinel/            # Policy engine (allowlist/denylist/Haiku)
+      plugins/             # Plugin framework (software, documents)
+    tests/                 # MCP server tests
+    pyproject.toml         # Package config
+  openclaw/                # OpenClaw workspace configuration
+    workspaces/            # Agent SOUL.md files and skills
+    config/                # Gateway and agent configuration
+  docs/                    # Design documents
+  .claude/                 # Claude Code development agents (PCC)
+    agents/                # PCC workflow agents
   pyproject.toml           # Root workspace config (uv, ruff, pyright, pytest)
 ```
 
@@ -74,11 +77,7 @@ vizier/
 
 | Package | Path | Purpose |
 |---------|------|---------|
-| **vizier-core** | `libs/core/` | Core library: agent runtime, spec state machine, event loop, model router, plugin loader, Pydantic models |
-| **vizier-daemon** | `apps/daemon/` | Server process: EA agent, project registry, agent lifecycle, Telegram bot (aiogram) |
-| **vizier-cli** | `apps/cli/` | CLI tool: `vizier init`, `register`, `start`, `status` (click + rich) |
-| **vizier-plugin-software** | `plugins/software/` | Software dev plugin: write-set patterns, criteria, system prompts |
-| **vizier-plugin-documents** | `plugins/documents/` | Document plugin: write-set patterns, criteria, system prompts |
+| **vizier-mcp** | `vizier-mcp/` | FastMCP server: spec lifecycle, Sentinel, orchestration, DAG, evidence, plugins, budget |
 
 ---
 
@@ -94,7 +93,7 @@ vizier/
 - Lint and format: `uv run ruff check --fix . && uv run ruff format .`
 - Type check: `uv run pyright`
 - Run all tests: `uv run pytest`
-- Run package tests: `uv run pytest libs/core/ -v` or `uv run pytest apps/daemon/ -v`
+- Run MCP server tests: `uv run pytest vizier-mcp/ -v`
 
 ### Running Commands
 
@@ -102,10 +101,7 @@ Use `uv run` from the repo root for all commands:
 
 ```bash
 uv run pytest                           # All tests
-uv run pytest libs/core/ -v             # Core tests only
-uv run pytest apps/daemon/ -v           # Daemon tests only
-uv run pytest apps/cli/ -v              # CLI tests only
-uv run pytest plugins/ -v               # All plugin tests
+uv run pytest vizier-mcp/ -v            # MCP server tests
 uv run ruff check .                     # Lint
 uv run ruff format .                    # Format
 uv run pyright                          # Type check
@@ -148,10 +144,10 @@ Configuration lives in root `pyproject.toml`:
 ## Testing
 
 - **Framework**: pytest
-- **Test locations**: `tests/` (root), `libs/*/tests/`, `apps/*/tests/`, `plugins/*/tests/`
+- **Test locations**: `vizier-mcp/tests/`
 - **Markers**: `slow`, `integration`, `production`
 - **Coverage**: `uv run pytest --cov --cov-report=term-missing`
-- **LLM mocking**: Mock `anthropic.Anthropic` client in all automated tests. No API credits in CI.
+- **LLM mocking**: Mock Anthropic client for Sentinel Haiku calls in all automated tests. No API credits in CI.
 
 ---
 
@@ -159,11 +155,9 @@ Configuration lives in root `pyproject.toml`:
 
 **After auto-compact or session continuation, ALWAYS read the relevant documentation files before continuing work:**
 
-1. Read `docs/IMPLEMENTATION_PLAN.md` for current progress and phase status
-2. Read `docs/AGENT_PROTOCOL.md` for the 3-contract communication protocol
-3. Read `docs/AGENT_SPECS.md` for agent role details, tools, and messages
-4. Read `docs/ARCHITECTURE.md` for system topology, plugin system, roles & permissions
-5. Read `docs/FILE_PROTOCOL.md` for spec format, state machine, filesystem conventions
+1. Read `docs/ARCHITECTURE.md` for system topology, MCP server design, agent definitions, Sentinel, communication model
+2. Read `docs/DECISIONS.md` for the decision log (D1-D62+ and the decision map update in ARCHITECTURE.md section 7)
+3. Check git log and branch status to determine where you left off
 
 This ensures continuity and prevents duplicated or missed work.
 
@@ -411,9 +405,8 @@ If a step fails, follow this decision tree:
 
 Before proposing any implementation approach, scan for conflicts with prior decisions:
 
-1. Read `docs/IMPLEMENTATION_PLAN.md` -- check Decisions and Trade-offs tables
-2. Read `docs/DECISIONS.md` -- check resolved decisions and their rationale (D1-D59)
-3. Read `docs/AGENT_PROTOCOL.md` -- check the 3 contracts for consistency
+1. Read `docs/DECISIONS.md` -- check resolved decisions and their rationale (D1-D62+)
+2. Read `docs/ARCHITECTURE.md` -- check the decision map update (section 7) for kept/modified/replaced/reversed/dropped status
 
 If a conflict is found, present it to the user before proceeding. Do NOT silently override a documented decision.
 

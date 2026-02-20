@@ -1176,3 +1176,72 @@ litellm.failure_callback = ["langfuse"]
 **Decision:** Update all factory defaults and ModelTierConfig to current Anthropic API model IDs: `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-5-20251001`. Remove "anthropic/" prefix from ModelTierConfig since we use Anthropic SDK directly, not litellm.
 
 **Why:** Keeps factory defaults aligned with current API. Removes litellm artifact from D27 era that no longer applies after D47.
+
+---
+
+### D63: OpenClaw Architectural Reset -- Vizier-on-OpenClaw
+
+**Context:** Vizier phases 0-22 built a custom daemon (VizierDaemon), transport layer (aiogram/Telegram), agent runtime (Anthropic SDK tool loop), and orchestration infrastructure. OpenClaw is an open-source gateway that provides all of this plus multi-channel messaging (Telegram, WhatsApp, Discord, iMessage, Web UI, mobile apps), session management, tool infrastructure, and memory -- battle-tested and maintained by a dedicated team.
+
+**Decision:** Rebuild Vizier on top of OpenClaw. Replace the custom daemon, transport, and agent runtime with OpenClaw's equivalents. Preserve Vizier's domain intelligence (spec lifecycle, agent orchestration, quality gates, Sentinel security, DAG scheduling, plugin extensibility) as a FastMCP server that OpenClaw agents call via tool use.
+
+**What's replaced by OpenClaw:**
+- VizierDaemon (asyncio event loop, subprocess/thread management)
+- TelegramTransport (aiogram long polling)
+- AgentRuntime (Anthropic SDK tool loop, Sentinel hook, Loop Guardian, Golden Trace)
+- Agent lifecycle management (spawn, timeout, crash detection)
+- Conversation history (ConversationLog, ConversationTurn)
+- Health check server
+- CLI (vizier init, register, start, status)
+
+**What's preserved as MCP server:**
+- Spec state machine and lifecycle (DRAFT -> SCOUTED -> DECOMPOSED -> READY -> ... -> DONE)
+- Sentinel policy engine (allowlist/denylist/Haiku)
+- DAG validator (topological sort, cycle detection)
+- Evidence checker
+- Write-set glob pattern matching
+- Pydantic message models (Contract A)
+- Budget tracking and enforcement
+- Plugin concept (as MCP tool providers)
+
+**Why:**
+- OpenClaw's UX ecosystem (Web UI, mobile apps, browser tools, memory) vs building everything custom
+- Massive reduction in custom code -- OpenClaw already built what Vizier's daemon does
+- Vizier's unique value is domain intelligence (spec lifecycle, quality gates, Sentinel), not transport/session infrastructure
+- Multi-channel support (Telegram + WhatsApp + Discord + Web) for free vs building each adapter
+
+**Supersedes:** D10 (EA built into Vizier -- reversed, now runs on OpenClaw), D14 (own thin runtime -- reversed, OpenClaw is the runtime), D36 (Telegram first -- dropped, OpenClaw handles all channels), D37 (asyncio + subprocess -- dropped, OpenClaw manages sessions), D47 (Anthropic SDK direct -- modified, OpenClaw manages LLM calls for agents).
+
+**Trade-off:** Dependency on OpenClaw as the runtime platform. If OpenClaw development stalls or diverges, Vizier would need to fork or rebuild. Mitigated by: MCP server is self-contained and portable (works with any MCP-compatible host), domain logic is not coupled to OpenClaw internals.
+
+---
+
+### D64: EA renamed to Vizier (the Grand Vizier)
+
+**Context:** The main agent was called "EA" (Executive Assistant) in the old architecture, while "Vizier" was the product name. This was confusing -- the product and its main agent had different names, and "EA" undersold the agent's role.
+
+**Decision:** Rename the main agent from "EA" to "Vizier" (the Grand Vizier). The product is still called Vizier. The main agent IS the Vizier.
+
+**Why:** The historical Grand Vizier was the most capable person in the Ottoman empire (D21). The main agent should carry that name directly. "EA" was a compromise from when the product needed a separate identity from its agents. With OpenClaw as runtime, the agent IS the product's presence.
+
+---
+
+### D65: All inner agents are OpenClaw sub-sessions
+
+**Context:** In the old architecture (D37, D47, D61), inner agents (Scout, Architect, Worker, QG, Retrospective) were either subprocess invocations or thread pool tasks calling the Anthropic SDK directly. This required custom lifecycle management, crash detection, timeout handling, and concurrency control.
+
+**Decision:** All inner agents (including Pasha) are OpenClaw sub-sessions. Pasha is a persistent sub-session (long-lived, one per project). Scout, Architect, Worker, Quality Gate, and Retrospective are spawned sub-sessions (fresh context, exit after task).
+
+**Why:** OpenClaw handles session lifecycle (spawn, timeout, cleanup), model selection, context management, and crash recovery. This eliminates ~500 lines of custom lifecycle code. The fresh-context principle (D2) is preserved -- spawned sub-sessions start with a clean slate.
+
+---
+
+### D66: Per-Pasha Sentinels via MCP tools
+
+**Context:** In the old architecture, Sentinel was a daemon-level service with a PreToolUse hook in AgentRuntime. Each tool call went through a centralized Sentinel check.
+
+**Decision:** Each project has a dedicated Sentinel configuration (write-set, allowlist, denylist, role permissions). Sentinel is enforced via MCP tools (`sentinel_check_write`, `sentinel_check_command`) that agents call before performing sensitive operations. The MCP server loads per-project policies from `projects/{project-id}/sentinel.yaml`.
+
+**Why:** Per-project Sentinel allows different security policies per project (a docs project has different write-sets than a software project). MCP tool enforcement means agents explicitly check permissions, making the security model visible in agent prompts and tool calls rather than hidden in runtime hooks.
+
+**Trade-off:** Agents must explicitly call Sentinel tools (vs automatic interception in old architecture). Mitigated by: SOUL.md prompts instruct agents to always check, and the MCP server can refuse operations that weren't pre-validated.

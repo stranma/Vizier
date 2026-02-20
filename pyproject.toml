@@ -1,7 +1,7 @@
 [project]
 name = "vizier"
 version = "0.1.0"
-description = "Autonomous multi-agent work system"
+description = "Autonomous multi-agent work system, built on OpenClaw"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 license = "MIT"
@@ -17,12 +17,11 @@ dev = [
 ]
 
 [tool.uv.workspace]
-members = ["libs/*", "apps/*", "plugins/*"]
+members = ["vizier-mcp"]
 
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-exclude = ["src/", "tests/test_edge.py"]
 
 [tool.ruff.lint]
 select = [
@@ -42,7 +41,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["vizier"]
+known-first-party = ["vizier_mcp"]
 
 [tool.pyright]
 pythonVersion = "3.11"
@@ -51,7 +50,7 @@ venvPath = "."
 venv = ".venv"
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "apps", "libs", "plugins"]
+testpaths = ["vizier-mcp/tests"]
 markers = [
     "slow: marks tests as slow",
     "integration: marks integration tests",

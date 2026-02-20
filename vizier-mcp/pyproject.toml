@@ -1,0 +1,14 @@
+[project]
+name = "vizier-mcp"
+version = "0.1.0"
+description = "Vizier MCP Server -- domain logic for the multi-agent work system"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = "MIT"
+authors = [{ name = "Sultan", email = "" }]
+dependencies = [
+    "fastmcp>=2.0.0",
+    "pydantic>=2.0.0",
+    "anthropic>=0.40.0",
+    "pyyaml>=6.0",
+]

@@ -1,790 +1,840 @@
-# Vizier Architecture
+# Vizier-on-OpenClaw Architecture
 
-## Overview
+## 1. Overview
 
-Vizier is an autonomous multi-agent work system. It receives high-level tasks from humans, decomposes them into actionable specs, executes them through specialized agents, and reports back. It operates on a server, works on multiple projects in parallel, and communicates with humans through a EA agent.
+Vizier is an autonomous multi-agent work system using the Ottoman court metaphor. It receives high-level tasks from humans, decomposes them into actionable specs, executes them through specialized agents, and reports back.
 
-The system is **project-type agnostic**. The orchestration loop is identical regardless of whether the project is software development, financial modeling, or document production. What varies per project type is implemented through a **plugin system** — Python packages that provide domain-specific Worker, Quality Gate, and Architect behaviors.
+**What changed:** Vizier's runtime is now **OpenClaw** -- an open-source gateway that provides multi-channel messaging (Telegram, WhatsApp, Discord, iMessage, Web UI, mobile apps), session management, tool infrastructure, and memory. Vizier's custom daemon, transport layer (aiogram/Telegram), and agent runtime are replaced by OpenClaw's battle-tested equivalents.
 
-## Core Principles
+**What's preserved:** Vizier's domain intelligence -- spec lifecycle, agent orchestration, quality gates, Sentinel security, DAG scheduling, plugin extensibility -- lives on as a **FastMCP server** that OpenClaw agents call via tool use.
 
-1. **Fresh context per task** — agents start clean, read state from disk, do one thing, exit (Ralph Wiggum pattern)
-2. **Filesystem is the message bus** — all inter-agent communication happens through files, not in-memory queues
-3. **Specs are the contract** — the source of truth is always on disk, never in agent memory
-4. **Human approval at boundaries** — EA handles all human communication; agents don't reach out independently
-5. **Meta-improvement** — the system learns from failures and updates its own process
-6. **Plugin extensibility** — new project types are Python packages, not framework changes
+**Ottoman court metaphor (preserved):**
 
-## System Topology
+| Role | Description | OpenClaw mapping |
+|------|-------------|------------------|
+| **Sultan** | Human operator (CEO/CTO) | OpenClaw user (any channel) |
+| **Vizier** | Grand Vizier -- main agent, singleton | OpenClaw persistent session (Opus) |
+| **Pasha** | Per-project orchestrator | OpenClaw sub-session per project (Opus) |
+| **Scout** | Prior art researcher | OpenClaw spawned sub-session (Sonnet) |
+| **Architect** | Task decomposer | OpenClaw spawned sub-session (Opus) |
+| **Worker** | Spec executor (fresh context per task) | OpenClaw spawned sub-session (Sonnet/Opus) |
+| **Quality Gate** | Work validator | OpenClaw spawned sub-session (Sonnet/Opus) |
+| **Retrospective** | Failure analyzer, meta-improver | OpenClaw spawned sub-session (Opus) |
+| **Sentinel** | Security enforcer (deterministic, not LLM) | MCP tools on Vizier MCP server |
 
-```
-HUMAN (CEO/CTO)
-  |
-  |  Telegram / Slack / CLI
-  |
-EA / VIZIER (singleton, always-on — monolithic Opus-tier agent, Claude Code pattern)
-  |  - Receives tasks, routes to projects
-  |  - Aggregates progress, reports to human
-  |  - Translates business language -> spec seeds
-  |  - Manages commitments, calendar, relationships
-  |  - Proactive: briefings, deadline warnings, risk escalation
-  |  - Facilitates direct Pasha sessions
-  |  - File checkout/checkin, cross-project coordination
-  |
-  +-- PROJECT A (plugin: software) ----------------------
-  |   |
-  |   PASHA (orchestration, event-driven)
-  |   |  - Owns project lifecycle
-  |   |  - Delegates to Scout, then Architect
-  |   |  - Writes progress reports
-  |   |  - Escalates blockers to EA
-  |   |
-  |   SCOUT (research, sonnet-tier)
-  |   |  - Researches prior art for DRAFT specs
-  |   |  - Searches GitHub, PyPI, npm for existing solutions
-  |   |  - Writes research.md report with recommendations
-  |   |  - Deterministic triage: SKIP (bugfix/refactor) or RESEARCH (feature)
-  |   |
-  |   ARCHITECT (decomposition, strongest model)
-  |   |  - Reads codebase / project context / research.md
-  |   |  - Uses plugin's decomposition patterns
-  |   |  - Writes detailed specs with acceptance criteria
-  |   |  - References plugin's criteria library
-  |   |  - Leverages Scout's findings (e.g., use existing library)
-  |   |
-  |   WORKER (plugin: SoftwareCoder)
-  |   |  - Ralph-style: fresh context, one spec, exit
-  |   |  - Tools restricted by plugin (bash, git, file ops)
-  |   |  - Model tier set by spec complexity
-  |   |
-  |   QUALITY GATE (plugin: SoftwareQualityGate)
-  |   |  - Runs Completion Protocol (PCC): hygiene → mechanical → tests → criteria → consistency
-  |   |  - Deterministic passes first (no LLM), then LLM-assisted passes
-  |   |  - Can REJECT back to Worker with feedback
-  |   |
-  |   RETROSPECTIVE (same inputs as Pasha)
-  |      - Analyzes failures, stuck tasks, rejections
-  |      - Updates learnings.md and agent prompts
-  |      - Constrained: can change prompts/rules, not architecture
-  |
-  +-- PROJECT B (plugin: finance) -----------------------
-  |   |
-  |   PASHA -> ARCHITECT -> WORKER (FinanceModeler) -> QUALITY GATE (FinanceValidator)
-  |   (same orchestration, different plugin)
-  |
-  +-- PROJECT C (plugin: documents) ---------------------
-      |
-      PASHA -> ARCHITECT -> WORKER (DocumentWriter) -> QUALITY GATE (DocumentReviewer)
-      (same orchestration, different plugin)
-```
+---
 
-## Plugin System
-
-The plugin system is the primary extensibility mechanism. Each project type is a Python package that registers domain-specific agent implementations.
-
-### Plugin Architecture
+## 2. System Topology
 
 ```
-vizier-plugin-software/          # Separate Python package
-  vizier_plugins/software/
-    __init__.py                      # Plugin registration
-    worker.py                        # SoftwareCoder(BaseWorker)
-    quality_gate.py                  # SoftwareQualityGate(BaseQualityGate)
-    architect_guide.py               # Decomposition patterns + criteria library
-    tools.py                         # Domain-specific tool restrictions
-    prompts/
-      worker.md                      # Worker prompt template (Jinja2)
-      quality_gate.md                # Quality Gate prompt template
-      architect_guide.md             # Architect decomposition guide
-    criteria/
-      tests_pass.md                  # Reusable acceptance criteria
-      lint_clean.md
-      type_check.md
-      no_debug_artifacts.md
+Sultan (any channel: Telegram, WhatsApp, Discord, iMessage, Web UI, mobile)
+  |
+  OpenClaw Gateway (sessions, routing, tools, media, memory)
+  |
+  Vizier (main agent session, Opus, persistent)
+    |
+    +-- Pasha-{project} (sub-session per project, Opus, persistent)
+    |     +-- Sentinel-{project} (MCP-enforced security per project)
+    |     +-- Scout (sub-session, spawned per research task)
+    |     +-- Architect (sub-session, spawned per decomposition)
+    |     +-- Worker (sub-session, spawned per spec, fresh context)
+    |     +-- Quality Gate (sub-session, spawned per review)
+    |     +-- Retrospective (sub-session, periodic)
+    |
+    +-- Vizier MCP Server (Python, FastMCP)
+          +-- Spec tools (CRUD, state machine, lifecycle)
+          +-- Sentinel tools (write-set enforcement, policy engine)
+          +-- Orchestration tools (scan, assign, schedule)
+          +-- DAG tools (validate, check dependencies)
+          +-- Evidence tools (check completeness, write verdict)
+          +-- Plugin tools (domain-specific operations)
+          +-- Budget tools (track costs, check thresholds)
 ```
 
-### Plugin Interface (Python)
+**Key insight:** OpenClaw handles everything above the line (channels, sessions, routing, memory, tool infra). Vizier's MCP server handles everything below (domain logic, security, orchestration). The agents themselves are OpenClaw sessions with SOUL.md prompts that call MCP tools.
+
+---
+
+## 3. Vizier MCP Server
+
+All Vizier domain logic is exposed as MCP tools via a **FastMCP** Python server. OpenClaw agents call these tools to interact with the spec lifecycle, Sentinel, orchestration, and plugins.
+
+### 3.1 Tool Groups
+
+#### Spec Lifecycle
+
+| Tool | Description | Inputs | Returns |
+|------|-------------|--------|---------|
+| `spec_create` | Create a new spec in DRAFT state | project_id, title, description, complexity, artifacts, criteria, depends_on | spec_id |
+| `spec_read` | Read spec contents and metadata | spec_id | spec object (frontmatter + body) |
+| `spec_list` | List specs with optional status filter | project_id, status_filter? | list of spec summaries |
+| `spec_transition` | Transition spec to new state (validates state machine) | spec_id, new_status, agent_role | success/error with reason |
+| `spec_update` | Update spec fields (retry count, assigned agent, etc.) | spec_id, fields | updated spec |
+| `spec_write_feedback` | Write QG feedback or rejection reason | spec_id, verdict, feedback, evidence | feedback file path |
+
+#### Sentinel
+
+| Tool | Description | Inputs | Returns |
+|------|-------------|--------|---------|
+| `sentinel_check_write` | Validate file write against project write-set | project_id, file_path, agent_role | allow/deny with reason |
+| `sentinel_check_command` | Validate shell command against policy | project_id, command, agent_role | allow/deny with reason |
+| `sentinel_scan_content` | Scan untrusted content for injection | content, source_url? | safe/suspicious with details |
+| `sentinel_get_policy` | Get current project security policy | project_id | policy object |
+
+#### Orchestration
+
+| Tool | Description | Inputs | Returns |
+|------|-------------|--------|---------|
+| `orch_scan_specs` | Scan all specs and return actionable items | project_id | specs needing attention (by state) |
+| `orch_check_ready` | Check if a spec's dependencies are satisfied | spec_id | ready/blocked with blocking spec IDs |
+| `orch_assign_worker` | Claim a spec for a worker agent | spec_id, agent_session_id | assignment confirmation |
+| `orch_scan_pings` | Read pending supervisor notifications | project_id | list of pings with urgency |
+| `orch_write_ping` | Write a supervisor notification | spec_id, urgency, message | ping file path |
+
+#### DAG
+
+| Tool | Description | Inputs | Returns |
+|------|-------------|--------|---------|
+| `dag_validate` | Validate dependency graph (cycles, missing refs) | project_id | valid/invalid with errors |
+| `dag_check_dependencies` | Check which specs are unblocked | project_id | list of unblocked spec IDs |
+| `dag_get_order` | Get topological execution order | project_id | ordered list of spec IDs |
+
+#### Evidence
+
+| Tool | Description | Inputs | Returns |
+|------|-------------|--------|---------|
+| `evidence_check` | Check if all required evidence is present for a spec | spec_id | complete/incomplete with missing items |
+| `evidence_write_verdict` | Write a structured QG verdict with evidence links | spec_id, verdict, per_criterion_results | verdict file path |
+
+#### Plugin
+
+| Tool | Description | Inputs | Returns |
+|------|-------------|--------|---------|
+| `plugin_get_write_set` | Get allowed write patterns for project | project_id | list of glob patterns |
+| `plugin_get_evidence_requirements` | Get required evidence types | project_id | list of evidence types |
+| `plugin_get_system_prompt` | Get domain-specific prompt module for agent role | project_id, agent_role | prompt text |
+| `plugin_get_criteria` | Get criteria library entries | project_id, criteria_refs | resolved criteria text |
+| `plugin_get_decomposition_guide` | Get Architect's decomposition patterns | project_id | guide text |
+
+#### Budget
+
+| Tool | Description | Inputs | Returns |
+|------|-------------|--------|---------|
+| `budget_track` | Record an agent invocation cost | project_id, agent_role, model, tokens_in, tokens_out, cost_usd | updated totals |
+| `budget_check` | Check current spend against thresholds | project_id? | spend summary + threshold status |
+| `budget_get_summary` | Get cost breakdown by project/agent/model | period? | detailed cost report |
+
+### 3.2 Server Configuration
+
+The MCP server reads its configuration from `vizier-mcp/config.yaml`:
+
+```yaml
+vizier_root: /data/vizier          # Root directory for all project data
+projects_dir: /data/vizier/projects  # Per-project spec/state storage
+sentinel:
+  default_policy: strict            # strict | permissive
+  haiku_model: claude-haiku-4-5-20251001  # For ambiguous Sentinel calls
+budget:
+  monthly_limit_usd: 500
+  alert_threshold: 0.8              # 80%
+  degrade_threshold: 1.0            # 100%
+  pause_threshold: 1.2              # 120%
+plugins:
+  - software
+  - documents
+```
+
+### 3.3 Filesystem Layout (Managed by MCP Server)
+
+```
+/data/vizier/
+  projects/
+    {project-id}/
+      config.yaml                    # Project config (plugin, autonomy stage, etc.)
+      specs/
+        001-feature-name/
+          spec.md                    # Spec document (frontmatter + body)
+          trace.jsonl                # Golden Trace (tool calls, transitions)
+          feedback/                  # QG feedback files
+          research/                  # Scout output
+          evidence/                  # Test output, lint output, etc.
+      reports/
+        status.json                  # Current project status
+        agent-log.jsonl              # Cost/performance tracking
+      learnings.md                   # Retrospective learnings (append-only)
+      proposals/                     # Retrospective proposals (pending approval)
+  budget/
+    spending.jsonl                   # Cross-project cost tracking
+```
+
+---
+
+## 4. Agent Definitions
+
+All agents are **OpenClaw sessions**. Their behavior is defined by SOUL.md files (system prompts), available tools (OpenClaw native + Vizier MCP), and session configuration (model tier, persistence, spawn rules).
+
+### 4.1 Vizier (Main Agent)
+
+**Role:** The Grand Vizier. Single entry point for the Sultan. Routes tasks to projects, manages commitments, provides briefings, handles cross-project coordination.
+
+**OpenClaw session type:** Persistent (always available, maintains conversation history via OpenClaw memory)
+
+**Model:** Opus
+
+**Tools available:**
+- OpenClaw native: web_search, browser, file tools, memory, sessions_spawn, sessions_send, sessions_list
+- Vizier MCP: spec_create, spec_list, orch_scan_specs, budget_check, budget_get_summary, plugin_get_write_set
+
+**SOUL.md sketch:**
+```markdown
+You are the Grand Vizier -- the Sultan's most capable and trusted advisor.
+You manage the Sultan's projects, commitments, and priorities.
+
+## Your Responsibilities
+- Receive tasks from the Sultan and route them to the appropriate Pasha
+- Create new projects and assign Pashas
+- Provide status updates, morning briefings, and proactive alerts
+- Track commitments and deadlines across all projects
+- Handle cross-project coordination
+- Answer direct questions using your knowledge and tools
+
+## Your Pashas
+Each project has a dedicated Pasha (sub-session). You communicate with
+Pashas via sessions_send for async updates and spec_create for new work.
+Never do a Pasha's job -- delegate and coordinate.
+
+## Communication Style
+- Concise, actionable, no fluff
+- Proactive about risks and deadlines
+- Always frame updates in terms of the Sultan's priorities
+```
+
+**Inputs:** Sultan messages via any OpenClaw channel
+**Outputs:** Responses to Sultan, delegations to Pashas, status summaries
+
+### 4.2 Pasha (Per-Project Orchestrator)
+
+**Role:** Provincial governor. Owns a single project's lifecycle. Manages the inner loop: Scout -> Architect -> Worker -> Quality Gate -> Done.
+
+**OpenClaw session type:** Persistent sub-session (one per project, long-lived)
+
+**Model:** Opus
+
+**Tools available:**
+- OpenClaw native: sessions_spawn, sessions_send, sessions_list
+- Vizier MCP: spec_read, spec_list, spec_transition, spec_update, orch_scan_specs, orch_check_ready, orch_assign_worker, orch_scan_pings, dag_validate, dag_check_dependencies, dag_get_order, evidence_check, budget_track, budget_check, sentinel_get_policy, plugin_get_write_set, plugin_get_evidence_requirements
+
+**SOUL.md sketch:**
+```markdown
+You are Pasha-{project_name}, the governor of the {project_name} project.
+You report to the Grand Vizier and manage all work within your project.
+
+## Your Loop
+1. Check for new specs (orch_scan_specs)
+2. For DRAFT specs: spawn Scout for research, then Architect for decomposition
+3. For READY specs: check dependencies (orch_check_ready), spawn Worker
+4. For REVIEW specs: spawn Quality Gate
+5. Handle pings from inner agents (orch_scan_pings)
+6. Handle rejections with graduated retry
+7. Report status to the Vizier
+
+## Graduated Retry
+- Retry 1-2: Normal retry with QG feedback
+- Retry 3: Bump Worker model tier
+- Retry 5: Review spec yourself, consider re-scoping
+- Retry 7: Spawn Architect for re-decomposition
+- Retry 10: Mark STUCK, escalate to Vizier
+
+## Sentinel
+Your project has a dedicated Sentinel enforcing security policies.
+All inner agents' file writes are validated via sentinel_check_write.
+```
+
+**Inputs:** Specs from Vizier, pings from inner agents, QG verdicts
+**Outputs:** Agent spawn decisions, status reports, escalations
+
+### 4.3 Scout (Prior Art Researcher)
+
+**Role:** Researcher. Investigates existing solutions before the Architect decomposes work.
+
+**OpenClaw session type:** Spawned sub-session (fresh context, exits after research)
+
+**Model:** Sonnet
+
+**Tools available:**
+- OpenClaw native: web_search, browser, file_read
+- Vizier MCP: spec_read, spec_transition, plugin_get_system_prompt
+
+**SOUL.md sketch:**
+```markdown
+You are a Scout -- a researcher who finds existing solutions before
+new work is designed. You receive a DRAFT spec and investigate whether
+existing libraries, tools, or patterns can solve the problem.
+
+## Your Process
+1. Read the spec (spec_read)
+2. Search for existing solutions (web_search, browser)
+3. Write a structured research report
+4. Transition spec to SCOUTED (spec_transition)
+
+## Output Format
+Write a research.md report with:
+- Existing solutions found (with links, pros/cons)
+- Recommended approach (build vs. borrow)
+- Key libraries/tools to use
+- Confidence level (HIGH/MEDIUM/LOW)
+```
+
+**Inputs:** DRAFT spec ID
+**Outputs:** research.md file, spec transitioned to SCOUTED
+
+### 4.4 Architect (Task Decomposer)
+
+**Role:** Decomposer. Takes a SCOUTED spec and breaks it into implementable sub-specs with a dependency DAG.
+
+**OpenClaw session type:** Spawned sub-session (fresh context, exits after decomposition)
+
+**Model:** Opus
+
+**Tools available:**
+- OpenClaw native: file_read, web_search
+- Vizier MCP: spec_read, spec_create, spec_transition, dag_validate, plugin_get_decomposition_guide, plugin_get_criteria, plugin_get_write_set
+
+**SOUL.md sketch:**
+```markdown
+You are an Architect -- you decompose high-level specs into
+implementable sub-specs that a Worker can execute without exploration.
+
+## Your Process
+1. Read the parent spec and Scout's research report
+2. Read the plugin's decomposition guide
+3. Design sub-specs with clear artifacts, acceptance criteria, and dependencies
+4. Validate the dependency DAG (dag_validate)
+5. Create sub-specs (spec_create) in READY state
+6. Transition parent to DECOMPOSED
+
+## Sub-Spec Requirements
+Each sub-spec MUST have:
+- Clear title and description
+- Explicit artifact list (files to create/modify)
+- Acceptance criteria referencing @criteria/ library
+- Complexity rating (LOW/MEDIUM/HIGH)
+- depends_on list (other sub-spec IDs)
+
+The Worker should NEVER need to explore. If they do, your spec was insufficient.
+```
+
+**Inputs:** SCOUTED spec ID, research report
+**Outputs:** Sub-specs created in READY state, parent spec DECOMPOSED
+
+### 4.5 Worker (Spec Executor)
+
+**Role:** Executor. Takes a single READY spec and implements it. Fresh context, one spec, exit.
+
+**OpenClaw session type:** Spawned sub-session (fresh context per spec, exits on completion)
+
+**Model:** Sonnet (bumped to Opus on retry 3)
+
+**Tools available:**
+- OpenClaw native: file_read, file_write, edit_file, bash, web_search
+- Vizier MCP: spec_read, spec_transition, sentinel_check_write, sentinel_check_command, orch_write_ping, plugin_get_system_prompt, budget_track
+
+**SOUL.md sketch:**
+```markdown
+You are a Worker -- you implement exactly one spec, then exit.
+You receive a spec ID. Read it, implement it, transition to REVIEW.
+
+## Your Process
+1. Read the spec (spec_read)
+2. Read any QG feedback from previous attempts
+3. Implement the artifacts listed in the spec
+4. All file writes are validated by Sentinel (sentinel_check_write)
+5. All shell commands are validated by Sentinel (sentinel_check_command)
+6. When done, transition spec to REVIEW (spec_transition)
+
+## Rules
+- Write ONLY files listed in the spec's artifact list
+- You may READ any file for context (bounded exploration)
+- If blocked, ping your supervisor (orch_write_ping) with urgency QUESTION
+- If fundamentally stuck, ping with urgency BLOCKER
+- Do not loop on the same failing approach -- escalate
+```
+
+**Inputs:** READY spec ID, optional QG feedback from previous attempt
+**Outputs:** Implemented artifacts, spec transitioned to REVIEW
+
+### 4.6 Quality Gate (Work Validator)
+
+**Role:** Validator. Reviews completed work against spec criteria using a structured multi-pass protocol.
+
+**OpenClaw session type:** Spawned sub-session (fresh context per review)
+
+**Model:** Sonnet (Opus for HIGH complexity specs)
+
+**Tools available:**
+- OpenClaw native: file_read, bash
+- Vizier MCP: spec_read, spec_transition, spec_write_feedback, evidence_check, evidence_write_verdict, plugin_get_criteria, plugin_get_evidence_requirements, budget_track
+
+**SOUL.md sketch:**
+```markdown
+You are a Quality Gate -- you validate completed work using a
+structured multi-pass protocol. You are the last line of defense.
+
+## Completion Protocol (5 passes)
+Pass 1 (Hygiene): Check for debug prints, breakpoints, TODOs, hardcoded values
+Pass 2 (Mechanical): Run plugin's automated checks (tests, lint, types)
+Pass 3 (Criteria): Evaluate each acceptance criterion from the spec
+Pass 4 (Consistency): Check for regressions against related specs
+Pass 5 (Verdict): Write structured verdict with per-criterion PASS/FAIL + evidence
+
+## Rules
+- You MUST run tests (bash) before any LLM-based evaluation
+- You MUST check all required evidence is present (evidence_check)
+- ACCEPT: all criteria pass, all evidence present
+- REJECT: write detailed feedback (spec_write_feedback) so Worker can fix
+
+## Evidence
+Every verdict must include evidence links (test output, lint output, etc.).
+Verdicts without evidence are invalid.
+```
+
+**Inputs:** REVIEW spec ID
+**Outputs:** QUALITY_VERDICT with per-criterion results, spec DONE or REJECTED
+
+### 4.7 Retrospective (Meta-Improver)
+
+**Role:** Analyst. Reviews completed and failed work to extract learnings and propose improvements.
+
+**OpenClaw session type:** Spawned sub-session (periodic, triggered by Pasha)
+
+**Model:** Opus
+
+**Tools available:**
+- OpenClaw native: file_read, file_write
+- Vizier MCP: spec_list, spec_read, budget_get_summary, plugin_get_system_prompt
+
+**SOUL.md sketch:**
+```markdown
+You are a Retrospective agent -- you analyze completed work to find
+patterns, extract learnings, and propose improvements.
+
+## Triggers
+- End of a work cycle (batch of specs completed)
+- A spec reaches STUCK state
+- Periodic review (weekly)
+
+## Analysis
+1. Review completed specs: rejection rates, retry counts, time to completion
+2. Review STUCK specs: root causes, common failure patterns
+3. Analyze cost efficiency: cost per spec, model tier effectiveness
+4. Check learnings.md for recurring issues
+
+## Outputs
+- Append learnings to project learnings.md (direct write)
+- Write proposals to proposals/ directory (require Sultan approval)
+
+## Constraints
+- You may update learnings and propose prompt/criteria changes
+- You may NOT change architecture, code structure, or process rules
+- ALL proposals require Sultan approval (always, no exceptions)
+```
+
+**Inputs:** Project state, spec history, cost data
+**Outputs:** Learnings (append-only), proposals (pending approval)
+
+---
+
+## 5. Sentinel Architecture
+
+Sentinel is a **deterministic security service**, not an LLM agent. It enforces per-project security policies via MCP tools that agents call before performing sensitive operations.
+
+### 5.1 Per-Project Sentinels
+
+Each project has a dedicated Sentinel configuration:
+
+```yaml
+# projects/{project-id}/sentinel.yaml
+write_set:
+  - "src/**/*.py"
+  - "tests/**/*.py"
+  - "docs/**/*.md"
+  - "pyproject.toml"
+
+command_allowlist:
+  - "pytest"
+  - "ruff check"
+  - "ruff format"
+  - "pyright"
+  - "git status"
+  - "git diff"
+  - "git log"
+  - "git add"
+  - "git commit"
+
+command_denylist:
+  - "rm -rf"
+  - "sudo"
+  - "git push --force"
+  - "git push -f"
+  - "git reset --hard"
+  - "git clean"
+  - pattern: "printenv|^env$|os\\.environ|process\\.env"
+    reason: "Environment exfiltration blocked"
+
+role_permissions:
+  worker:
+    can_write: true       # Within write-set only
+    can_bash: true        # Allowlisted commands only
+    can_read: true        # Any file (bounded exploration)
+  scout:
+    can_write: false
+    can_bash: false
+    can_read: true
+  architect:
+    can_write: false      # Creates specs via MCP, not direct file writes
+    can_bash: false
+    can_read: true
+  quality_gate:
+    can_write: false      # Writes verdicts via MCP, not direct file writes
+    can_bash: true        # Needs to run tests
+    can_read: true
+```
+
+### 5.2 Three-Tier Enforcement (D24)
+
+| Tier | Mechanism | Cost | Example |
+|------|-----------|------|---------|
+| **Allowlist** | Glob/regex match | Zero | `write src/auth.py` matches `src/**/*.py` |
+| **Denylist** | Glob/regex match | Zero | `git push --force` matches denylist |
+| **Ambiguous** | Haiku evaluation | ~$0.001 | Unfamiliar bash command, indirect invocation |
+
+The MCP server handles all three tiers internally. Agents just call `sentinel_check_write` or `sentinel_check_command` and get allow/deny.
+
+### 5.3 Haiku Fallback
+
+For ambiguous cases (not in allowlist or denylist), the MCP server calls Haiku to evaluate intent:
 
 ```python
-from vizier.core.plugins import BasePlugin, BaseWorker, BaseQualityGate
+@mcp.tool()
+async def sentinel_check_command(project_id: str, command: str, agent_role: str) -> dict:
+    policy = load_policy(project_id)
 
-class SoftwarePlugin(BasePlugin):
-    name = "software"
-    description = "Software development projects"
+    # Tier 1: Allowlist
+    if policy.is_allowlisted(command):
+        return {"decision": "allow", "tier": "allowlist"}
 
-    worker_class = SoftwareCoder
-    quality_gate_class = SoftwareQualityGate
+    # Tier 2: Denylist
+    if deny_reason := policy.is_denylisted(command):
+        return {"decision": "deny", "tier": "denylist", "reason": deny_reason}
 
-    # Model tier defaults (overridable per-project)
-    default_model_tiers = {
-        "worker": "sonnet",
-        "quality_gate": "sonnet",
-        "architect": "opus",
-    }
-
-class SoftwareCoder(BaseWorker):
-    """Worker that writes code, runs tests, commits."""
-
-    allowed_tools = ["file_read", "file_write", "file_edit", "bash", "git", "glob", "grep"]
-
-    tool_restrictions = {
-        "bash": {
-            "allowed_patterns": ["uv run pytest*", "uv run ruff*", "npm test*", "go test*"],
-            "denied_patterns": ["rm -rf*", "curl*", "wget*"],
-        }
-    }
-
-    git_strategy = "branch_per_spec"  # or "commit_to_main"
-    commit_template = "feat({spec_id}): {summary}"
-
-    def get_prompt(self, spec, context) -> str:
-        """Render worker prompt from Jinja2 template with spec + context."""
-        ...
-
-class SoftwareQualityGate(BaseQualityGate):
-    """Quality Gate that runs tests, lint, checks test meaningfulness."""
-
-    automated_checks = [
-        {"name": "tests", "command": "uv run pytest {spec_test_files} -v"},
-        {"name": "lint", "command": "uv run ruff check {spec_files}"},
-        {"name": "format", "command": "uv run ruff format --check {spec_files}"},
-        {"name": "secrets", "command": "vizier scan-secrets {spec_files}"},
-    ]
-
-    def get_prompt(self, spec, diff, context) -> str:
-        """Render quality gate prompt from Jinja2 template."""
-        ...
+    # Tier 3: Haiku evaluation
+    verdict = await haiku_evaluate(command, agent_role, policy)
+    return {"decision": verdict.decision, "tier": "haiku", "reason": verdict.reason}
 ```
 
-### Plugin Discovery
+---
 
-Plugins are discovered via Python entry points:
+## 6. Communication Model
 
-```toml
-# vizier-plugin-software/pyproject.toml
-[project.entry-points."vizier.plugins"]
-software = "vizier_plugins.software:SoftwarePlugin"
-```
+### 6.1 Sultan <-> Vizier
 
-```toml
-# vizier-plugin-finance/pyproject.toml
-[project.entry-points."vizier.plugins"]
-finance = "vizier_plugins.finance:FinancePlugin"
-```
+Sultan communicates with the Vizier agent through **any OpenClaw channel** (Telegram, WhatsApp, Discord, iMessage, Web UI, mobile app). OpenClaw handles channel routing, message formatting, and session persistence.
 
-The core framework discovers all installed plugins at startup:
+The Vizier agent is a persistent OpenClaw session. It maintains conversation history via OpenClaw's built-in memory system.
 
-```python
-from importlib.metadata import entry_points
+### 6.2 Vizier <-> Pasha
 
-def discover_plugins() -> dict[str, BasePlugin]:
-    plugins = {}
-    for ep in entry_points(group="vizier.plugins"):
-        plugin_class = ep.load()
-        plugins[ep.name] = plugin_class()
-    return plugins
-```
+Vizier communicates with Pashas via:
+- **`sessions_send`** (OpenClaw native): Direct messages for status requests, urgent directives
+- **`spec_create`** (Vizier MCP): Create new specs in a project (Pasha picks them up)
 
-### Built-in Plugins (shipped with Vizier)
+Pashas report back to Vizier via:
+- **`sessions_send`**: Status updates, escalations, completion notifications
+- Status data in MCP (Vizier can call `orch_scan_specs` for any project)
 
-| Plugin | Package | Worker | Quality Gate |
-|--------|---------|--------|-------------|
-| `software` | `vizier-plugin-software` | `SoftwareCoder` | `SoftwareQualityGate` |
-| `documents` | `vizier-plugin-documents` | `DocumentWriter` | `DocumentReviewer` |
+### 6.3 Pasha <-> Inner Agents
 
-### Plugin MCP Exposure (D43)
+Pasha spawns inner agents via **`sessions_spawn`** (OpenClaw native). Each spawned session receives:
+- The spec ID to work on
+- Any relevant context (QG feedback for retries, research report for Architect)
 
-Plugins can optionally expose lightweight capabilities as MCP tools via FastMCP. This allows the EA to handle quick queries ("are the tests passing?") without routing through the full spec lifecycle.
+Inner agents communicate back to Pasha via:
+- **`orch_write_ping`** (Vizier MCP): For questions, blockers, and status pings
+- **`spec_transition`** (Vizier MCP): State changes (REVIEW, DONE, etc.) that Pasha detects on next scan
 
-```python
-class SoftwarePlugin(BasePlugin):
-    def get_mcp_tools(self) -> list[MCPTool]:
-        return [
-            MCPTool(name="run_tests", description="Run project tests", handler=self._run_tests),
-            MCPTool(name="lint_check", description="Check lint status", handler=self._lint_check),
-            MCPTool(name="test_coverage", description="Get test coverage", handler=self._test_coverage),
-        ]
-```
+### 6.4 All Agents <-> Domain Logic
 
-**Discovery:** EA queries each registered project's plugin for MCP tools at startup. Tools are namespaced by project: `project-alpha.run_tests`.
-
-**Constraints:**
-- MCP tools are read-only by convention (they report status, not modify code)
-- Complex work still goes through the spec lifecycle
-- Sentinel applies the same tool-call enforcement to MCP tool invocations
-
-### Third-party / Custom Plugins
-
-Users can create project-specific plugins:
-
-```toml
-# my-project/pyproject.toml
-[project.entry-points."vizier.plugins"]
-my-domain = "my_project.vizier_plugin:MyPlugin"
-```
-
-Or install community plugins: `uv add vizier-plugin-finance`
-
-### Per-project Plugin Selection
-
-```yaml
-# .vizier/config.yaml
-plugin: software      # which plugin to use for this project
-
-# Optional: override plugin defaults
-model_tiers:
-  worker: haiku       # this project is simple, use cheap model
-  architect: opus     # keep architect strong
-
-# Optional: additional tool restrictions
-tool_restrictions:
-  bash:
-    denied_patterns:
-      - "docker*"     # no docker in this project
-```
-
-## Deployment Model
-
-### Components
-
-| Component | What | Where |
-|-----------|------|-------|
-| **Vizier core** | Orchestration runtime, agent base classes, file protocol, CLI | `libs/core/` |
-| **Vizier daemon** | Server process: project registry, agent lifecycle, EA | `apps/daemon/` |
-| **Vizier CLI** | `vizier init`, `register`, `start`, `status` | `apps/cli/` |
-| **Plugins** | Domain-specific Worker, Quality Gate, Architect behaviors | `plugins/software/`, `plugins/documents/`, or external packages |
-| **`.vizier/` config** | Per-project: constitution, specs, learnings, config | Inside each project repo (committed to git) |
-| **Workspaces** | Cloned project repos | Server filesystem |
-| **Reports** | Cross-project progress files | Server filesystem (not in project repos) |
-
-### Server Layout
+All agents interact with Vizier's domain logic **exclusively through MCP tools**. No agent directly reads or writes spec files, state files, or configuration. The MCP server is the single point of control.
 
 ```
-/opt/vizier/
-+-- src/                             # Vizier source (cloned from GitHub)
-+-- venv/                            # Vizier's own environment
-+-- config.yaml                      # API keys, server-wide settings (see config.example.yaml)
-+-- .env                             # API keys and secrets (see .env.example)
-+-- projects.yaml                    # Registered projects
-|
-+-- workspaces/                      # One clone per project
-|   +-- project-alpha/               # git clone
-|   |   +-- .vizier/              # Project-specific config (from repo)
-|   |   |   +-- constitution.md      # Project principles (human-written)
-|   |   |   +-- config.yaml          # Plugin selection, model overrides
-|   |   |   +-- specs/               # Task specifications
-|   |   |   +-- learnings.md         # Retrospective output
-|   |   |   +-- state.json           # Runtime state (.gitignored)
-|   |   +-- src/
-|   |   +-- ...
-|   +-- project-beta/
-|       +-- ...
-|
-+-- reports/                         # EA watches this
-|   +-- project-alpha/               # Pasha A writes here
-|   |   +-- 2026-02-15-cycle-001.md
-|   |   +-- status.json              # Current state summary
-|   +-- project-beta/
-|       +-- ...
-|
-+-- ea/                              # EA's own git repo (commitments, relationships)
-|   +-- commitments/*.yaml
-|   +-- relationships/*.yaml
-|   +-- priorities.yaml
-|   +-- sessions/
-|
-+-- security/                        # Sentinel data
-|   +-- events.jsonl
-|   +-- blocklist.yaml
-|   +-- quarantine/
-|
-+-- checkout/                        # Sultan's file checkout area
+Agent decision: "I need to write src/auth.py"
+  -> sentinel_check_write(project_id, "src/auth.py", "worker")
+  -> MCP server checks write-set, returns allow
+  -> Agent uses OpenClaw file_write tool
+
+Agent decision: "I'm done with this spec"
+  -> spec_transition(spec_id, "REVIEW", "worker")
+  -> MCP server validates state machine, transitions spec
+  -> Pasha picks up on next orch_scan_specs call
 ```
 
-### Daemon Architecture (D37)
+---
 
-The daemon is a single Python process running an asyncio event loop:
+## 7. Decision Map Update
 
-- **aiogram** (Telegram long polling, D36) runs on the event loop
-- **watchdog** dispatches filesystem events to the event loop
-- **Pasha** orchestration logic runs as async handlers on the event loop
-- **Agent invocations** (Worker, Quality Gate, Architect) are launched as **separate Python subprocesses** for crash isolation
-- **Concurrency** is limited by `asyncio.Semaphore(max_concurrent_agents)`
-- **Agent communication** is through the filesystem (specs, reports) -- no IPC needed
+Mapping old decisions (D1-D62) to the new architecture. Each is **KEPT**, **MODIFIED**, **REPLACED**, **REVERSED**, or **DROPPED**.
 
-### Dead-Man Switch
+### KEPT (unchanged)
 
-The daemon writes a `heartbeat.json` file on every reconciliation cycle (default: every 15 seconds):
+| Decision | Summary | Why kept |
+|----------|---------|----------|
+| D1 | Multi-agent over single-agent loop | Core architecture unchanged |
+| D2 | Fresh context per task | Workers still spawn fresh per spec |
+| D4 | Filesystem as message bus | MCP server still uses filesystem for specs |
+| D7 | Architect must be exhaustively specific | Same decomposition philosophy |
+| D8 | Retrospective as separate agent | Same role, now an OpenClaw sub-session |
+| D16 | Ottoman court naming | Preserved, "EA" renamed to "Vizier" |
+| D18 | Least privilege per role | Now enforced via per-project Sentinel MCP |
+| D19 | Sentinel -- deterministic + Haiku hybrid | Now exposed as MCP tools |
+| D21 | Vizier stays monolithic and powerful | Same philosophy, OpenClaw session |
+| D22 | Reconciliation -- events as optimization, disk as truth | MCP server scans filesystem |
+| D23 | Workers get bounded read-only exploration | Unchanged |
+| D24 | Permission enforcement: allowlist + denylist + Haiku | Now via MCP Sentinel tools |
+| D25 | Graduated retry strategy | Pasha still manages graduated retry |
+| D26 | Retrospective always requires human approval | Unchanged |
+| D29 | Completion signal, criteria versioning, graceful shutdown | Unchanged |
+| D33 | Cost budget enforcement -- degrade + alert | Now via MCP budget tools |
+| D40 | Atomic writes via os.replace() | MCP server uses atomic writes |
+| D44 | Progressive autonomy rollout | Unchanged |
+| D46 | Agent System Reset | Already executed; this is the second reset |
+| D48 | Scout Feedback Loop | Architect can still request more research |
+| D49 | QG Model Tier Escalation | Opus for HIGH complexity unchanged |
+| D50 | Synchronous supervisor notification (ping) | Now via MCP orch_write_ping |
+| D52 | Spec Dependency DAG | Now via MCP DAG tools |
+| D54 | Structured Message Schema | Pydantic models ported to MCP server |
+| D55 | Write-set via glob patterns | Now enforced via MCP sentinel_check_write |
+| D56 | QG Structured Verdicts with evidence | Now via MCP evidence tools |
 
-```json
-{
-  "timestamp": "2026-02-15T10:30:15Z",
-  "pid": 12345,
-  "projects_active": 3,
-  "agents_running": 2
-}
-```
+### MODIFIED
 
-An external monitor (cron job, systemd watchdog, or simple script) checks if `heartbeat.json` is stale (older than 3x the reconciliation interval). If stale, the monitor can:
-1. Alert the Sultan via a backup channel (email, SMS)
-2. Attempt daemon restart via systemd
-3. Log the outage for post-mortem
+| Decision | Old | New | Why |
+|----------|-----|-----|-----|
+| D2 | Fresh LLM call per message/event | OpenClaw session management; sub-sessions spawned fresh per task | OpenClaw manages session lifecycle |
+| D3 | Rules-based model router | Model tier specified per agent in OpenClaw config | OpenClaw handles model selection per session |
+| D6 | Python plugin packages with entry points | Plugins as MCP tool providers within vizier-mcp | Simpler, no entry point discovery needed |
+| D9 | Hybrid deployment (package + daemon) | OpenClaw deployment + MCP server sidecar | OpenClaw replaces custom daemon |
+| D20 | Three-layer use of claude-code-python-template | Layer 1 (build tooling) kept, Layer 2-3 reimagined | PCC still used for Vizier's own development |
+| D28 | Structured JSONL logging | MCP budget tools + OpenClaw transcripts | OpenClaw provides its own observability |
+| D47 | Anthropic Python SDK with tool_use as agent foundation | OpenClaw manages LLM calls for agents; MCP server uses Anthropic SDK for Sentinel Haiku only | Agents are OpenClaw sessions, not direct API calls |
+| D57 | Golden Trace per spec (trace.jsonl) | OpenClaw transcripts + MCP server trace logging | OpenClaw captures agent activity natively |
+| D58 | Adaptive reconciliation interval | MCP server periodic scan (Pasha calls orch_scan_specs on heartbeat) | No watchdog; Pasha polls MCP on schedule |
+| D60 | Azure Key Vault as production secret store | Secrets managed by OpenClaw deployment | OpenClaw has its own secret management |
 
-This is deliberately external to the daemon -- if the daemon is frozen, it cannot monitor itself.
+### REPLACED
 
-### What gets committed to project repos
+| Decision | Old | New replacement | Why |
+|----------|-----|-----------------|-----|
+| D42 | JIT prompt assembly for EA | SOUL.md + AGENTS.md + OpenClaw skills | OpenClaw's prompt system replaces JIT assembly |
+| D51 | Loop Guardian -- behavioral checkpoint | OpenClaw's built-in loop detection | OpenClaw handles agent loop prevention natively |
+| D59 | EA project capability summary | Vizier reads project config via MCP tools | MCP provides project metadata directly |
 
-| File | In git? | Why |
-|------|---------|-----|
-| `.vizier/constitution.md` | Yes | Project principles are project knowledge |
-| `.vizier/config.yaml` | Yes | Plugin selection and agent preferences |
-| `.vizier/specs/**` | Yes | Work history is valuable |
-| `.vizier/learnings.md` | Yes | Accumulated project knowledge |
-| `.vizier/state.json` | No | Runtime state, server-specific |
+### REVERSED
 
-## Model Routing
+| Decision | Old | Why reversed |
+|----------|-----|--------------|
+| D10 | EA is part of Vizier, not external | Vizier agent now runs ON OpenClaw. OpenClaw is the runtime. The tight integration argument is now served by MCP tools. |
+| D14 | Own thin runtime over any agent framework | OpenClaw is not "any framework" -- it provides the UX ecosystem (Web UI, mobile, memory) that we'd otherwise build ourselves. Domain logic preserved in MCP server. |
 
-Rules-based, not agent-based. No LLM decides which LLM to call.
+### DROPPED (no longer applicable)
 
-Default tiers (overridable per-plugin and per-project):
+| Decision | Why dropped |
+|----------|-------------|
+| D5 | EA three communication layers -- OpenClaw handles multi-channel natively |
+| D11 | EA tracks commitments/calendar/relationships -- will be reimagined using OpenClaw memory + MCP |
+| D12 | Direct Pasha sessions -- OpenClaw sub-sessions replace this mechanism |
+| D13 | Vizier as personal AI OS -- still the vision, but implementation details changed |
+| D15 | EFM capabilities absorption -- no longer relevant to current architecture |
+| D17 | Git-only sync with checkout/checkin -- OpenClaw handles file management |
+| D27 | LiteLLM as library -- OpenClaw handles LLM routing |
+| D30 | Phase reordering -- old implementation plan superseded |
+| D31 | Component replacement evaluation -- landscape changed with OpenClaw adoption |
+| D32 | Calendar integration dual provider -- will be reimagined |
+| D34 | Testing strategy mock litellm -- MCP server tests mock at different layer |
+| D35 | Stub plugin for testing -- will be redesigned |
+| D36 | Telegram long polling first -- OpenClaw handles transport |
+| D37 | asyncio daemon + subprocess per agent -- OpenClaw handles agent lifecycle |
+| D38 | Files only for queryable data -- OpenClaw memory replaces some of this |
+| D39 | Stub plugin as test fixture -- will be redesigned |
+| D41 | VCR/Record-Replay testing -- will be redesigned for MCP server tests |
+| D43 | Plugin MCP exposure -- plugins are already MCP tools now |
+| D45 | Langfuse observability -- OpenClaw provides its own observability |
+| D53 | Integration tests from Phase 14 -- old phase structure superseded |
+| D61 | Thread pool replaces subprocess -- OpenClaw handles agent execution |
+| D62 | Model ID update -- OpenClaw config handles model selection |
 
-| Role | Default Model | Override Level |
-|------|---------------|----------------|
-| EA (Vizier) | Opus-class | Server config only |
-| Pasha | Opus-class | Per-project config |
-| Scout | Sonnet-class | Per-project config, per-plugin default |
-| Architect | Opus-class | Per-project config, per-plugin default |
-| Worker | Sonnet-class | Per-project config, per-plugin default, per-spec complexity |
-| Quality Gate | Sonnet-class | Per-project config, per-plugin default |
-| Retrospective | Opus-class | Per-project config |
+---
 
-Resolution order: spec complexity > project config > plugin default > framework default.
+## 8. What's Preserved from Old Codebase
 
-The model router maps abstract tiers to concrete provider/model pairs:
+The following domain logic will be **ported** from the old codebase (available in git history) to the MCP server:
 
-```yaml
-# /opt/vizier/config.yaml (server-wide)
-providers:
-  anthropic:
-    api_key: ${ANTHROPIC_API_KEY}
-  openai:
-    api_key: ${OPENAI_API_KEY}
+| Component | Old location | New location | What to port |
+|-----------|-------------|-------------|-------------|
+| Spec state machine | `libs/core/vizier/core/models/spec.py` | `vizier-mcp/vizier_mcp/tools/spec.py` | State enum, valid transitions, validation |
+| Spec I/O | `libs/core/vizier/core/file_protocol/spec_io.py` | `vizier-mcp/vizier_mcp/tools/spec.py` | CRUD, frontmatter parsing, atomic writes |
+| DAG validator | `libs/core/vizier/core/tools/state/dag.py` | `vizier-mcp/vizier_mcp/tools/dag.py` | Topological sort, cycle detection |
+| Evidence checker | `libs/core/vizier/core/tools/state/evidence.py` | `vizier-mcp/vizier_mcp/tools/evidence.py` | Completeness validation |
+| Sentinel policy engine | `libs/core/vizier/core/sentinel/` | `vizier-mcp/vizier_mcp/sentinel/` | Allowlist/denylist/Haiku, write-set matching |
+| Pydantic models | `libs/core/vizier/core/models/` | `vizier-mcp/vizier_mcp/models/` | Spec, state, messages, events |
+| Write-set glob matching | `libs/core/vizier/core/tools/domain/write_file.py` | `vizier-mcp/vizier_mcp/sentinel/write_set.py` | WriteSetChecker (glob pattern enforcement) |
+| Plugin base | `libs/core/vizier/core/plugins/` | `vizier-mcp/vizier_mcp/plugins/` | BasePlugin, criteria loader, template renderer |
+| Budget tracker | `libs/core/vizier/core/runtime/budget.py` | `vizier-mcp/vizier_mcp/tools/budget.py` | Cost tracking, threshold enforcement |
 
-model_tiers:
-  opus:    anthropic/claude-opus-4-6
-  sonnet:  anthropic/claude-sonnet-4-5-20250929
-  haiku:   anthropic/claude-haiku-4-5-20251001
-```
+---
 
-## Event Model
-
-All events are filesystem-based. No message queue infrastructure required. **Events are an optimization; the filesystem is the source of truth.** Periodic reconciliation (scan all specs, rebuild state from disk, default 15s interval) ensures missed events don't cause stuck state.
-
-| Event | Trigger | Mechanism |
-|-------|---------|-----------|
-| New spec created | Architect writes to `specs/` | Filesystem watch (`watchdog`) |
-| Spec completed | Worker writes `DONE` status | Filesystem watch |
-| Spec stuck | Worker exceeds retry limit | Filesystem watch on retry counter |
-| Progress report | Pasha writes to `reports/` | Filesystem watch (EA) |
-| Human message | Telegram/Slack incoming | EA's bot framework |
-| Quality rejection | Quality Gate writes feedback | Filesystem watch |
-
-### Spec State-Age Monitoring
-
-During each reconciliation cycle, Pasha checks `time_in_state` for every active spec (the difference between current time and the spec's `updated` timestamp). This detects silently stuck specs -- specs that remain in a state longer than expected without any event triggering escalation.
-
-| State | Expected Duration | Action if Exceeded |
-|-------|------------------|--------------------|
-| IN_PROGRESS | Plugin-configurable (default: 30 min) | Log warning, check if agent subprocess is alive |
-| REVIEW | Plugin-configurable (default: 15 min) | Log warning, verify Quality Gate was spawned |
-| READY | Plugin-configurable (default: 60 min) | Queue starvation alert to EA |
-
-State-age thresholds are configurable per-plugin because different domains have different expected durations (a software spec may take 10 minutes; a document spec may take 60 minutes).
-
-## Communication Model — Three Layers
-
-Vizier has three communication layers, matching how real executives work.
-
-### Layer 1: EA (async, mobile — Telegram)
-
-The Executive Assistant is the default, always-available interface. It handles:
-
-- **Delegation**: "Build auth for project-alpha" -> EA creates DRAFT spec, routes to project
-- **Status**: "How's everything?" -> EA reads status.json files, summarizes with risk assessment
-- **Control**: "Stop work on project-beta auth" -> EA marks specs as cancelled
-- **Briefings**: Proactive morning briefings, deadline warnings, follow-up reminders
-- **Commitments**: Tracks promises, deadlines, correlates with project progress
-- **Calendar**: Reads/writes calendar events, preps for meetings
-
-EA is the gatekeeper of the human's attention. It decides what's worth reporting, when to suggest a working session, and when to let agents work silently.
-
-### Layer 2: Pasha Session (sync, focused — CLI / desktop / dedicated chat)
-
-For deep project discussions that require back-and-forth: spec design, architecture debates, trade-offs, project kickoff. The human connects directly to a project's Pasha.
-
-- EA facilitates: "Let's work on project-alpha" -> EA opens a Pasha session
-- Full project context loaded (constitution, specs, learnings, codebase)
-- Extended conversation with Pasha (or Architect for technical depth)
-- When session ends, Pasha writes a summary -> EA reads it for continuity
-- EA holds non-urgent updates during active Pasha sessions
-
-### Layer 3: Autonomous (no human involved)
-
-Agents execute specs without human interaction. The human is only involved when:
-- EA escalates a blocker
-- EA warns about a deadline risk
-- Retrospective proposes a process change for human approval
-
-### EA's Real-World Model
-
-EA maintains state beyond project specs:
-
-**Commitments** (promises to people with deadlines):
-```yaml
-# data/commitments/board-deck.yaml
-description: "Deliver board deck for Q1 review"
-promised_to: "Board of Directors"
-deadline: 2026-03-13
-project: project-board-deck       # linked to Vizier project, or null for standalone
-status: in_progress
-```
-
-**Relationships** (contacts and their context):
-```yaml
-# data/relationships/jan-novak.yaml
-name: "Jan Novak"
-role: "Potential partner"
-open_commitments: ["commitment-002"]
-last_contact: 2026-02-10
-```
-
-**Calendar** (via MCP server — Google Calendar / Outlook):
-- Cross-references meetings with commitments and project status
-- Prepares briefing materials before meetings
-
-**Priorities** (derived from deadlines, commitments, project risk):
-- EA continuously ranks what needs human attention
-- Morning briefing = top priorities + risks + reminders
-
-### EA Prompt Assembly (D42)
-
-The EA uses JIT (just-in-time) prompt assembly to keep context window usage efficient while maintaining the monolithic design (D21).
-
-**Always loaded (~2,500 tokens):**
-- Court context + EA identity preamble
-- `priorities.yaml` content (current Sultan priorities)
-- Active commitments summary (overdue + upcoming deadlines)
-- Project registry + Pasha communication protocol
-- Delegation + status instructions
-
-**JIT modules (loaded by deterministic classifier based on incoming message):**
-- Check-in protocol (~1,000 tokens) -- triggered by `/checkin`
-- File checkout/checkin (~800 tokens) -- triggered by file-related keywords
-- Calendar integration (~600 tokens) -- triggered by meeting/calendar keywords
-- Cross-project coordination (~500 tokens) -- triggered by multi-project references
-- Budget enforcement (~400 tokens) -- triggered by cost/budget keywords
-- Morning briefing format (~500 tokens) -- triggered by scheduled briefing time
-- Proactive behaviors (~500 tokens) -- triggered by scheduled proactive check
-
-The classifier is deterministic (regex + keyword + slash command detection), not LLM-based. This means zero routing cost and consistent, testable behavior.
-
-### Behavioral Anchor: priorities.yaml
-
-The Sultan maintains a `priorities.yaml` file that EA reads on every LLM invocation. This provides a stable behavioral anchor -- the EA always knows the Sultan's current priorities, even across fresh LLM calls.
-
-```yaml
-# /opt/vizier/ea/priorities.yaml
-current_focus: "Ship dashboard before board meeting Thursday"
-priority_order:
-  - project: project-alpha
-    reason: "Board meeting demo, deadline March 13"
-    urgency: critical
-  - project: project-beta
-    reason: "Client deliverable, flexible deadline"
-    urgency: normal
-standing_instructions:
-  - "Always mention cost summary in morning briefings"
-  - "Escalate anything blocking project-alpha immediately"
-  - "Do not interrupt during focus mode unless emergency"
-```
-
-This file is Sultan-editable (via Telegram command `/priorities` or direct file edit) and EA-readable. It acts as the Sultan's standing orders to the Vizier.
-
-### Telegram Slash Commands
-
-EA supports structured slash commands for common operations:
-
-| Command | Purpose | Example |
-|---------|---------|---------|
-| `/status` | Project status summary | `/status project-alpha` |
-| `/ask` | Quick query to project Pasha | `/ask project-alpha what framework are we using?` |
-| `/checkin` | Start structured check-in interview | `/checkin` |
-| `/focus` | Enter focus mode (hold notifications) | `/focus 2h` |
-| `/session` | Start deep Pasha session | `/session project-alpha` |
-| `/approve` | Approve pending operation | `/approve spec-042` |
-| `/budget` | View cost summary | `/budget` or `/budget project-alpha` |
-| `/priorities` | View/edit priorities | `/priorities` |
-
-Slash commands are handled by the JIT classifier and load the appropriate prompt module.
-
-### EA Data Location
+## 9. New Project Structure
 
 ```
-/opt/vizier/ea/
-+-- commitments/*.yaml       # structured commitment tracking
-+-- relationships/*.yaml     # contact + relationship state
-+-- priorities.yaml          # current priority ranking (auto-updated)
-+-- briefing-config.yaml     # schedule, channels, preferences
-+-- sessions/                # Pasha session summaries
-    +-- 2026-02-15-project-alpha.md
+vizier/
+  vizier-mcp/                        # FastMCP server (Python package)
+    vizier_mcp/
+      __init__.py
+      server.py                      # FastMCP app entry point
+      config.py                      # Server configuration loader
+      tools/
+        __init__.py
+        spec.py                      # Spec CRUD + state machine
+        sentinel.py                  # Security enforcement tools
+        orchestration.py             # Pasha support tools
+        dag.py                       # DAG validation
+        evidence.py                  # Evidence checking
+        plugin.py                    # Plugin tool exposure
+        budget.py                    # Cost tracking
+      models/                        # Pydantic models (ported from old core)
+        __init__.py
+        spec.py                      # Spec, SpecState, SpecMetadata
+        messages.py                  # Contract A message types
+        events.py                    # Event types
+      sentinel/                      # Policy engine (ported)
+        __init__.py
+        policy.py                    # Policy loading and evaluation
+        write_set.py                 # WriteSetChecker (glob enforcement)
+        haiku.py                     # Haiku evaluator for ambiguous cases
+      plugins/                       # Plugin framework
+        __init__.py
+        base.py                      # BasePlugin
+        software.py                  # Software development plugin
+        documents.py                 # Document production plugin
+        criteria.py                  # Criteria library loader
+    tests/
+      __init__.py
+      test_spec_tools.py
+      test_sentinel_tools.py
+      test_orchestration_tools.py
+      test_dag_tools.py
+      test_evidence_tools.py
+      test_budget_tools.py
+      test_models.py
+      test_sentinel_policy.py
+      test_write_set.py
+      conftest.py
+    pyproject.toml                   # Package config (fastmcp, anthropic, pydantic)
+  openclaw/                          # OpenClaw workspace configuration
+    workspaces/
+      vizier/                        # Main Vizier agent workspace
+        SOUL.md                      # Vizier system prompt
+        AGENTS.md                    # Inner agent definitions
+        USER.md                      # Sultan preferences
+        MEMORY.md                    # Persistent memory
+        skills/
+          project-management/        # Project CRUD, status
+          spec-lifecycle/            # Spec creation, delegation
+          delegation/                # Task routing to Pashas
+      pasha-template/                # Template for per-project Pashas
+        SOUL.md                      # Pasha system prompt
+        AGENTS.md                    # Inner agent definitions
+        skills/
+          orchestration/             # Spec scanning, agent spawning
+          retry-management/          # Graduated retry logic
+      scout-template/
+        SOUL.md
+      architect-template/
+        SOUL.md
+      worker-template/
+        SOUL.md
+      quality-gate-template/
+        SOUL.md
+      retrospective-template/
+        SOUL.md
+    config/
+      openclaw.json                  # Gateway configuration
+      agents.json                    # Agent definitions + routing
+  docs/
+    ARCHITECTURE.md                  # This document
+    DECISIONS.md                     # Historical + new decisions
+    CHANGELOG.md                     # Project history
+  .claude/                           # Claude Code development agents (PCC)
+    agents/                          # PCC workflow agents
+    settings.json
+  .github/                           # CI/CD
+    workflows/
+  CLAUDE.md                          # Development instructions
+  README.md                          # Project overview
+  pyproject.toml                     # Root workspace config
+  .gitignore
+  LICENSE
 ```
 
-## Project Sync — Git Only
+---
 
-All project synchronization happens through git. No OneDrive, Syncthing, or cloud sync.
+## 10. Spec State Machine (Preserved)
 
-**Why:** Git provides atomic operations, history, conflict resolution, and works everywhere. Agents always operate on server-side clones. Sultan interacts through agents (Telegram, CLI, Claude Code), not by editing files on the server directly.
-
-### File Checkout/Checkin (for direct Sultan edits)
-
-When Sultan needs to edit a file directly (e.g., an Excel spreadsheet):
+The spec lifecycle state machine is unchanged:
 
 ```
-Sultan: "I need to edit the business plan"
-EA: git pulls latest, copies file to ~/vizier-checkout/efm/business-plan_v5.xlsx
-Sultan: edits file locally (Excel, whatever tool)
-Sultan: "Done editing" (or drops the file back via Telegram)
-EA: copies back to project workspace, commits, pushes
+DRAFT --> SCOUTED --> DECOMPOSED --> READY --> IN_PROGRESS --> REVIEW --> DONE
+                                       |          |             |
+                                       |          v             |
+                                       |      INTERRUPTED       |
+                                       |          |             |
+                                       +<---------+             |
+                                       |                        |
+                                       +<--- REJECTED <---------+
+                                       |
+                                       +---> STUCK (retry 10)
 ```
 
-```
-/opt/vizier/checkout/                   # Sultan's working area
-+-- <project>/                          # One folder per project
-    +-- <filename>                      # Checked-out files only
-```
+Valid transitions (enforced by MCP server):
+- DRAFT -> SCOUTED (Scout completes research)
+- DRAFT -> DECOMPOSED (bypass Scout for simple specs)
+- SCOUTED -> DECOMPOSED (Architect decomposes)
+- DECOMPOSED -> READY (sub-specs created)
+- READY -> IN_PROGRESS (Worker claims)
+- IN_PROGRESS -> REVIEW (Worker completes)
+- IN_PROGRESS -> INTERRUPTED (graceful shutdown)
+- INTERRUPTED -> READY (restart re-queues)
+- REVIEW -> DONE (QG accepts)
+- REVIEW -> REJECTED (QG rejects)
+- REJECTED -> READY (retry)
+- READY -> STUCK (retry 10 exhausted)
 
-**Rules:**
-- Only EA manages the checkout folder (copy out, copy back, cleanup)
-- Only one checkout per file at a time (EA tracks in `ea/checkouts.yaml`)
-- EA warns if a checked-out file is stale (project moved ahead)
-- Agents do NOT write to checkout/ — it's Sultan's space
+---
 
-### Sync Flow
+## 11. Testing Strategy
 
-```
-Sultan's machine                    Vizier server                   GitHub
-      |                                  |                             |
-      | (Telegram: "build auth")         |                             |
-      +--------------------------------->|                             |
-      |                            EA creates DRAFT spec               |
-      |                            Pasha -> Architect -> Worker         |
-      |                            Worker commits to branch            |
-      |                                  +--- git push --------------->|
-      |                                  |                             |
-      |                            Quality Gate -> DONE                |
-      |                            Pasha creates PR                    |
-      |                                  +--- gh pr create ----------->|
-      |                                  |                             |
-      | (Telegram: "PR #12 ready")       |                             |
-      |<---------------------------------+                             |
-```
+### MCP Server Tests
 
-## Roles and Permissions
+The MCP server is a standard Python package tested with pytest:
 
-Vizier uses the Ottoman court metaphor: **Sultan** (human), **Vizier** (EA), project staff (Pasha, Architect, Worker, Quality Gate), **Sentinel** (security).
+- **Unit tests**: Spec state machine, DAG validator, write-set matcher, policy engine, budget tracker
+- **Tool tests**: Each MCP tool tested with mock filesystem (no real projects)
+- **Integration tests**: Full spec lifecycle through MCP tools (create -> transition -> validate)
+- **Sentinel tests**: Allowlist/denylist/Haiku evaluation with mocked Haiku
 
-### Permission Matrix
+### Agent Tests
 
-| Role | Read | Write | Special |
-|---|---|---|---|
-| **Sultan** | Everything | Everything | Approves dangerous operations |
-| **EA (Vizier)** | All projects, all reports, ea/ data, calendar | ea/ data only (commitments, relationships, priorities, sessions, checkouts) + DRAFT specs in any project | Relays files from Sultan to Pashas. Cannot modify project source code. |
-| **Pasha** | Own project (.vizier/, source, reports) | Own project (state.json, specs status) + own reports/ | Spawns Architect, Worker, QG within own project. Cannot read other projects. |
-| **Architect** | Own project source (full) + plugin guides | Own project specs only (creates sub-specs) | Cannot modify source code. |
-| **Worker** | Own project source (any file, read-only beyond artifact list) + learnings.md | Own project source (artifacts listed in spec only) | Tools restricted by plugin, enforced by Sentinel (allowlist + denylist + Haiku). Reads beyond artifact list are logged. |
-| **Quality Gate** | Own project source + spec + git diff | Spec feedback only (feedback/*.md, status transitions) | Cannot modify source code. |
-| **Retrospective** | Own project (all specs, feedback, learnings, reports) | learnings.md (direct) + proposals/*.md | Cannot change architecture, code, or agent topology. |
-| **Sentinel** | All outbound requests, all inbound files, all git operations | Security reports, blocklists, quarantine/ | Can block operations. Reports to EA. |
+Agent behavior is tested through OpenClaw's testing infrastructure. SOUL.md prompts are validated by running agents against mock MCP servers.
 
-### EA ↔ Pasha Communication (filesystem-based)
+### No LLM Calls in CI
 
-Pasha reports to EA through the reports/ directory — the filesystem IS the channel:
-
-```
-Pasha writes:                           EA watches:
-  reports/<project>/status.json     --> watchdog event --> EA reads
-  reports/<project>/cycle-NNN.md    --> watchdog event --> EA reads, decides: ignore / queue / alert
-  reports/<project>/escalations/    --> watchdog event --> EA alerts Sultan immediately
-```
-
-EA writes to projects through specs:
-```
-EA creates:                             Pasha watches:
-  .vizier/specs/NNN/spec.md (DRAFT) --> watchdog event --> Pasha delegates to Architect
-```
-
-No direct calls between EA and Pasha. The reports/ folder is Pasha→EA. The specs/ folder is EA→Pasha.
-
-### Inbound File Relay
-
-EA can receive files from Sultan (WhatsApp photo, document, voice note) and relay them to a project:
-
-```
-Sultan sends photo via Telegram
-  → EA saves to /opt/vizier/inbox/<timestamp>-<filename>
-  → EA asks: "Which project? What should I do with this?"
-  → Sultan: "Add to project-alpha, it's the whiteboard from today's meeting"
-  → EA creates DRAFT spec: "Process whiteboard photo" with file reference
-  → Pasha picks it up
-```
-
-## Security — Sentinel
-
-The Sentinel is a **deterministic Python service** (not an LLM agent) that enforces security policies. It uses a Haiku-tier LLM only for content scanning of untrusted sources.
-
-### Architecture
-
-```
-Sentinel (Python service, always-on)
-  |
-  +-- Policy Engine (deterministic)
-  |   +-- Whitelist/blocklist enforcement
-  |   +-- Secret pattern scanning (regex)
-  |   +-- GitHub Actions change detection
-  |   +-- Permission enforcement (who writes where)
-  |   +-- Git operation classification (safe/dangerous)
-  |
-  +-- Content Scanner (Haiku-tier, spawned on demand)
-      +-- Evaluate untrusted web content for prompt injection
-      +-- Evaluate inbound files from unknown sources
-      +-- Classify fetched URLs (safe/suspicious/malicious)
-```
-
-### Security Policies
-
-| Domain | Trusted (auto-allow) | Untrusted (scan first) | Blocked |
-|---|---|---|---|
-| **Web search** | docs.python.org, github.com, stackoverflow.com, pypi.org, official docs | Unknown domains → Content Scanner evaluates | Known malicious, ad networks, URL shorteners |
-| **Inbound files** | From Sultan (any channel) | From unknown sources via integrations | Executable files (.exe, .sh, .bat) |
-| **Git operations** | commit, push, branch, PR create | Force push, branch delete → Sultan approval | History rewrite on shared branches |
-| **GitHub Actions** | Existing workflow runs | Workflow file changes (.github/) → Sultan approval | New workflow creation without Sultan |
-| **Dependencies** | Existing locked deps | New deps in pyproject.toml/package.json → flag for review | Known vulnerable packages |
-| **External APIs** | Configured providers (Anthropic, OpenAI, LiteLLM) | Unknown endpoints → block + report | Any endpoint not in allowlist |
-| **Secrets** | None (never auto-allow) | Pre-commit scan → block if detected | API keys, tokens, passwords, private keys |
-
-### Sentinel Reports
-
-Sentinel writes security reports to EA:
-
-```
-/opt/vizier/security/
-+-- events.jsonl                        # Append-only event log
-+-- blocklist.yaml                      # Current blocked sources
-+-- quarantine/                         # Suspicious files held for review
-+-- reports/
-    +-- YYYY-MM-DD-summary.md           # Daily security summary for EA
-```
-
-EA includes security highlights in morning briefings: "Sentinel blocked 3 suspicious URLs yesterday. No incidents."
-
-### Sultan Approval Queue
-
-Operations requiring Sultan approval go through EA:
-
-```
-Sentinel detects: Worker wants to modify .github/workflows/tests.yml
-  → Sentinel blocks the operation
-  → Sentinel writes to /opt/vizier/security/approvals/<id>.yaml
-  → EA picks up the approval request
-  → EA messages Sultan: "Worker wants to modify CI pipeline. Allow?"
-  → Sultan: "Show me the diff" / "Allow" / "Deny"
-  → EA writes decision back
-  → Sentinel unblocks (or keeps blocked)
-```
-
-## Progressive Autonomy Rollout (D44)
-
-Vizier deploys through four stages of increasing autonomy. Each stage has measurable graduation criteria and requires Sultan approval to advance.
-
-| Stage | Name | EA Behavior | Worker Behavior |
-|-------|------|-------------|-----------------|
-| 1 | Shadow | Proposes all actions, Sultan approves | No Workers run |
-| 2 | Gated | Creates specs, Sultan approves before Worker starts | Workers run after approval |
-| 3 | Supervised | Autonomous execution, EA surfaces all completions | Full autonomous cycle |
-| 4 | Autonomous | EA filters what to surface, full autonomy | Full autonomous cycle |
-
-**Configuration:**
-
-```yaml
-# /opt/vizier/config.yaml
-autonomy:
-  stage: 2  # gated
-  auto_approve_plugins: []  # empty = all need approval
-  stage_history:
-    - stage: 1
-      entered: 2026-03-01
-      graduated: 2026-03-15
-      reason: "50 proposals, 2% override rate"
-```
-
-**Graduation criteria are measurable, not subjective:** Each stage has specific thresholds (proposal accuracy, spec completion rate, rejection rate, cost adherence) that must be met before the Sultan is asked about advancing.
-
-## Observability
-
-Vizier uses two complementary observability layers, each serving a different audience:
-
-### Layer 1: Structured JSONL Logs (D28)
-
-**Audience:** EA (for morning briefings), Sultan (via EA), Retrospective (for pattern analysis).
-
-Every agent invocation produces a structured log entry appended to `reports/<project>/agent-log.jsonl`:
-
-```json
-{
-  "timestamp": "2026-02-15T10:05:00Z",
-  "agent": "worker",
-  "spec_id": "001-auth/002-jwt",
-  "model": "sonnet",
-  "tokens_in": 4200,
-  "tokens_out": 1800,
-  "duration_ms": 12500,
-  "cost_usd": 0.042,
-  "result": "REVIEW",
-  "project": "project-alpha"
-}
-```
-
-This layer is always active and has zero external dependencies. EA uses it for cost summaries, budget enforcement (D33), and trend analysis in morning briefings.
-
-### Layer 2: Langfuse Traces (D45)
-
-**Audience:** Developer/Sultan debugging agent behavior.
-
-Self-hosted Langfuse provides trace-level visibility: which prompt was sent, what the LLM returned, how long each step took, where failures occurred. Integrated via LiteLLM's native callback support:
-
-```python
-import litellm
-litellm.success_callback = ["langfuse"]
-litellm.failure_callback = ["langfuse"]
-```
-
-Langfuse runs as a Docker Compose service alongside the Vizier daemon. It is optional -- the system works fully without it (JSONL logs are the primary layer).
-
-**Key capabilities:** Prompt versioning, per-trace cost breakdown, latency analysis, failure debugging, A/B comparison of prompt versions.
-
-## Open Questions
-
-None — all resolved.
-
-### Resolved
-
-- [x] **Cross-project dependencies**: Deferred to Phase 6 (EA). EA will coordinate cross-project tasks by creating linked DRAFT specs in each project. Mechanism designed during EA implementation.
-- [x] **Plugin Architect behaviors**: Plugins provide all three — Worker + Quality Gate + Architect guide (decomposition patterns, criteria library). Already reflected in plugin architecture docs.
-- [x] **Calendar MCP**: Both Google and Microsoft. workspace-mcp for Google Calendar (personal), Microsoft 365 MCP Server for Outlook (company). EA presents unified calendar view from both sources.
-- [x] **EA data git repo**: Yes — EA data (commitments, relationships, sessions, priorities) lives in its own git repo for version history, auditability, and recovery. Location: `/opt/vizier/ea/` backed by a dedicated git repo.
-- [x] **Sentinel's trusted domain list**: Global (server-wide), not per-project. Managed in `/opt/vizier/security/blocklist.yaml`.
-- [x] **Sultan offline**: Operations requiring Sultan approval block until Sultan responds. No timeout, no auto-approve. Agents continue working on tasks that don't need approval.
-- [x] **Cost budget**: Degrade + alert. At 80% budget → alert Sultan. At 100% → degrade all agents to cheapest tier. At 120% → pause non-critical work. Sultan can override.
-- [x] **Testing strategy**: Mock `litellm.completion()` in all automated tests. No API credits burned in CI. Real LLM calls only during manual development. Core runtime (file protocol, state machine, watcher, router, Sentinel, logging) is pure Python — standard pytest.
-- [x] **EA structure**: Monolithic, powerful, Opus-tier (D21). Not split into router + handlers.
-- [x] **Pasha naming**: Per-project orchestrator renamed from "Manager" to "Pasha" (D16). Ottoman court metaphor extended selectively.
+Same principle as D34: all automated tests mock LLM calls. The MCP server's Sentinel Haiku calls are mocked. Agent prompt quality is validated manually.

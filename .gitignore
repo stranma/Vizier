@@ -46,3 +46,6 @@ Thumbs.db
 # Distribution
 *.tar.gz
 *.whl
+
+# Ruff
+.ruff_cache/

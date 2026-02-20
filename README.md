@@ -1,46 +1,40 @@
 # Vizier
 
-Autonomous multi-agent work system.
+Autonomous multi-agent work system, built on OpenClaw.
 
-Vizier receives high-level tasks from humans, decomposes them into actionable specs, executes them through specialized agents, and reports back. It operates on a server, works on multiple projects in parallel, and communicates with humans through an Executive Assistant (EA) agent.
+Vizier receives high-level tasks from humans, decomposes them into actionable specs, executes them through specialized agents, and reports back. It uses the **Ottoman court metaphor**: the Sultan (human) speaks to the Vizier (main agent), who delegates to Pashas (per-project orchestrators), who manage inner agents (Scout, Architect, Worker, Quality Gate, Retrospective).
 
 ## Architecture
 
-The system uses the **Ottoman court metaphor**:
+**OpenClaw** provides the runtime: multi-channel messaging (Telegram, WhatsApp, Discord, Web UI, mobile), session management, tool infrastructure, and memory. **Vizier's MCP server** provides the domain intelligence: spec lifecycle, Sentinel security, DAG scheduling, quality gates, and plugin extensibility.
 
-- **Sultan** -- Human operator
-- **Vizier / EA** -- Executive Assistant (singleton, always-on)
-- **Pasha** -- Per-project orchestrator
-- **Architect** -- Task decomposer
-- **Worker** -- Spec executor (fresh context per task)
-- **Quality Gate** -- Work validator
+```
+Sultan (any channel)
+  -> OpenClaw Gateway
+    -> Vizier (main agent, Opus, persistent session)
+      -> Pasha-{project} (sub-session per project)
+        -> Scout, Architect, Worker, Quality Gate, Retrospective
+      -> Vizier MCP Server (FastMCP, Python)
+        -> Spec tools, Sentinel, Orchestration, DAG, Evidence, Plugins, Budget
+```
 
-See `docs/ARCHITECTURE.md` for the full system topology.
+See `docs/ARCHITECTURE.md` for the full specification.
 
-## Packages
+## Project Structure
 
-| Package | Path | Description |
-|---------|------|-------------|
-| `vizier-core` | `libs/core/` | Core library (runtime, models, plugin base) |
-| `vizier-daemon` | `apps/daemon/` | Server process (EA + event loop + Telegram bot) |
-| `vizier-cli` | `apps/cli/` | CLI tool (`vizier init`, `register`, `start`, `status`) |
-| `vizier-plugin-software` | `plugins/software/` | Software development plugin |
-| `vizier-plugin-documents` | `plugins/documents/` | Document production plugin |
+| Directory | Purpose |
+|-----------|---------|
+| `vizier-mcp/` | FastMCP server -- all Vizier domain logic |
+| `openclaw/` | OpenClaw workspace config (SOUL.md files, agent definitions) |
+| `docs/` | Architecture spec, decision log, changelog |
 
 ## Development
 
 ```bash
-# Install dependencies
-uv sync --group dev
-
-# Run tests
-uv run pytest
-
-# Lint and format
-uv run ruff check --fix . && uv run ruff format .
-
-# Type check
-uv run pyright
+uv sync --all-packages --group dev    # Install dependencies
+uv run pytest vizier-mcp/ -v          # Run MCP server tests
+uv run ruff check . && uv run ruff format --check .  # Lint
+uv run pyright                        # Type check
 ```
 
 ## License

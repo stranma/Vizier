@@ -1,6 +1,8 @@
 {
   "permissions": {
     "allow": [
+      "Read",
+      "Write",
       "Bash(pytest *)", "Bash(uv run pytest *)", "Bash(python -m pytest *)",
       "Bash(uv run ruff *)", "Bash(uv sync *)", "Bash(uv --version *)",
       "Bash(uv run pyright *)",

@@ -6,8 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Vizier-on-OpenClaw architecture spec** (D63) -- Complete architecture document (`docs/ARCHITECTURE.md`) specifying the new system: OpenClaw as runtime, Vizier MCP server for domain logic, all agents as OpenClaw sessions, per-project Sentinels via MCP tools
+- **Vizier MCP server scaffold** -- `vizier-mcp/` package with module structure for tools (spec, sentinel, orchestration, DAG, evidence, plugin, budget), models, sentinel policy engine, and plugins
+- **OpenClaw workspace templates** -- SOUL.md files for all 7 agent roles (Vizier, Pasha, Scout, Architect, Worker, Quality Gate, Retrospective) plus agent and config scaffolds
+- **New decisions D63-D66** -- OpenClaw architectural reset, EA renamed to Vizier, all inner agents as OpenClaw sub-sessions, per-Pasha Sentinels via MCP tools
+
+### Changed
+
+- **CLAUDE.md updated** for new project structure -- repository layout, development commands, testing paths, context recovery, and consistency check sections updated for vizier-mcp; PCC workflow and development methodology preserved
+- **README.md rewritten** for Vizier-on-OpenClaw architecture
+- **pyproject.toml rewritten** -- workspace now points to `vizier-mcp/`; old workspace members (`libs/*`, `apps/*`, `plugins/*`) removed
+
 ### Removed
 
+- **Full codebase removal** (D63) -- Removed `libs/core/`, `apps/daemon/`, `apps/cli/`, `plugins/software/`, `plugins/documents/`, `tests/`, `scripts/`, `src/`. All domain logic will be ported to the MCP server from git history. Old architecture docs removed (AGENT_PROTOCOL.md, AGENT_SPECS.md, FILE_PROTOCOL.md, TECH_STACK.md, IMPLEMENTATION_PLAN.md, SPEC_FORMAT.md, AGENT_PROMPTS.md, USE_CASES.md, DEPLOYMENT.md). Docker/systemd deployment files removed (replaced by OpenClaw deployment).
 - **Agent system reset (D46)** -- Deleted the entire first-generation agent layer: BaseAgent, AgentRunner, all agent runtimes (Architect, Worker, QualityGate, Scout, Retrospective, EA), Pasha orchestrator, lifecycle management (SpecLifecycle, GraduatedRetry), AgentLogger, BaseWorker, BaseQualityGate, plugin implementations (SoftwarePlugin, DocumentsPlugin), VizierDaemon, and Heartbeat. The rigid prompt-in/response-out pattern could not support tool use, supervisor interaction, or dynamic decision-making. Infrastructure preserved: models, file protocol, LLM factory, model router, secrets, Sentinel, watcher, tools, plugin framework, daemon config/health/telegram, CLI, deployment. System will be rebuilt with tool-using, interactive agents.
 
 ### Added
