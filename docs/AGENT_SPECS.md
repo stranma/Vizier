@@ -14,7 +14,7 @@
 
 **Plugin-aware agents** use the project's plugin to determine their behavior: tools, prompts, criteria, restrictions. Framework agents are the same regardless of project type.
 
-**All agents** are Claude API instances using `anthropic.Anthropic` with `client.messages.create(tools=...)`. Each agent runs in a fresh subprocess with no shared memory. State is read from disk at start and written to disk at end (D47).
+**All agents** are Claude API instances using `anthropic.Anthropic` with `client.messages.create(tools=...)`. Each agent runs as a fresh AgentRuntime instance in the daemon thread pool (D61). No shared memory between invocations -- each runtime gets a fresh message list. State is read from disk at start and written to disk at end (D47).
 
 ---
 
@@ -203,7 +203,7 @@ When in session mode, the Pasha maintains full project context (constitution, sp
 - Tracks cycle count and overall progress
 - Escalates via reports/escalations/ (EA watches)
 - Does NOT communicate with humans directly
-- **Spec state-age monitoring**: during each reconciliation cycle, checks `time_in_state` for every active spec. Detects silently stuck specs (e.g., IN_PROGRESS for 30+ minutes with no agent subprocess alive).
+- **Spec state-age monitoring**: during each reconciliation cycle, checks `time_in_state` for every active spec. Detects silently stuck specs (e.g., IN_PROGRESS for 30+ minutes with no active agent thread).
 
 ### Budget
 - Opus tier (always)

@@ -1152,3 +1152,27 @@ litellm.failure_callback = ["langfuse"]
 **Decision:** EA reads per-project capability summary from ProjectRegistry (plugin type, CI signals, definition of done, critical tools, autonomy stage).
 
 **Why:** Provides routing context without coupling EA to plugin implementation.
+
+### D60: Azure Key Vault as production secret store
+
+**Context:** Daemon needs API keys (Anthropic, Telegram, etc.) securely stored. Hard-coded env vars are fragile and insecure in production.
+
+**Decision:** Azure Key Vault (`https://vizier.vault.azure.net/`) as production secret store. `.env` fallback for local development. Secret store abstraction via `libs/core/vizier/core/secrets/`.
+
+**Why:** Centralized rotation, audit trail, no secrets on disk in production. Azure fits existing deployment target.
+
+### D61: Thread pool replaces subprocess-per-agent
+
+**Context:** D37 specified asyncio daemon + subprocess per agent invocation. D47 changed agents to Anthropic SDK API calls (just HTTP requests). Subprocess isolation is now overkill.
+
+**Decision:** Agents run in daemon thread pool via `asyncio.run_in_executor(None, runtime.run, task)`. Supersedes D37 subprocess model.
+
+**Why:** D47 agents are synchronous Anthropic API calls -- subprocess isolation adds complexity without benefit. Each AgentRuntime still gets fresh message list (Ralph Wiggum pattern preserved). Anthropic client (httpx) is thread-safe. `max_concurrent_agents` config controls parallelism via semaphore.
+
+### D62: Model ID update to current API versions
+
+**Context:** Claude model IDs changed from dated versions (e.g., `claude-opus-4-20250514`) to current naming (e.g., `claude-opus-4-6`). ModelTierConfig had litellm "anthropic/" prefix baked in.
+
+**Decision:** Update all factory defaults and ModelTierConfig to current Anthropic API model IDs: `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-5-20251001`. Remove "anthropic/" prefix from ModelTierConfig since we use Anthropic SDK directly, not litellm.
+
+**Why:** Keeps factory defaults aligned with current API. Removes litellm artifact from D27 era that no longer applies after D47.

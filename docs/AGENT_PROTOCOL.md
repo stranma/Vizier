@@ -226,7 +226,7 @@ Each agent has a defined set of tools, enforced by Sentinel. The plugin provides
 | `escalate_to_ea(spec_id, reason)` | Pasha escalates | Pasha |
 | `request_more_research(spec_id, questions)` | Architect sends Scout back (D48) | Architect |
 | `report_progress(project, data)` | Write status report | Pasha |
-| `spawn_agent(role, spec_id, context)` | Start agent subprocess | Pasha |
+| `spawn_agent(role, spec_id, context)` | Start agent in thread pool (D61) | Pasha |
 
 **State Tools** (for spec lifecycle):
 
@@ -330,7 +330,7 @@ stateDiagram-v2
 | DRAFT -> SCOUTED | `RESEARCH_REPORT` message exists in spec dir (or explicit skip with confidence > 0.8) |
 | SCOUTED -> DECOMPOSED | `PROPOSE_PLAN` message exists AND Pasha's DAG validator accepted it |
 | DRAFT -> DECOMPOSED | Same as above (direct path, skip Scout) |
-| READY -> IN_PROGRESS | Worker subprocess alive AND monthly budget available AND `depends_on` specs all DONE |
+| READY -> IN_PROGRESS | Worker AgentRuntime active AND monthly budget available AND `depends_on` specs all DONE |
 | IN_PROGRESS -> REVIEW | Git commit hash exists AND modified files match write-set patterns |
 | REVIEW -> DONE | `QUALITY_VERDICT` exists with `pass_fail: PASS` AND all plugin-mandatory evidence files exist on disk |
 | REVIEW -> REJECTED | `QUALITY_VERDICT` exists with `pass_fail: FAIL` AND `suggested_fix[]` is non-empty |
@@ -435,11 +435,11 @@ while True:
 sequenceDiagram
     participant P as Pasha
     participant FS as Filesystem
-    participant W as Worker (subprocess)
+    participant W as Worker (thread pool, D61)
     participant API as Claude API
 
     P->>FS: Read READY spec
-    P->>W: Start subprocess (uv run agent-runner --spec path)
+    P->>W: run_in_executor(None, spawn_callback, role, spec_id, context)
     W->>FS: Read spec + plugin config
     W->>W: Create AgentRuntime(role, tools, model)
     W->>API: messages.create(tools=...)
@@ -451,7 +451,7 @@ sequenceDiagram
     end
     API-->>W: end_turn
     W->>FS: update_spec_status(REVIEW)
-    W-->>P: subprocess exits(0)
+    W-->>P: thread returns result dict
     P->>FS: Detect state change via watchdog
 ```
 
@@ -479,7 +479,7 @@ The agent loop continues until one of:
 
 ### Fresh Context Guarantee
 
-Each agent invocation is a new subprocess with a new Python interpreter. No shared memory between invocations. All state is read from disk at start and written to disk at end. The tool_use loop creates a fresh Claude conversation per invocation.
+Each agent invocation creates a new AgentRuntime instance in the daemon thread pool (D61). No shared memory between invocations -- each runtime gets a fresh message list. All state is read from disk at start and written to disk at end. The tool_use loop creates a fresh Claude conversation per invocation. The Anthropic client (httpx) is thread-safe and shared across invocations.
 
 ---
 
@@ -559,7 +559,7 @@ When Sentinel denies a tool call, Claude receives: "Permission denied: [reason]"
 
 ### Agent Crash Recovery
 
-1. Pasha's subprocess monitor detects non-zero exit
+1. Pasha detects agent failure (thread pool exception or error result)
 2. Spec retries incremented (existing `retries` field in frontmatter)
 3. If retries < max_retries: spec stays in current state, re-queued
 4. If retries >= max_retries: spec transitions to STUCK
