@@ -28,7 +28,6 @@ from vizier_mcp.sentinel.write_set import WriteSetChecker
 
 if TYPE_CHECKING:
     from vizier_mcp.config import ServerConfig
-    from vizier_mcp.models.sentinel import SentinelPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +50,10 @@ def sentinel_check_write(
     :return: {"allowed": bool, "reason"?: str}
     """
     policy_result = load_policy(config, project_id)
-    if isinstance(policy_result, dict) and "error" in policy_result:
-        return {"allowed": False, "reason": policy_result["error"]}
+    if isinstance(policy_result, dict):
+        return {"allowed": False, "reason": policy_result.get("error", "Policy load failed")}
 
-    policy: SentinelPolicy = policy_result
+    policy = policy_result
 
     if policy.role_permissions and not check_role_permission(policy, agent_role, "can_write"):
         return {"allowed": False, "reason": f"Role '{agent_role}' does not have write permission"}
@@ -91,10 +90,10 @@ async def run_command_checked(
     :return: One of the three D78 shapes.
     """
     policy_result = load_policy(config, project_id)
-    if isinstance(policy_result, dict) and "error" in policy_result:
-        return {"allowed": False, "reason": policy_result["error"]}
+    if isinstance(policy_result, dict):
+        return {"allowed": False, "reason": policy_result.get("error", "Policy load failed")}
 
-    policy: SentinelPolicy = policy_result
+    policy = policy_result
 
     if policy.role_permissions and not check_role_permission(policy, agent_role, "can_bash"):
         return {"allowed": False, "reason": f"Role '{agent_role}' does not have bash permission"}
