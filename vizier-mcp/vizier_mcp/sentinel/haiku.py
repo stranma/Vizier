@@ -69,7 +69,7 @@ async def evaluate_command(
         response = await llm_callable(model=model, prompt=prompt, max_tokens=10)
         response_clean = response.strip().upper()
 
-        if "ALLOW" in response_clean:
+        if response_clean == "ALLOW":
             return HaikuVerdict(
                 decision=PolicyDecision.ALLOW,
                 reason=f"Haiku approved: {command}",

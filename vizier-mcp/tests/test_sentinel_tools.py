@@ -326,9 +326,6 @@ class TestSentinelIntegration:
         mock_llm.assert_not_called()
 
         # Tier 3: Ambiguous command -> Haiku ALLOW -> executes
-        result = await run_command_checked(config, PROJECT_ID, "echo via-haiku", "worker", llm_callable=mock_llm)
-        # "echo via-haiku" starts with "echo " which IS in the allowlist
-        # Use a command NOT in the allowlist
         result = await run_command_checked(
             config, PROJECT_ID, "curl http://example.com", "worker", llm_callable=mock_llm
         )

@@ -44,13 +44,20 @@ class TestWriteSetChecker:
         assert checker.is_allowed("pyproject.toml") is True
         assert checker.is_allowed("other.toml") is False
 
-    def test_leading_slash_stripped(self) -> None:
+    def test_absolute_path_rejected(self) -> None:
         checker = WriteSetChecker(["src/**/*.py"])
-        assert checker.is_allowed("/src/auth.py") is True
+        assert checker.is_allowed("/src/auth.py") is False
+        assert checker.is_allowed("/etc/passwd") is False
 
-    def test_leading_dot_slash_stripped(self) -> None:
+    def test_dot_slash_normalized(self) -> None:
         checker = WriteSetChecker(["src/**/*.py"])
         assert checker.is_allowed("./src/auth.py") is True
+
+    def test_traversal_rejected(self) -> None:
+        checker = WriteSetChecker(["**/*.py"])
+        assert checker.is_allowed("../sensitive.py") is False
+        assert checker.is_allowed("../../etc/passwd") is False
+        assert checker.is_allowed("src/../../escape.py") is False
 
     def test_double_star_at_start(self) -> None:
         checker = WriteSetChecker(["**/*.py"])

@@ -134,7 +134,7 @@ async def _execute_command(command: str) -> dict:
         stdout_bytes, stderr_bytes = await proc.communicate()
         return {
             "allowed": True,
-            "exit_code": proc.returncode or 0,
+            "exit_code": proc.returncode if proc.returncode is not None else 0,
             "stdout": stdout_bytes.decode("utf-8", errors="replace"),
             "stderr": stderr_bytes.decode("utf-8", errors="replace"),
         }

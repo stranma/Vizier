@@ -7,6 +7,7 @@ file paths against the project's write-set from sentinel.yaml.
 from __future__ import annotations
 
 import re
+from pathlib import PurePosixPath
 
 
 def _glob_to_regex(pattern: str) -> re.Pattern[str]:
@@ -41,7 +42,7 @@ def _glob_to_regex(pattern: str) -> re.Pattern[str]:
         elif c == "?":
             result.append("[^/]")
             i += 1
-        elif c in ".+^${}()|[]":
+        elif c in r".+^${}()|[]\\":
             result.append("\\" + c)
             i += 1
         else:
@@ -56,6 +57,7 @@ class WriteSetChecker:
     """Validates file paths against a set of glob patterns.
 
     Empty patterns list means all writes are allowed.
+    Paths containing '..' components are always rejected (traversal prevention).
 
     :param patterns: List of glob pattern strings from sentinel.yaml write_set.
     """
@@ -67,11 +69,19 @@ class WriteSetChecker:
     def is_allowed(self, file_path: str) -> bool:
         """Check if a file path matches any write-set pattern.
 
+        Rejects absolute paths and paths with '..' components to prevent traversal.
+
         :param file_path: Relative file path to check.
         :return: True if the path matches a pattern (or patterns list is empty).
         """
         if not self._compiled:
             return True
 
-        normalized = file_path.lstrip("/").lstrip("./")
+        path = PurePosixPath(file_path)
+        if path.is_absolute():
+            return False
+        if ".." in path.parts:
+            return False
+
+        normalized = str(path)
         return any(regex.match(normalized) for regex in self._compiled)
