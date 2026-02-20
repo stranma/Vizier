@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from vizier.daemon.process import AgentSpawner, Heartbeat, PingWatcher
+from vizier.daemon.process import AgentSpawner, Heartbeat, PingWatcher, VizierDaemon
 
 # Re-use the mock_anthropic helpers from core tests
 import sys
@@ -141,3 +141,123 @@ class TestAgentSpawner:
         result = spawner._spawn_sync("unknown_agent", "001", {}, "/tmp/project")
         assert "error" in result
         assert "Unknown agent role" in result["error"]
+
+
+class _FakeSecretStore:
+    """Minimal mock secret store for testing."""
+
+    def __init__(self, secrets: dict[str, str] | None = None) -> None:
+        self._secrets = secrets or {}
+
+    def get(self, key: str) -> str | None:
+        return self._secrets.get(key)
+
+
+class TestVizierDaemon:
+    def _make_daemon(
+        self, tmp_path: Any, secrets: dict[str, str] | None = None, projects: list[Any] | None = None
+    ) -> VizierDaemon:
+        from vizier.daemon.config import DaemonConfig, ProjectRegistry
+
+        config = DaemonConfig(vizier_root=str(tmp_path), health_check_port=19876)
+        registry = ProjectRegistry(projects=projects or [])
+        if secrets is None:
+            secrets = {"ANTHROPIC_API_KEY": "sk-test-fake-key"}
+        store = _FakeSecretStore(secrets)
+        return VizierDaemon(config, registry, store)
+
+    def _setup_with_mock(self, daemon: VizierDaemon) -> Any:
+        from unittest.mock import patch
+
+        mock_client = make_mock_client(make_text_response("ok"))
+        with patch.object(VizierDaemon, "_create_anthropic_client", return_value=mock_client):
+            daemon.setup()
+        return mock_client
+
+    def test_setup_creates_client(self, tmp_path: Any) -> None:
+        daemon = self._make_daemon(tmp_path)
+        self._setup_with_mock(daemon)
+
+        assert daemon._client is not None
+        assert daemon._sentinel is not None
+        assert daemon._ea_handler is not None
+        assert daemon._spawner is not None
+
+    def test_setup_no_api_key_raises(self, tmp_path: Any) -> None:
+        daemon = self._make_daemon(tmp_path, secrets={})
+        with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
+            daemon.setup()
+
+    def test_get_status_keys(self, tmp_path: Any) -> None:
+        daemon = self._make_daemon(tmp_path)
+        status = daemon.get_status()
+        assert "running" in status
+        assert "projects" in status
+        assert "project_names" in status
+        assert "autonomy_stage" in status
+        assert "cycles" in status
+
+    @pytest.mark.asyncio()
+    async def test_run_once_no_projects(self, tmp_path: Any) -> None:
+        daemon = self._make_daemon(tmp_path)
+        self._setup_with_mock(daemon)
+
+        results = await daemon.run_once()
+        assert results == {}
+
+    @pytest.mark.asyncio()
+    async def test_run_once_idle_project(self, tmp_path: Any) -> None:
+        from unittest.mock import patch
+
+        from vizier.daemon.config import ProjectEntry
+
+        project_dir = tmp_path / "workspaces" / "alpha"
+        project_dir.mkdir(parents=True)
+
+        daemon = self._make_daemon(tmp_path, projects=[ProjectEntry(name="alpha")])
+        self._setup_with_mock(daemon)
+
+        results = await daemon.run_once()
+        assert "alpha" in results
+        assert results["alpha"]["status"] == "idle"
+
+    @pytest.mark.asyncio()
+    async def test_run_once_with_ready_specs(self, tmp_path: Any) -> None:
+        from unittest.mock import patch
+
+        from vizier.daemon.config import ProjectEntry
+
+        project_dir = tmp_path / "workspaces" / "beta"
+        specs_dir = project_dir / ".vizier" / "specs" / "001"
+        specs_dir.mkdir(parents=True)
+        (specs_dir / "state.json").write_text('{"status": "READY"}', encoding="utf-8")
+
+        daemon = self._make_daemon(tmp_path, projects=[ProjectEntry(name="beta")])
+        mock_client = make_mock_client(make_text_response("Pasha handled it."))
+        with patch.object(VizierDaemon, "_create_anthropic_client", return_value=mock_client):
+            daemon.setup()
+
+        results = await daemon.run_once()
+        assert "beta" in results
+        assert results["beta"]["status"] == "active"
+
+    def test_telegram_not_created_without_token(self, tmp_path: Any) -> None:
+        daemon = self._make_daemon(tmp_path)
+        self._setup_with_mock(daemon)
+        assert daemon._telegram is None
+
+    @pytest.mark.asyncio()
+    async def test_shutdown_stops_subsystems(self, tmp_path: Any) -> None:
+        from unittest.mock import AsyncMock
+
+        daemon = self._make_daemon(tmp_path)
+        self._setup_with_mock(daemon)
+
+        daemon._health_server.stop = AsyncMock()
+        daemon._heartbeat.stop = AsyncMock()  # type: ignore[union-attr]
+
+        await daemon.shutdown()
+
+        assert not daemon._running
+        daemon._health_server.stop.assert_awaited_once()
+        daemon._heartbeat.stop.assert_awaited_once()  # type: ignore[union-attr]

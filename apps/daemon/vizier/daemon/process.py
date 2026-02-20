@@ -297,3 +297,290 @@ class AgentSpawner:
             )
         else:
             raise ValueError(f"Unknown agent role: {role}")
+
+
+class VizierDaemon:
+    """Main daemon orchestrator. Lifecycle: __init__ -> setup() -> run_forever()/run_once() -> shutdown().
+
+    :param config: Daemon configuration.
+    :param registry: Project registry.
+    :param secret_store: Secret store for API keys.
+    """
+
+    def __init__(self, config: Any, registry: Any, secret_store: Any) -> None:
+        self._config = config
+        self._registry = registry
+        self._secret_store = secret_store
+        self._client: Any = None
+        self._sentinel: Any = None
+        self._ea_handler: Any = None
+        self._spawner: AgentSpawner | None = None
+        self._health_server: Any = None
+        self._telegram: Any = None
+        self._heartbeat: Heartbeat | None = None
+        self._ping_watchers: list[PingWatcher] = []
+        self._running = False
+        self._shutdown_event: asyncio.Event | None = None
+        self._wakeup_event: asyncio.Event | None = None
+        self._cycle_count = 0
+        self._semaphore: asyncio.Semaphore | None = None
+
+    def setup(self) -> None:
+        """Initialize all subsystems. Must be called before run_forever/run_once.
+
+        :raises RuntimeError: If ANTHROPIC_API_KEY is not available.
+        """
+        from vizier.core.agents.ea.capability_summary import ProjectCapability, build_capability
+        from vizier.core.agents.ea.handler import EAHandler
+        from vizier.core.sentinel.engine import SentinelEngine
+
+        from .health import HealthCheckServer
+
+        api_key = self._secret_store.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise RuntimeError("ANTHROPIC_API_KEY not found in secret store")
+
+        self._client = self._create_anthropic_client(api_key)
+        self._sentinel = SentinelEngine()
+
+        root = self._config.vizier_root
+        trace_dir = os.path.join(root, "ea")
+
+        capabilities: list[ProjectCapability] = []
+        for project in self._registry.active_projects():
+            cap = build_capability(
+                name=project.name,
+                plugin=project.plugin,
+                local_path=project.local_path,
+            )
+            capabilities.append(cap)
+
+        self._ea_handler = EAHandler(
+            client=self._client,
+            project_root=root,
+            capabilities=capabilities,
+            sentinel=self._sentinel,
+            trace_dir=trace_dir,
+        )
+
+        self._spawner = AgentSpawner(self._client, self._sentinel, trace_dir)
+
+        self._health_server = HealthCheckServer(self, port=self._config.health_check_port)
+
+        if self._config.telegram.token:
+            from .telegram import TelegramTransport
+
+            self._telegram = TelegramTransport(
+                token=self._config.telegram.token,
+                ea=self._ea_handler,
+                allowed_user_ids=self._config.telegram.allowed_user_ids,
+            )
+            self._telegram.setup()
+
+        hb_path = os.path.join(root, self._config.heartbeat_path)
+        self._heartbeat = Heartbeat(hb_path, interval_seconds=30)
+        self._semaphore = asyncio.Semaphore(self._config.max_concurrent_agents)
+
+        logger.info("VizierDaemon setup complete")
+
+    @staticmethod
+    def _create_anthropic_client(api_key: str) -> Any:
+        """Create an Anthropic client. Separated for testability.
+
+        :param api_key: Anthropic API key.
+        :returns: Anthropic client instance.
+        """
+        import anthropic
+
+        return anthropic.Anthropic(api_key=api_key)
+
+    def get_status(self) -> dict[str, Any]:
+        """Return daemon status for health check endpoint.
+
+        :returns: Status dict with running, projects, autonomy_stage, etc.
+        """
+        active = self._registry.active_projects()
+        return {
+            "running": self._running,
+            "projects": len(active),
+            "project_names": [p.name for p in active],
+            "autonomy_stage": self._config.autonomy.stage,
+            "cycles": self._cycle_count,
+            "heartbeat": self._config.heartbeat_path,
+        }
+
+    async def run_forever(self) -> None:
+        """Run the daemon until shutdown signal."""
+        import sys
+
+        self._running = True
+        self._shutdown_event = asyncio.Event()
+        self._wakeup_event = asyncio.Event()
+
+        if sys.platform != "win32":
+            loop = asyncio.get_running_loop()
+            for sig_name in ("SIGTERM", "SIGINT"):
+                import signal
+
+                sig = getattr(signal, sig_name, None)
+                if sig is not None:
+                    loop.add_signal_handler(sig, self._shutdown_event.set)
+
+        if self._health_server:
+            await self._health_server.start()
+        if self._heartbeat:
+            await self._heartbeat.start()
+
+        for project in self._registry.active_projects():
+            project_root = project.local_path or os.path.join(
+                self._config.vizier_root, self._config.workspaces_dir, project.name
+            )
+            specs_dir = os.path.join(project_root, ".vizier", "specs")
+            watcher = PingWatcher(specs_dir, self._wakeup_event)
+            watcher.start()
+            self._ping_watchers.append(watcher)
+
+        tasks: list[asyncio.Task[Any]] = []
+        tasks.append(asyncio.create_task(self._reconciliation_loop()))
+        if self._telegram:
+            tasks.append(asyncio.create_task(self._telegram.start()))
+
+        logger.info("VizierDaemon running")
+
+        await self._shutdown_event.wait()
+
+        for task in tasks:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        await self.shutdown()
+
+    async def run_once(self) -> dict[str, Any]:
+        """Run a single reconciliation pass for all active projects.
+
+        :returns: Summary dict with per-project results.
+        """
+        results: dict[str, Any] = {}
+        for project in self._registry.active_projects():
+            result = await self._reconcile_project(project)
+            results[project.name] = result
+        return results
+
+    async def shutdown(self) -> None:
+        """Stop all subsystems gracefully."""
+        self._running = False
+
+        for watcher in self._ping_watchers:
+            watcher.stop()
+        self._ping_watchers.clear()
+
+        if self._heartbeat:
+            await self._heartbeat.stop()
+        if self._health_server:
+            await self._health_server.stop()
+        if self._telegram:
+            await self._telegram.stop()
+
+        logger.info("VizierDaemon shutdown complete")
+
+    async def _reconciliation_loop(self) -> None:
+        """Main reconciliation loop: reconcile all projects, then sleep/wait for wake."""
+        from vizier.core.watcher.adaptive import AdaptiveReconciler
+
+        reconciler = AdaptiveReconciler()
+
+        while self._running:
+            active_names: list[str] = []
+            for project in self._registry.active_projects():
+                assert self._semaphore is not None
+                async with self._semaphore:
+                    await self._reconcile_project(project)
+                active_names.append(project.name)
+
+            self._cycle_count += 1
+            if self._heartbeat:
+                self._heartbeat.update(self._cycle_count, active_names)
+
+            interval = reconciler.record_cycle(0)
+            assert self._wakeup_event is not None
+            try:
+                await asyncio.wait_for(self._wakeup_event.wait(), timeout=interval)
+            except TimeoutError:
+                pass
+            self._wakeup_event.clear()
+
+    async def _reconcile_project(self, project: Any) -> dict[str, Any]:
+        """Run a reconciliation cycle for a single project.
+
+        :param project: ProjectEntry to reconcile.
+        :returns: Reconciliation result dict.
+        """
+        from vizier.core.agents.pasha.event_loop import PashaEventLoop
+
+        project_root = project.local_path or os.path.join(
+            self._config.vizier_root, self._config.workspaces_dir, project.name
+        )
+
+        event_loop = PashaEventLoop(project_root=project_root, plugin_name=project.plugin)
+        cycle_summary = event_loop.run_reconciliation_cycle()
+
+        ready_specs = cycle_summary.get("ready_for_assignment", [])
+        pings = cycle_summary.get("pings_processed", 0)
+
+        if not ready_specs and pings == 0:
+            return {"project": project.name, "status": "idle", "cycle": cycle_summary}
+
+        assert self._spawner is not None
+        spawn_callback = self._spawner.make_spawn_callback(project_root)
+
+        loop = asyncio.get_running_loop()
+        pasha_result = await loop.run_in_executor(
+            None, self._run_pasha_sync, project_root, project.name, project.plugin, cycle_summary, spawn_callback
+        )
+
+        return {"project": project.name, "status": "active", "cycle": cycle_summary, "pasha": pasha_result}
+
+    def _run_pasha_sync(
+        self,
+        project_root: str,
+        project_name: str,
+        plugin_name: str,
+        cycle_summary: dict[str, Any],
+        spawn_callback: Any,
+    ) -> dict[str, Any]:
+        """Run Pasha synchronously in thread pool (D61).
+
+        :param project_root: Project root directory.
+        :param project_name: Project name.
+        :param plugin_name: Plugin name.
+        :param cycle_summary: Reconciliation cycle summary.
+        :param spawn_callback: Spawn callback for inner-loop agents.
+        :returns: Pasha run result dict.
+        """
+        from vizier.core.agents.pasha.factory import create_pasha_runtime
+        from vizier.core.runtime.budget import BudgetConfig
+
+        runtime = create_pasha_runtime(
+            client=self._client,
+            project_root=project_root,
+            project_name=project_name,
+            mode="reconciliation",
+            sentinel=self._sentinel,
+            spawn_callback=spawn_callback,
+            budget=BudgetConfig(max_tokens=30000),
+        )
+
+        task = json.dumps(cycle_summary, indent=2)
+        try:
+            result = runtime.run(f"Reconciliation cycle summary:\n{task}")
+            return {
+                "stop_reason": str(result.stop_reason),
+                "tokens_used": result.tokens_used,
+                "final_text": result.final_text[:500] if result.final_text else "",
+            }
+        except Exception as e:
+            logger.exception("Pasha runtime error for project %s", project_name)
+            return {"error": str(e)}
