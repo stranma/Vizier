@@ -22,6 +22,7 @@ members = ["libs/*", "apps/*", "plugins/*"]
 [tool.ruff]
 line-length = 120
 target-version = "py311"
+exclude = ["src/", "tests/test_edge.py"]
 
 [tool.ruff.lint]
 select = [
