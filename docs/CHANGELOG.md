@@ -8,6 +8,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+## [0.1.0] - 2026-02-20
+
+Phase 1: Spec Lifecycle. First functional delivery of the vizier-mcp MCP server: Pydantic models, 8-state spec state machine, and 6 MCP tools covering the full spec lifecycle from creation to completion.
+
+### Added
+
+- **Spec lifecycle tools** -- Six MCP tools allow agents to manage specs end-to-end without direct filesystem access: `spec_create` (create a spec in DRAFT), `spec_read` (retrieve spec contents and metadata), `spec_list` (list specs with optional status filter -- returns empty list, not error, when no matches), `spec_transition` (validate and execute a state change, returning `{"success": true}` on success or `{"success": false, "error": str}` with the invalid transition described), `spec_update` (modify mutable fields such as retry_count and assigned_agent while rejecting immutable fields with an error), and `spec_write_feedback` (write a JSON feedback file to `feedback/{timestamp}-{verdict}.json` for Quality Gate verdicts and rejection reasons).
+- **Pydantic models** -- `Spec`, `SpecStatus`, `SpecMetadata`, `SpecSummary`, `SpecFeedback`, `SpecTransitionRequest`, `SpecCreateRequest`, and `SpecUpdateRequest` provide strict validated types for all spec data. Serialisation uses `model_dump(mode="json")` so all values are JSON-safe.
+- **8-state spec state machine** -- States DRAFT, READY, IN_PROGRESS, REVIEW, REJECTED, DONE, STUCK, and INTERRUPTED with a `VALID_TRANSITIONS` dict that encodes every legal edge. Invalid transitions return a structured error naming both the current and target state. The `is_valid_transition` helper function is publicly importable for use in other tools.
+- **Atomic filesystem writes** -- All spec file writes and feedback file writes use a write-then-rename pattern (`tempfile.mkstemp` + `os.replace`) so a crash or power loss mid-write never leaves a partial file on disk. The temp file is cleaned up on error.
+- **YAML frontmatter spec format** -- Spec files are stored as `spec.md` with YAML frontmatter between `---` delimiters followed by optional Artifacts and Acceptance Criteria sections and a free-form body. Fully round-trips through parse and serialize without data loss.
+- **Spec ID format** -- Spec IDs are auto-assigned as `NNN-slug` (3-digit zero-padded sequential counter, hyphen, lower-cased title slug truncated to 40 characters). IDs are stable and unique within a project.
+- **ServerConfig** -- Pydantic model for MCP server configuration loaded via `load_config(path)`. Configures `vizier_root`, `projects_dir`, sentinel settings, file locking, startup recovery, and claim timeout. Falls back to defaults when no config file is present, reading `VIZIER_ROOT` from the environment.
+- **Unit and integration tests** -- Full test coverage of all six tools and all state machine transitions, including the happy path (DRAFT -> READY -> IN_PROGRESS -> REVIEW -> DONE), rejection loop (REJECTED -> READY -> IN_PROGRESS -> REVIEW -> DONE with retry_count increment), and error paths (non-existent spec, invalid transition, immutable field update).
+
+---
+
 - **Deployment phase added to implementation plan** -- Phase 6 covers Dockerfile, docker-compose.yml, CI/CD workflow updates, Azure Key Vault integration (D60), health endpoint, and docs/DEPLOYMENT.md setup guide.
 - **MVP Build Priority** (D80) -- Split 15 v1 tools into 11 MVP (Phase A) and 4 deferred-to-need (Phase B). Phase A: minimum to get first spec from DRAFT to DONE. Phase B: orch_scan_specs, orch_check_ready, orch_assign_worker, dag_check_dependencies -- build when multi-spec projects start. All 8 states preserved. D76-D79 decisions kept as design docs. Sentinel auto-promote set to false (Haiku 3-tier eval unchanged).
 - **Architecture simplification for v1** (D75) -- Reduced tool surface from 35+ to 15 tools across 5 groups, agent roles from 7 to 4 (Vizier, Pasha, Worker, QG). Scout, Architect, and Retrospective deferred to v2.

@@ -4,7 +4,7 @@
 
 | Phase | Name | Status | Tools |
 |-------|------|--------|-------|
-| 1 | Spec Lifecycle | Not Started | spec_create, spec_read, spec_list, spec_transition, spec_update, spec_write_feedback |
+| 1 | Spec Lifecycle | Complete | spec_create, spec_read, spec_list, spec_transition, spec_update, spec_write_feedback |
 | 2 | Sentinel | Not Started | sentinel_check_write, run_command_checked, web_fetch_checked |
 | 3 | Orchestration | Not Started | orch_write_ping, project_get_config |
 | 4 | Integration | Not Started | Wire FastMCP server, end-to-end test |
@@ -18,17 +18,17 @@
 **Goal:** Pydantic models for specs + 6 MCP tools implementing the spec state machine (8 states, all transitions).
 
 **Deliverables:**
-- [ ] Pydantic models: Spec, SpecStatus, SpecSummary, SpecFeedback, SpecTransition
-- [ ] State machine: 8 states (DRAFT, READY, IN_PROGRESS, REVIEW, REJECTED, DONE, STUCK, INTERRUPTED), valid transitions
-- [ ] spec_create: create spec in DRAFT state
-- [ ] spec_read: read spec contents and metadata
-- [ ] spec_list: list specs with optional status filter
-- [ ] spec_transition: validate and execute state transitions
-- [ ] spec_update: update mutable spec fields (retry count, assigned agent, etc.)
-- [ ] spec_write_feedback: write QG feedback or rejection reason
-- [ ] Filesystem I/O: atomic writes (os.replace), spec directory layout
-- [ ] Unit tests for all tools and state machine
-- [ ] Integration test: spec DRAFT -> READY -> IN_PROGRESS -> REVIEW -> DONE
+- [x] Pydantic models: Spec, SpecStatus, SpecSummary, SpecFeedback, SpecTransition
+- [x] State machine: 8 states (DRAFT, READY, IN_PROGRESS, REVIEW, REJECTED, DONE, STUCK, INTERRUPTED), valid transitions
+- [x] spec_create: create spec in DRAFT state
+- [x] spec_read: read spec contents and metadata
+- [x] spec_list: list specs with optional status filter
+- [x] spec_transition: validate and execute state transitions
+- [x] spec_update: update mutable spec fields (retry count, assigned agent, etc.)
+- [x] spec_write_feedback: write QG feedback or rejection reason
+- [x] Filesystem I/O: atomic writes (os.replace), spec directory layout
+- [x] Unit tests for all tools and state machine
+- [x] Integration test: spec DRAFT -> READY -> IN_PROGRESS -> REVIEW -> DONE
 
 **Acceptance Criteria:**
 - AC-1: spec_transition called with every valid transition from ARCHITECTURE.md section 10 returns {"success": true}. VALID_TRANSITIONS dict matches the 8-state diagram exactly.
