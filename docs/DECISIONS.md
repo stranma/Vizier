@@ -1476,3 +1476,35 @@ litellm.failure_callback = ["langfuse"]
 **Why:** Without stall detection, blocked specs accumulate silently. Pasha sees "not ready" but doesn't know if it's a temporary wait (dependency in progress) or a permanent stall (dependency STUCK). The `stall_reason` field makes this visible.
 
 **Trade-off:** Adds complexity to `orch_check_ready` return type. Acceptable because: dependency stalls are a real production scenario and silent stalls waste resources (Pasha keeps checking a spec that can never become ready).
+
+### D80: MVP Build Priority
+
+**Context:** After D75 (simplification) and D76-D79 (stress-test fixes), an external architecture review (Gemini) argued we should cut further: from 15 tools to ~9, from 8 states to 5, and defer D76/D77/D79 entirely. The core argument: "You have a Production v1 architecture when you should have a Technical MVP."
+
+**Analysis of feedback:**
+
+| Suggestion | Verdict | Why |
+|------------|---------|-----|
+| Drop Sentinel Learning (auto-promote) | AGREE | No usage data exists yet. Haiku 3-tier evaluation stays. Only the auto-promote-to-allowlist after N approvals is deferred. |
+| Drop Zombie Detection (D76) | PARTIALLY AGREE | Formal reaper logic is overkill for one-person-watching-the-screen. Keep decision documented, defer implementation. |
+| Drop IMPOSSIBLE ping (D77) | AGREE | BLOCKER + natural language message achieves the same result. Pasha (Opus) interprets "this spec is impossible because X" without a formal urgency enum. |
+| Drop DAG dependencies (D79) | AGREE | First 10+ specs will be linear (one at a time). No DAG needed. |
+| ~9 tools | TOO FEW | Forgets Pasha needs to scan specs and Workers need to ping back. Actual MVP minimum is 11. |
+| 5 states (no REJECTED/STUCK) | WRONG | QG WILL reject specs on day 1. Without REJECTED, there's no retry loop. Without STUCK, specs retry forever. INTERRUPTED needed for crash safety. All 8 states essential. |
+| "Delete 40% of code" | MISLEADING | There IS no code. D76-D79 are decision documents, not implementations. Cost of documented decisions is zero. Cost of not having them when needed is high. |
+
+**Decision:**
+
+1. **11 MVP tools (Phase A):** spec_create, spec_read, spec_list, spec_transition, spec_update, spec_write_feedback, sentinel_check_write, run_command_checked, web_fetch_checked, orch_write_ping, project_get_config. These are the minimum to get a spec from DRAFT to DONE.
+
+2. **4 deferred tools (Phase B):** orch_scan_specs (spec_list covers it), orch_check_ready (no dependencies for linear specs), orch_assign_worker (Pasha uses spec_transition directly), dag_check_dependencies (no DAG for linear specs). Build when multi-spec projects start.
+
+3. **All 8 states preserved.** REJECTED and STUCK are day-1 essential. INTERRUPTED is needed for crash safety.
+
+4. **D76-D79 decisions preserved as design docs.** They cost nothing to keep and will be needed when the system scales. Not deleting documented decisions.
+
+5. **Sentinel Learning set to false.** Haiku 3-tier evaluation (allowlist -> denylist -> Haiku) stays as-is. Auto-promote-to-allowlist deferred until usage data exists.
+
+**Why:** Build the minimum that lets the first spec go from DRAFT to DONE. Everything else is Phase B -- designed, documented, built when needed.
+
+**Trade-off:** Phase B tools will need implementation when multi-spec projects start. Acceptable because: the architecture is designed, the decisions are documented, and adding 4 tools later is straightforward.

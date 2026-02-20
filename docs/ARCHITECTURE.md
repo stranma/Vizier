@@ -10,7 +10,7 @@ Vizier is an autonomous multi-agent work system using the Ottoman court metaphor
 
 ### v1 Scope (D75)
 
-v1 delivers the first working end-to-end loop: Sultan gives task to Vizier, Vizier delegates to Pasha, Pasha assigns Worker, Worker implements, QG validates, result reported back. This requires **15 MCP tools** and **4 agent roles**.
+v1 delivers the first working end-to-end loop: Sultan gives task to Vizier, Vizier delegates to Pasha, Pasha assigns Worker, Worker implements, QG validates, result reported back. This requires **11 MVP tools** (Phase A) with **4 deferred tools** (Phase B, build when multi-spec projects start) and **4 agent roles**. See D80 for the MVP/extended split rationale.
 
 **v1 boundary:** If it doesn't block the first spec going from DRAFT to DONE, it's v2.
 
@@ -64,7 +64,7 @@ v2 adds to the topology: Scout (research sub-sessions), Architect (decomposition
 
 All Vizier domain logic is exposed as MCP tools via a **FastMCP** Python server. OpenClaw agents call these tools to interact with the spec lifecycle, Sentinel, orchestration, and project configuration.
 
-### 3.1 v1 Tool Groups (15 tools)
+### 3.1 MVP Tools (11 tools) -- Phase A (D80)
 
 #### Spec Lifecycle (6 tools)
 
@@ -85,21 +85,23 @@ All Vizier domain logic is exposed as MCP tools via a **FastMCP** Python server.
 | `run_command_checked` | Execute shell command after Sentinel validation (D67, D78) | project_id, command, agent_role | Three shapes: denied (`allowed: false, reason`), succeeded (`allowed: true, exit_code: 0, stdout, stderr`), failed (`allowed: true, exit_code: N, stdout, stderr`) |
 | `web_fetch_checked` | Fetch URL and scan content for injection (D67, D78) | url, agent_role | Three shapes: blocked (`safe: false, reason`), fetched (`safe: true, content, status_code`), fetch-failed (`safe: true, content, status_code: N, error`) |
 
-#### Orchestration (4 tools)
+#### Orchestration + Config (2 tools)
 
 | Tool | Description | Inputs | Returns |
 |------|-------------|--------|---------|
-| `orch_scan_specs` | Scan all specs and return actionable items | project_id | specs needing attention (by state) |
-| `orch_check_ready` | Check if a spec's dependencies are satisfied (D79) | spec_id | `ready: bool, blocking: list, stall_reason?: str`. Stall reason present when dependency is STUCK. |
-| `orch_assign_worker` | Claim a spec for a worker agent (D76) | spec_id, agent_session_id | Assignment confirmation. Sets `claimed_at` timestamp. Internally calls `orch_check_ready` as guard. |
 | `orch_write_ping` | Write a supervisor notification (D77) | spec_id, urgency, message | Urgency: QUESTION, BLOCKER, or IMPOSSIBLE. Ping file path. |
-
-#### DAG + Config (2 tools)
-
-| Tool | Description | Inputs | Returns |
-|------|-------------|--------|---------|
-| `dag_check_dependencies` | Check which specs are unblocked | project_id | list of unblocked spec IDs |
 | `project_get_config` | Get project configuration (write-set, criteria, etc.) | project_id | config object |
+
+### 3.1b v1 Extended Tools (4 tools) -- Phase B, build when multi-spec projects start (D80)
+
+These tools are fully designed (see D76, D79) but not needed for linear single-spec execution. `spec_list` with status filter covers scanning, and Pasha uses `spec_transition(IN_PROGRESS)` directly for assignment.
+
+| Tool | Description | MVP Workaround |
+|------|-------------|----------------|
+| `orch_scan_specs` | Scan all specs and return actionable items | `spec_list` with status filter |
+| `orch_check_ready` | Check if a spec's dependencies are satisfied (D79) | No dependencies for linear specs |
+| `orch_assign_worker` | Claim a spec for a worker agent (D76) | Pasha uses `spec_transition(IN_PROGRESS)` directly |
+| `dag_check_dependencies` | Check which specs are unblocked | No DAG for linear specs |
 
 ### 3.2 v2 Tools (Deferred)
 
@@ -139,7 +141,7 @@ projects_dir: /data/vizier/projects
 sentinel:
   default_policy: strict
   haiku_model: claude-haiku-4-5-20251001
-  sentinel_learning: true           # Auto-promote after N Haiku approvals (D75)
+  sentinel_learning: false          # Haiku 3-tier eval stays; auto-promote deferred until usage data exists (D80)
   learning_threshold: 3
 file_locking: true                   # fcntl/msvcrt locks on spec writes (D75)
 startup_recovery: true               # Scan for orphaned IN_PROGRESS specs on startup (D76)
@@ -180,7 +182,7 @@ All agents are **OpenClaw sessions**. Their behavior is defined by SOUL.md files
 
 **Tools available:**
 - OpenClaw native: web_search, browser, file tools, memory, sessions_spawn, sessions_send, sessions_list
-- Vizier MCP: spec_create, spec_list, orch_scan_specs, project_get_config
+- Vizier MCP: spec_create, spec_list, project_get_config
 
 **SOUL.md sketch:**
 ```markdown
@@ -233,7 +235,8 @@ When the Sultan gives you a task:
 
 **Tools available:**
 - OpenClaw native: sessions_spawn, sessions_send, sessions_list
-- Vizier MCP: spec_read, spec_list, spec_transition, spec_update, orch_scan_specs, orch_check_ready, orch_assign_worker, orch_write_ping, dag_check_dependencies, project_get_config
+- Vizier MCP (MVP): spec_read, spec_list, spec_transition, spec_update, orch_write_ping, project_get_config
+  - Phase B additions: orch_scan_specs, orch_check_ready, orch_assign_worker, dag_check_dependencies
 
 **SOUL.md sketch:**
 ```markdown
@@ -883,6 +886,29 @@ Sentinel: 3 learned patterns, 0 denials today
 ```
 
 Implementation deferred to coding phase.
+
+### 12.4 MVP Implementation Order (D80)
+
+Phase A (MVP -- 11 tools) is the minimum to get the first spec from DRAFT to DONE. Phase B adds orchestration tools when multi-spec projects start.
+
+**Phase A -- implement first:**
+
+| # | Phase | Tools | Tests |
+|---|-------|-------|-------|
+| 1 | Spec lifecycle | spec_create, spec_read, spec_list, spec_transition, spec_update, spec_write_feedback | State machine, CRUD, feedback writes |
+| 2 | Sentinel | sentinel_check_write, run_command_checked, web_fetch_checked | Policy eval, command validation, content scanning |
+| 3 | Orchestration | orch_write_ping, project_get_config | Ping writes, config reads |
+| 4 | Integration | Wire FastMCP server, end-to-end test | DRAFT -> DONE with all 11 tools |
+| 5 | OpenClaw connection | SOUL.md tuning, real agent test | Real LLM validation |
+
+**Phase B -- build when needed:**
+
+| Tool | Trigger |
+|------|---------|
+| orch_scan_specs | When `spec_list` with status filter becomes insufficient |
+| orch_check_ready | When specs have dependency relationships |
+| orch_assign_worker | When concurrent workers need claim semantics |
+| dag_check_dependencies | When specs have dependency graphs |
 
 ### 12.3 v2 Feature Roadmap
 
