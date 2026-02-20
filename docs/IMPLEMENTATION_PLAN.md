@@ -31,11 +31,20 @@
 - [ ] Integration test: spec DRAFT -> READY -> IN_PROGRESS -> REVIEW -> DONE
 
 **Acceptance Criteria:**
-- All 8 states and valid transitions enforced
-- Invalid transitions return clear error messages
-- Atomic writes prevent corruption on crash
-- spec_list filters by status correctly
-- spec_write_feedback creates structured feedback files
+- AC-1: spec_transition called with every valid transition from ARCHITECTURE.md section 10 returns {"success": true}. VALID_TRANSITIONS dict matches the 8-state diagram exactly.
+- AC-2: spec_transition called with any invalid (from, to) pair returns {"success": false, "error": str} where the error contains the from_status and to_status values.
+- AC-3: All spec file writes use write-then-rename (os.replace via tempfile). Verified by source inspection and tests confirming atomic behavior.
+- AC-4: spec_list(project_id, status_filter="READY") returns only READY specs. status_filter=None returns all. No matching specs returns empty list (not error).
+- AC-5: spec_write_feedback writes a JSON file to feedback/{timestamp}-{verdict}.json containing spec_id, verdict, feedback, reviewer, created_at. File is loadable by SpecFeedback model.
+- AC-6: spec_create creates a spec in DRAFT state, assigns a unique spec_id (NNN-slug format), creates spec.md at the correct path, returns spec_id.
+- AC-7: spec_read for existing spec returns Spec dict with correct metadata and body. Non-existent spec_id returns {"error": str} (not exception).
+- AC-8: Integration happy path: DRAFT -> READY -> IN_PROGRESS -> REVIEW -> DONE using 6 tools in one test. Spec file on disk reflects status after each transition.
+- AC-9: Integration rejection loop: REJECTED -> feedback -> READY -> IN_PROGRESS -> REVIEW -> DONE. Feedback file present on disk. retry_count incremented.
+- AC-10: spec_update modifies mutable fields (retry_count, assigned_agent) and rejects immutable fields with error. Non-existent spec returns error.
+
+**PIRR Acknowledgments (WARN items):**
+- Spec-Plan Alignment WARN: All deliverables now have covering criteria (AC-1 through AC-10).
+- Architectural Decision Coverage WARN: Spec ID format is NNN-slug (auto-incremented, 3-digit zero-padded). File locking deferred to Phase 4 server wiring. Feedback files are JSON with SpecFeedback schema. Spec files use YAML frontmatter between --- delimiters.
 
 ### Phase Completion Steps
 
