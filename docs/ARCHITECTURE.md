@@ -82,17 +82,17 @@ All Vizier domain logic is exposed as MCP tools via a **FastMCP** Python server.
 | Tool | Description | Inputs | Returns |
 |------|-------------|--------|---------|
 | `sentinel_check_write` | Validate file write against project write-set | project_id, file_path, agent_role | allow/deny with reason |
-| `run_command_checked` | Execute shell command after Sentinel validation (D67) | project_id, command, agent_role | allow/deny + output + exit_code |
-| `web_fetch_checked` | Fetch URL and scan content for injection (D67) | url, agent_role | safe/content or suspicious/reason |
+| `run_command_checked` | Execute shell command after Sentinel validation (D67, D78) | project_id, command, agent_role | Three shapes: denied (`allowed: false, reason`), succeeded (`allowed: true, exit_code: 0, stdout, stderr`), failed (`allowed: true, exit_code: N, stdout, stderr`) |
+| `web_fetch_checked` | Fetch URL and scan content for injection (D67, D78) | url, agent_role | Three shapes: blocked (`safe: false, reason`), fetched (`safe: true, content, status_code`), fetch-failed (`safe: true, content, status_code: N, error`) |
 
 #### Orchestration (4 tools)
 
 | Tool | Description | Inputs | Returns |
 |------|-------------|--------|---------|
 | `orch_scan_specs` | Scan all specs and return actionable items | project_id | specs needing attention (by state) |
-| `orch_check_ready` | Check if a spec's dependencies are satisfied | spec_id | ready/blocked with blocking spec IDs |
-| `orch_assign_worker` | Claim a spec for a worker agent | spec_id, agent_session_id | assignment confirmation |
-| `orch_write_ping` | Write a supervisor notification | spec_id, urgency, message | ping file path |
+| `orch_check_ready` | Check if a spec's dependencies are satisfied (D79) | spec_id | `ready: bool, blocking: list, stall_reason?: str`. Stall reason present when dependency is STUCK. |
+| `orch_assign_worker` | Claim a spec for a worker agent (D76) | spec_id, agent_session_id | Assignment confirmation. Sets `claimed_at` timestamp. Internally calls `orch_check_ready` as guard. |
+| `orch_write_ping` | Write a supervisor notification (D77) | spec_id, urgency, message | Urgency: QUESTION, BLOCKER, or IMPOSSIBLE. Ping file path. |
 
 #### DAG + Config (2 tools)
 
@@ -142,6 +142,8 @@ sentinel:
   sentinel_learning: true           # Auto-promote after N Haiku approvals (D75)
   learning_threshold: 3
 file_locking: true                   # fcntl/msvcrt locks on spec writes (D75)
+startup_recovery: true               # Scan for orphaned IN_PROGRESS specs on startup (D76)
+claim_timeout: 30                    # Minutes before IN_PROGRESS spec is treated as zombie (D76)
 ```
 
 ### 3.4 Filesystem Layout (Managed by MCP Server)
@@ -252,6 +254,26 @@ When Vizier sends you a task:
 - Retry 1-3: Normal retry with QG feedback included in Worker spawn context
 - Retry 4+: Mark STUCK (spec_transition), escalate to Vizier via sessions_send
 
+## Zombie Detection (D76)
+On activation, check all IN_PROGRESS specs. If time_in_state > claim_timeout
+(default 30min), treat as zombie: transition INTERRUPTED -> READY.
+This counts as a retry (prevents infinite zombie loops).
+
+## Handling IMPOSSIBLE Pings (D77)
+If a Worker sends orch_write_ping(urgency=IMPOSSIBLE), the spec is defective.
+Transition to STUCK with reason: spec_defect. Escalate to Vizier.
+Do NOT count as a retry attempt.
+
+## Dependency Stalls (D79)
+When orch_check_ready returns stall_reason: "dependency_stuck", the spec
+cannot proceed. Escalate to Vizier: "spec X blocked because dep Y is STUCK."
+
+## QG/Worker Disagreement
+If Worker sends a QUESTION ping disagreeing with QG feedback, evaluate:
+- Let retry proceed if Worker's reasoning is weak
+- Mark STUCK and escalate if disagreement persists after retry 4+
+Worker must attempt QG feedback regardless of disagreement.
+
 ## Reporting
 Report all status changes to Vizier via sessions_send.
 Never message the Sultan directly -- the Vizier handles all Sultan communication.
@@ -294,19 +316,29 @@ You receive a spec ID. Read it, implement it, transition to REVIEW.
    and type checker via run_command_checked. Fix any failures.
 6. When all checks pass, transition spec to REVIEW (spec_transition)
 
-## Command Execution
+## Command Execution (D78)
 All shell commands go through run_command_checked(project_id, command, "worker").
 You cannot run commands directly -- Sentinel validates every command.
+Three possible outcomes:
+- Denied (allowed: false): Sentinel blocked it. Try alternative approach or escalate.
+- Succeeded (exit_code: 0): Continue.
+- Failed (exit_code != 0): Interpret stderr, fix the issue, and retry.
+You own cleanup: if a command breaks the build, fix it before REVIEW.
 
 ## Web Access
 All URL fetches go through web_fetch_checked(url, "worker").
 Content is scanned for prompt injection before you see it.
+
+## Context Bridge (D77)
+You may READ any file for context: parent specs, sibling specs, feedback
+from other specs, learnings.md. Reading is never restricted by Sentinel.
 
 ## Rules
 - Write ONLY files listed in the spec's artifact list
 - You may READ any file for context (bounded exploration)
 - If blocked, ping your supervisor (orch_write_ping) with urgency QUESTION
 - If fundamentally stuck, ping with urgency BLOCKER
+- If spec itself is defective (impossible, contradictory), ping with urgency IMPOSSIBLE (D77)
 - Do not loop on the same failing approach -- escalate
 ```
 
@@ -410,6 +442,12 @@ role_permissions:
 | **Ambiguous** | Haiku evaluation | ~$0.001 | Unfamiliar bash command, indirect invocation |
 
 The MCP server handles all three tiers internally. `run_command_checked` combines Sentinel validation and command execution in a single call. `web_fetch_checked` combines content scanning and fetch. Both are enforced at the OpenClaw tool policy level (see section 5.4).
+
+**Error contract (D78):** Both tools distinguish between policy denial and execution failure:
+- `run_command_checked`: denied (`allowed: false, reason`) vs succeeded/failed (`allowed: true, exit_code, stdout, stderr`)
+- `web_fetch_checked`: blocked (`safe: false, reason`) vs fetched/failed (`safe: true, content, status_code`)
+
+**Undo ownership (D78):** Workers own cleanup of their own damage. If a command succeeds but breaks the build, the Worker must fix it before REVIEW. The Quality Gate validates the build is green but does NOT perform rollbacks.
 
 ### 5.3 Haiku Fallback
 
@@ -549,11 +587,11 @@ Mapping old decisions (D1-D74) to the new architecture. Each is **KEPT**, **MODI
 | D18 | Least privilege per role | Now enforced via per-project Sentinel MCP |
 | D19 | Sentinel -- deterministic + Haiku hybrid | Now exposed as MCP tools |
 | D21 | Vizier stays monolithic and powerful | Same philosophy, OpenClaw session |
-| D22 | Reconciliation -- events as optimization, disk as truth | MCP server scans filesystem |
+| D22 | Reconciliation -- events as optimization, disk as truth | MCP server scans filesystem. D76 adds explicit statelessness requirement + startup recovery. |
 | D23 | Workers get bounded read-only exploration | Unchanged |
 | D24 | Permission enforcement: allowlist + denylist + Haiku | Now via MCP Sentinel tools |
 | D26 | Retrospective always requires human approval | Unchanged (v2) |
-| D29 | Completion signal, criteria versioning, graceful shutdown | Unchanged |
+| D29 | Completion signal, criteria versioning, graceful shutdown | D76 adds startup scan trigger for INTERRUPTED state |
 | D40 | Atomic writes via os.replace() | MCP server uses atomic writes |
 | D44 | Progressive autonomy rollout | Unchanged |
 | D46 | Agent System Reset | Already executed; this is the second reset |
@@ -752,14 +790,16 @@ DRAFT --> READY --> IN_PROGRESS --> REVIEW --> DONE
 
 v1 valid transitions (enforced by MCP server):
 - DRAFT -> READY (Pasha reviews and promotes)
-- READY -> IN_PROGRESS (Worker claims)
+- READY -> IN_PROGRESS (Worker claims; sets `claimed_at` timestamp, D76)
 - IN_PROGRESS -> REVIEW (Worker completes)
-- IN_PROGRESS -> INTERRUPTED (graceful shutdown)
-- INTERRUPTED -> READY (restart re-queues)
+- IN_PROGRESS -> INTERRUPTED (graceful shutdown OR zombie detection, D76)
+- INTERRUPTED -> READY (restart re-queues; zombie recovery counts as retry)
 - REVIEW -> DONE (QG accepts)
 - REVIEW -> REJECTED (QG rejects)
 - REJECTED -> READY (retry)
-- READY -> STUCK (retry 4+ exhausted)
+- READY -> STUCK (retry 4+ exhausted, OR IMPOSSIBLE ping from Worker, D77)
+
+**Crash recovery (D76):** On MCP server startup, all IN_PROGRESS specs with no live OpenClaw session transition to INTERRUPTED. Pasha recovers them to READY on next activation. Specs with `time_in_state > claim_timeout` are treated as zombies during Pasha activation.
 
 ### v2 State Machine
 
@@ -828,12 +868,29 @@ All automated tests mock LLM calls. The MCP server's Sentinel Haiku calls are mo
 
 **Status:** Not yet integrated. Adopt after core MCP tools are implemented and real usage patterns are established.
 
-### 12.2 v2 Feature Roadmap
+### 12.2 vizier-status Command
+
+A CLI command that reads the `vizier_root` filesystem and prints a human-readable summary of the court's health. Pure filesystem reads, no MCP server dependency. Target: <100ms execution.
+
+```
+Vizier Court Status (project: my-app)
+======================================
+Specs:  2 READY  1 IN_PROGRESS  0 REVIEW  1 STUCK  3 DONE
+Active: Worker on spec-007 (claimed 12m ago)
+Stuck:  spec-004 (reason: spec_defect, 2h ago)
+Last:   spec-006 -> DONE (45m ago)
+Sentinel: 3 learned patterns, 0 denials today
+```
+
+Implementation deferred to coding phase.
+
+### 12.3 v2 Feature Roadmap
 
 After v1 delivers a working end-to-end loop, these features can be added incrementally:
 
 | Feature | Agent/Tool | Purpose |
 |---------|-----------|---------|
+| CANCELLED state | New terminal state | Sultan-initiated cancellation of specs/projects. Any non-terminal -> CANCELLED. Vizier-initiated only. Dependency cascade evaluated by Pasha. |
 | Scout agent | Scout + SCOUTED state | Prior art research before implementation |
 | Architect agent | Architect + DECOMPOSED state | Task decomposition with dependency DAG |
 | Retrospective agent | Retrospective + learnings.md | Failure analysis, meta-improvement |
@@ -845,6 +902,7 @@ After v1 delivers a working end-to-end loop, these features can be added increme
 | Learnings injection | get_relevant_learnings | Keyword-matched learnings for agent spawn context |
 | Agent behavior evals | test_agent_evals.py | SOUL.md behavioral contract tests |
 | Graduated retry v2 | 5 levels (model bump, re-decompose) | Finer-grained retry strategy |
+| QG/Worker arbitration | Pasha override of QG verdict | Accept spec despite QG rejection when Pasha judges feedback is wrong |
 
 ---
 

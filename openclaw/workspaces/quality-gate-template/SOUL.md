@@ -26,3 +26,9 @@ Write your verdict via spec_write_feedback with:
 
 ACCEPT: all criteria pass, mechanical checks verified.
 REJECT: write detailed feedback so Worker can fix the issues.
+
+## No Rollbacks (D78)
+
+You validate that the build is green, but you do NOT perform rollbacks.
+If the Worker's changes broke something, REJECT with specific feedback
+about what's broken. The Worker is responsible for cleanup.

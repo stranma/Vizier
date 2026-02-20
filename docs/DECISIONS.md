@@ -1387,3 +1387,92 @@ litellm.failure_callback = ["langfuse"]
 **Preserved unchanged:** D67 (Sentinel enforcement via tool policy), D71 (dynamic pipeline selection -- simplified for v1 to Worker-only or escalate), D73 (context management for persistent agents).
 
 **Trade-off:** v1 lacks the full pipeline (no Scout research, no Architect decomposition, no Retrospective learning loop). Pasha must handle decomposition directly or push it to Workers. This limits complexity of tasks v1 can handle. Acceptable because: getting the basic loop working validates the entire architecture, and v2 features can be added incrementally.
+
+---
+
+### D76: Crash Recovery & Zombie Detection
+
+**Context:** If the MCP server restarts or a Worker session dies mid-task, specs can remain permanently IN_PROGRESS with no agent working on them. The existing INTERRUPTED state (D29) and atomic writes (D40) provide basic crash safety, but there is no specified startup recovery sequence, no zombie detection threshold, and no claim expiration mechanism.
+
+**Decision:**
+
+1. **MCP startup scan.** On server startup, scan all specs across all projects. Any spec in IN_PROGRESS with no live OpenClaw session transitions to INTERRUPTED. INTERRUPTED specs become READY on next Pasha activation.
+
+2. **Claim timeout.** `orch_assign_worker` sets a `claimed_at` timestamp on the spec. If `time_in_state` exceeds `claim_timeout` (default 30 minutes, configurable per project via project config), Pasha treats the spec as a zombie on its next activation.
+
+3. **Zombie recovery.** Pasha transitions zombie specs: IN_PROGRESS -> INTERRUPTED -> READY. This counts as a retry attempt (increments retry counter), preventing infinite zombie loops from escalating to STUCK at retry 4+.
+
+4. **MCP server is stateless.** The server reads everything from disk on each tool call. No in-memory state survives restart. This was implied by D22 ("disk is truth") but is now explicitly required: the server must not cache spec state between requests.
+
+**Modifies:** D29 (INTERRUPTED -- adds startup scan trigger), D22 (reconciliation -- adds explicit statelessness requirement).
+
+**Why:** Without startup recovery, a server restart during active work silently orphans specs. Without claim timeout, a crashed Worker session leaves specs locked forever. Both are inevitable in production.
+
+**Trade-off:** Zombie detection counts as a retry, so a spec that zombies 4 times will STUCK even if the problem was infrastructure, not the spec. Acceptable because: infrastructure instability causing 4 consecutive session deaths is itself a problem worth escalating.
+
+---
+
+### D77: Worker Escape Hatch (IMPOSSIBLE Signal)
+
+**Context:** A Worker discovers a spec is fundamentally impossible -- not "hard to implement" but "logically contradictory," "references non-existent APIs," or "acceptance criteria conflict." The existing BLOCKER ping (orch_write_ping) doesn't distinguish "I need help" from "the spec itself is wrong." Without this distinction, the Worker enters a graduated retry loop that wastes tokens on an unfixable spec.
+
+**Decision:**
+
+1. **New ping urgency: IMPOSSIBLE.** Added alongside existing QUESTION and BLOCKER urgencies. Semantics: "the spec itself is defective, not the implementation."
+
+2. **Worker protocol.** Worker calls `orch_write_ping(urgency=IMPOSSIBLE, message="[specific reason spec is wrong]")`. Worker does NOT continue implementation or enter retry -- it waits for Pasha's response.
+
+3. **Pasha response.** On receiving an IMPOSSIBLE ping, Pasha transitions the spec to STUCK with `reason: spec_defect`. Escalates to Vizier with the Worker's reasoning. This does NOT count as a retry attempt (the spec is defective, not the implementation).
+
+4. **Context bridge.** Worker MAY read any file in the project for context. This explicitly includes parent specs, sibling specs, and feedback from other specs. Reading is never a contamination risk; only writing is controlled by Sentinel. This was already implied by "bounded exploration" but is now explicitly stated.
+
+**Why:** Without an escape hatch, a Worker stuck on a defective spec burns through 3 retries before hitting STUCK, wasting tokens and time. IMPOSSIBLE allows immediate escalation with preserved reasoning.
+
+**Trade-off:** A Worker might incorrectly classify a difficult spec as IMPOSSIBLE. Acceptable because: Pasha (Opus-tier) evaluates the reasoning and can override (reassign the spec). False IMPOSSIBLE is cheaper than false retries.
+
+---
+
+### D78: Sentinel Error Contract
+
+**Context:** `run_command_checked` currently conflates "Sentinel blocked it" with "command ran but failed." The return type documentation shows `{"allowed": bool, "output": str, "exit_code": int}` on success and denial reason on block, but doesn't clearly separate the three possible outcomes. Workers can't distinguish a policy denial from an environment failure (network error, missing binary, permission denied).
+
+**Decision:**
+
+1. **Three return shapes.** `run_command_checked` returns one of:
+   - **Denied:** `{"allowed": false, "reason": str}` -- Sentinel policy blocked the command
+   - **Succeeded:** `{"allowed": true, "exit_code": 0, "stdout": str, "stderr": str}` -- command ran and exited cleanly
+   - **Failed:** `{"allowed": true, "exit_code": N, "stdout": str, "stderr": str}` -- command ran but exited with error
+
+2. **Worker responsibility.** Worker interprets exit codes. Non-zero exit code means Worker decides: fix the cause and retry the command, try an alternative approach, or escalate via ping.
+
+3. **Undo ownership.** Worker owns cleanup of its own damage. If a command succeeds but breaks the build (e.g., `npm install` adds a bad dependency), Worker must fix it before transitioning to REVIEW. Quality Gate validates the build is green but does NOT perform rollbacks.
+
+4. **Environment failures.** Network errors, missing binaries, permission issues all surface as non-zero exit codes with stderr output. Worker handles them like any other command failure. The Sentinel is not "environment aware" -- it validates policy, not execution environment.
+
+**Impact:** Update `run_command_checked` stub docstring to show three return shapes with `stdout` and `stderr` fields. Update `web_fetch_checked` similarly: `{"safe": false, "reason": str}` (injection detected) vs `{"safe": true, "content": str, "status_code": int}` (clean fetch) vs `{"safe": true, "content": str, "status_code": N, "error": str}` (fetch failed).
+
+**Why:** Clear error semantics let Workers make intelligent decisions (retry on transient failure, escalate on policy denial, fix on build break). Ambiguous returns force Workers to guess.
+
+**Trade-off:** Slightly more complex return type parsing for Workers. Acceptable because: Workers are LLM agents that handle structured JSON naturally.
+
+---
+
+### D79: Dependency Stall Prevention
+
+**Context:** Spec C depends on specs A and B. A passes QG and reaches DONE. B is REJECTED by QG and enters retry. The current `orch_check_ready` returns `{"ready": false, "blocking": ["spec-B"]}` but doesn't indicate WHY B is blocking (is it just in progress, or has it failed?). If B eventually reaches STUCK, spec C is stalled indefinitely with no visibility into the root cause.
+
+**Decision:**
+
+1. **Terminal success required.** A dependency is "satisfied" only when the dependency spec reaches DONE. All other states (DRAFT, READY, IN_PROGRESS, REVIEW, REJECTED, STUCK, INTERRUPTED) count as "not satisfied."
+
+2. **Stall detection.** If a blocking dependency is in a terminal failure state (STUCK) or otherwise unresolvable, `orch_check_ready` returns an enriched response: `{"ready": false, "blocking": ["spec-B"], "stall_reason": "dependency_stuck"}`. Without a stall, the response is just `{"ready": false, "blocking": ["spec-B"]}`.
+
+3. **Pasha stall handling.** When Pasha sees `stall_reason` in the response, it evaluates the stalled dependency:
+   - Dependency STUCK: escalate to Vizier with context ("spec C blocked because dependency B is STUCK")
+   - Vizier decides: re-scope C, re-attempt B, or mark C as STUCK too
+
+4. **No premature triggering.** `orch_assign_worker` must internally call `orch_check_ready` as a guard before assigning. Worker is never spawned for a spec with unsatisfied dependencies, even if Pasha explicitly requests assignment.
+
+**Why:** Without stall detection, blocked specs accumulate silently. Pasha sees "not ready" but doesn't know if it's a temporary wait (dependency in progress) or a permanent stall (dependency STUCK). The `stall_reason` field makes this visible.
+
+**Trade-off:** Adds complexity to `orch_check_ready` return type. Acceptable because: dependency stalls are a real production scenario and silent stalls waste resources (Pasha keeps checking a spec that can never become ready).

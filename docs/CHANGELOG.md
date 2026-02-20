@@ -13,6 +13,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Pasha trigger model** (D75) -- Vizier-initiated activation replaces autonomous polling. Eliminates expensive Opus-as-doorbell-watcher pattern.
 - **Sentinel Learning** (D75) -- After 3 Haiku approvals for the same command pattern in a project, auto-promote to allowlist. Stored in sentinel_learned.yaml.
 - **project_get_config tool** (D75) -- Single config tool replaces 5 plugin_get_* tools. Returns project type, language, test/lint commands.
+- **Crash recovery & zombie detection** (D76) -- MCP startup scan transitions orphaned IN_PROGRESS specs to INTERRUPTED. Claim timeout (default 30min) detects zombie Workers. Zombie recovery counts as retry.
+- **Worker IMPOSSIBLE signal** (D77) -- New ping urgency for defective specs. Worker signals "spec is wrong" without entering retry loop. Pasha escalates to Vizier as spec_defect.
+- **Sentinel error contract** (D78) -- run_command_checked returns three shapes: denied, succeeded (exit_code 0), failed (exit_code N). stdout/stderr split. Worker owns cleanup. QG does not rollback.
+- **Dependency stall prevention** (D79) -- orch_check_ready returns stall_reason when dependency is STUCK. orch_assign_worker guards against unsatisfied dependencies. Pasha escalates stalls to Vizier.
+- **vizier-status command spec** -- CLI command reading vizier_root for human-readable court health summary. Documented for implementation during coding phase.
 
 ### Changed
 
@@ -20,7 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Spec state machine simplified** (D75) -- v1 removes SCOUTED and DECOMPOSED states. DRAFT transitions directly to READY. Full state machine preserved for v2.
 - **Worker self-verification** (D75) -- Uses run_command_checked directly instead of dedicated verify_tests/verify_lint/verify_types tools. Workers read learnings.md at task start.
 - **Quality Gate simplified** (D75) -- Verdicts via spec_write_feedback only. Evidence system deferred to v2.
-- **SOUL.md files updated** -- Vizier (One Voice + delegation), Pasha (trigger model + 2-level retry), Worker (run_command_checked + learnings.md), QG (inline verdicts)
+- **SOUL.md files updated** -- Vizier (One Voice + delegation), Pasha (trigger model + 2-level retry + zombie detection + IMPOSSIBLE handling + dependency stalls + QG/Worker arbitration), Worker (run_command_checked error handling + IMPOSSIBLE signal + context bridge), QG (inline verdicts + no-rollback policy)
 - **openclaw.json updated** -- Pasha trigger config, spawned agent templates (worker/QG with Sonnet), one_voice_policy section
 
 ### Removed
