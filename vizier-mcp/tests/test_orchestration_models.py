@@ -41,12 +41,12 @@ class TestPingMessage:
         assert isinstance(ping.created_at, datetime)
 
     def test_urgency_from_string(self) -> None:
-        ping = PingMessage(spec_id="001-auth", urgency="BLOCKER", message="blocked")
+        ping = PingMessage(spec_id="001-auth", urgency="BLOCKER", message="blocked")  # type: ignore[arg-type]
         assert ping.urgency == PingUrgency.BLOCKER
 
     def test_invalid_urgency_rejected(self) -> None:
         with pytest.raises(ValidationError):
-            PingMessage(spec_id="001-auth", urgency="CRITICAL", message="not valid")
+            PingMessage(spec_id="001-auth", urgency="CRITICAL", message="not valid")  # type: ignore[arg-type]
 
     def test_created_at_default(self) -> None:
         before = datetime.now(UTC)
