@@ -120,8 +120,10 @@ jobs:
             ls -la openclaw/config/openclaw.json || { echo "ERROR: OpenClaw config file missing after SCP"; exit 1; }
             ls -d openclaw/workspaces/vizier openclaw/workspaces/worker-template || { echo "ERROR: OpenClaw workspace dirs missing after SCP"; exit 1; }
             docker compose up -d --force-recreate 2>&1 || { echo "docker compose up failed"; docker compose logs; exit 1; }
-            echo "Fixing OpenClaw homedir ownership (Docker creates it as root)..."
-            docker exec -u root openclaw chown node:node /home/node/.openclaw 2>/dev/null || true
+            echo "Injecting OpenClaw config (docker cp, not bind mount, to allow atomic writes)..."
+            docker exec -u root openclaw chown node:node /home/node/.openclaw
+            docker cp openclaw/config/openclaw.json openclaw:/home/node/.openclaw/openclaw.json
+            docker exec -u root openclaw chown node:node /home/node/.openclaw/openclaw.json
             docker compose restart openclaw
             sleep 3
             echo "Container status:"
