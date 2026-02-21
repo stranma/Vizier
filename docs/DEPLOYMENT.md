@@ -127,11 +127,24 @@ For production deployments, secrets can be read from Azure Key Vault instead of 
 
 ### Secret Mapping
 
-| Env Variable | Key Vault Secret Name |
-|---|---|
-| `ANTHROPIC_API_KEY` | `anthropic-api-key` |
+| Env Variable | Key Vault Secret Name | Used By |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | `anthropic-api-key` | vizier-mcp (Sentinel Haiku), OpenClaw (agent LLM) |
+| `TELEGRAM_BOT_TOKEN` | `telegram-bot-token` | OpenClaw (Telegram channel) |
 
-When `AZURE_KEY_VAULT_URL` is set, the server tries Key Vault first, then falls back to env vars.
+The vizier-mcp container reads Key Vault directly via Python (`secrets.py`).
+OpenClaw reads secrets from environment variables only. The deploy pipeline
+runs `scripts/fetch-secrets.sh` to pull secrets from Key Vault into `.env`
+before `docker compose up`, so both containers get the values they need.
+
+To run the fetch manually:
+
+```bash
+cd /opt/vizier
+bash scripts/fetch-secrets.sh .env
+```
+
+Requires Azure CLI (`az`) with an active login or VM Managed Identity.
 
 ## 6. Volume Mounts
 
