@@ -8,6 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+## [0.6.0] - 2026-02-21
+
+Phase 6: Deployment & Operations. The Vizier MCP server is now production-deployable via Docker with an HTTP health endpoint, Azure Key Vault secret management, a `python -m vizier_mcp` entry point, and a complete operations guide.
+
+### Added
+
+- **Health endpoint** -- `GET /health` on port 8080 (configurable via `HEALTH_PORT`) returns `{"status": "ok", "version": str, "tool_count": int}` as JSON. Operators and load balancers can verify the server is running and how many tools are registered without making an MCP connection. The endpoint starts automatically when running inside Docker (detected via `/.dockerenv`) or when `HEALTH_PORT` is set.
+- **`python -m vizier_mcp` entry point** -- `vizier_mcp/__main__.py` starts the MCP server with structured logging. When the health endpoint is enabled, it runs alongside the MCP server in the same asyncio event loop and shuts down cleanly on SIGINT/SIGTERM. When the health endpoint is not enabled, the server starts in stdio transport mode for direct OpenClaw connection.
+- **Dockerfile** -- Multi-stage build (`base -> deps -> app`) using Python 3.11-slim and uv. The `deps` stage is cached separately from application code so dependency reinstalls only happen when `pyproject.toml` changes. Built image exposes port 8080, mounts `/data/vizier` as a persistent volume, and includes a Docker HEALTHCHECK that polls `GET /health` every 10 seconds.
+- **docker-compose.yml** -- Single `vizier-mcp` service with named volume (`vizier-data:/data/vizier`), env-file passthrough, and a compose-level healthcheck mirroring the Dockerfile check. `docker compose up` is sufficient to start the server and begin receiving health checks.
+- **.env.example** -- Template for local development environment variables: `ANTHROPIC_API_KEY` (required for Sentinel Haiku evaluator), `VIZIER_ROOT` (optional data directory override), `HEALTH_PORT` (optional health endpoint port), and `AZURE_KEY_VAULT_URL` (optional Key Vault URL for production).
+- **Azure Key Vault integration** -- `vizier_mcp/secrets.py` provides a `get_secret(env_var)` function that checks `AZURE_KEY_VAULT_URL` first. When set, it authenticates via `DefaultAzureCredential` (supports managed identity, service principal, and developer workstation auth) and retrieves the secret by its Key Vault name. Falls back to the environment variable transparently when the vault URL is absent, a secret is missing, or the Azure packages are not installed. Local development workflows require no Azure configuration.
+- **publish.yml CI/CD fix** -- `.github/workflows/publish.yml` now correctly resolves the `vizier-mcp/` package directory for both manual dispatch (`workflow_dispatch` with package input) and release-tag-triggered builds (extracts package name from tag format `vizier-mcp-vX.Y.Z`). Previous workflow referenced incorrect legacy paths.
+- **docs/DEPLOYMENT.md** -- Operations guide covering: local development (stdio transport, optional health endpoint), Docker quick start, volume design, environment variable reference, Azure Key Vault setup (managed identity and service principal), CI/CD publish workflow, OpenClaw integration, and health monitoring.
+
 ## [0.5.0] - 2026-02-21
 
 Phase 5: OpenClaw Connection. SOUL.md files validated and updated for the 11 MVP tools, OpenClaw configuration aligned with MCP server, and setup documentation written.
