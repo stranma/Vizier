@@ -59,11 +59,15 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Fetch secrets from Key Vault
-        uses: Azure/get-keyvault-secrets@v1
-        with:
-          keyvault: vizier
-          secrets: "anthropic-api-key, telegram-bot-token, telegram-sultan-chat-id"
+        uses: Azure/cli@v2
         id: keyvault
+        with:
+          inlineScript: |
+            for secret in anthropic-api-key telegram-bot-token telegram-sultan-chat-id; do
+              value=$(az keyvault secret show --vault-name vizier --name "$secret" --query value -o tsv)
+              echo "::add-mask::$value"
+              echo "${secret}=${value}" >> "$GITHUB_OUTPUT"
+            done
 
       - name: Copy config files to server
         uses: appleboy/scp-action@v0.1.7
