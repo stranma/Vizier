@@ -100,7 +100,9 @@ is fully operational.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `ANTHROPIC_API_KEY` | Yes | -- | Anthropic API key for Sentinel Haiku evaluator |
+| `ANTHROPIC_API_KEY` | Yes | -- | Anthropic API key for Sentinel Haiku and OpenClaw agents |
+| `TELEGRAM_BOT_TOKEN` | For Telegram | -- | Telegram bot token from @BotFather |
+| `TELEGRAM_SULTAN_CHAT_ID` | For Telegram | -- | Sultan's Telegram chat ID (restricts bot access) |
 | `VIZIER_ROOT` | No | `/data/vizier` | Root directory for project data |
 | `HEALTH_PORT` | No | `8080` (Docker) | HTTP health endpoint port; auto-enabled in Docker |
 | `AZURE_KEY_VAULT_URL` | No | -- | Azure Key Vault URL for production secrets |
@@ -127,11 +129,25 @@ For production deployments, secrets can be read from Azure Key Vault instead of 
 
 ### Secret Mapping
 
-| Env Variable | Key Vault Secret Name |
-|---|---|
-| `ANTHROPIC_API_KEY` | `anthropic-api-key` |
+| Env Variable | Key Vault Secret Name | Used By |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | `anthropic-api-key` | vizier-mcp (Sentinel Haiku), OpenClaw (agent LLM) |
+| `TELEGRAM_BOT_TOKEN` | `telegram-bot-token` | OpenClaw (Telegram channel) |
+| `TELEGRAM_SULTAN_CHAT_ID` | `telegram-sultan-chat-id` | OpenClaw (restricts bot to Sultan's chat) |
 
-When `AZURE_KEY_VAULT_URL` is set, the server tries Key Vault first, then falls back to env vars.
+The vizier-mcp container reads Key Vault directly via Python (`secrets.py`).
+OpenClaw reads secrets from environment variables only. The deploy pipeline
+runs `scripts/fetch-secrets.sh` to pull secrets from Key Vault into `.env`
+before `docker compose up`, so both containers get the values they need.
+
+To run the fetch manually:
+
+```bash
+cd /opt/vizier
+bash scripts/fetch-secrets.sh .env
+```
+
+Requires Azure CLI (`az`) with an active login or VM Managed Identity.
 
 ## 6. Volume Mounts
 
