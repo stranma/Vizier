@@ -7,7 +7,7 @@ ENV PYTHONUNBUFFERED=1 \
 RUN apt-get update && apt-get install -y --no-install-recommends curl && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
 
 WORKDIR /app
 
@@ -25,6 +25,11 @@ FROM deps AS app
 COPY vizier-mcp/ vizier-mcp/
 
 RUN uv sync --directory vizier-mcp --no-dev
+
+RUN addgroup --system vizier && adduser --system --ingroup vizier vizier && \
+    mkdir -p /data/vizier && chown -R vizier:vizier /data/vizier
+
+USER vizier
 
 ENV VIZIER_ROOT=/data/vizier \
     HEALTH_PORT=8080

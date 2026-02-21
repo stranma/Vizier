@@ -157,17 +157,25 @@ Manual or release-triggered PyPI publish for the `vizier-mcp` package.
 After deployment, configure OpenClaw to connect to the running MCP server.
 See [OPENCLAW_SETUP.md](OPENCLAW_SETUP.md) for the full guide.
 
-For Docker deployments, OpenClaw connects via the container's network:
+For Docker deployments, OpenClaw spawns the MCP server process and
+communicates over stdio (the same pattern as local development):
 
 ```json
 {
   "mcp_servers": {
     "vizier": {
-      "url": "http://vizier-mcp:8080"
+      "command": "docker",
+      "args": ["exec", "-i", "vizier-mcp-vizier-mcp-1", "uv", "run", "--directory", "vizier-mcp", "python", "-m", "vizier_mcp.server"],
+      "env": {
+        "VIZIER_ROOT": "/data/vizier"
+      }
     }
   }
 }
 ```
+
+Alternatively, if OpenClaw runs inside the same Docker Compose network, use
+the `command`/`args` pattern from `docs/OPENCLAW_SETUP.md`.
 
 ## Troubleshooting
 

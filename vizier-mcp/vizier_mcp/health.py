@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from asyncio import AbstractEventLoop, start_server
+from asyncio import start_server
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -80,7 +80,6 @@ async def start_health_server(
     tool_count: int,
     host: str = DEFAULT_HEALTH_HOST,
     port: int = DEFAULT_HEALTH_PORT,
-    loop: AbstractEventLoop | None = None,
 ) -> Any:
     """Start the async TCP health server.
 
@@ -88,7 +87,6 @@ async def start_health_server(
     :param tool_count: Number of registered MCP tools.
     :param host: Bind address (default 0.0.0.0).
     :param port: Bind port (default 8080).
-    :param loop: Optional event loop (for testing).
     :return: asyncio.Server instance (call .close() to stop).
     """
 

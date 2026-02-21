@@ -26,19 +26,25 @@ def _health_port() -> int | None:
     """Return the health port if the health endpoint should be enabled."""
     raw = os.environ.get("HEALTH_PORT")
     if raw is not None:
-        return int(raw)
+        try:
+            return int(raw)
+        except ValueError:
+            logger.error("HEALTH_PORT='%s' is not a valid integer", raw)
+            raise
     if os.path.exists("/.dockerenv"):
         return DEFAULT_HEALTH_PORT
     return None
 
 
 async def _run_with_health(port: int) -> None:
-    """Run MCP server alongside the health endpoint."""
+    """Run MCP stdio server alongside the HTTP health endpoint."""
     mcp = create_server()
     version: str = mcp.settings.version or "unknown"
 
     health_srv = await start_health_server(version, TOOL_COUNT, port=port)
     logger.info("Vizier MCP server starting (version=%s, tools=%d)", version, TOOL_COUNT)
+
+    mcp_task = asyncio.create_task(mcp.run_async())
 
     loop = asyncio.get_running_loop()
     stop = loop.create_future()
@@ -53,6 +59,7 @@ async def _run_with_health(port: int) -> None:
     try:
         await stop
     finally:
+        mcp_task.cancel()
         health_srv.close()
         await health_srv.wait_closed()
         logger.info("Health server stopped")
