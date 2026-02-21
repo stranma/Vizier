@@ -9,7 +9,6 @@ commands. Marked with @pytest.mark.integration so it's skipped in CI
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -19,6 +18,8 @@ from vizier_mcp.server import create_server
 from vizier_mcp.tools.sentinel import run_command_checked as _run_command_checked
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from fastmcp import FastMCP
 
 
@@ -80,9 +81,7 @@ def server(smoke_config: ServerConfig) -> FastMCP:
 class TestRealLLMSmokeTest:
     """Full lifecycle smoke test with real Haiku API call."""
 
-    async def test_full_lifecycle_with_real_haiku(
-        self, server: FastMCP, smoke_config: ServerConfig
-    ) -> None:
+    async def test_full_lifecycle_with_real_haiku(self, server: FastMCP, smoke_config: ServerConfig) -> None:
         """Vizier creates spec, Pasha promotes, Worker runs command (Haiku eval), QG accepts."""
         project_id = "smoke-project"
 
