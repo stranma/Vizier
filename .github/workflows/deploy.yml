@@ -72,12 +72,14 @@ jobs:
             cd /opt/vizier
             docker compose up -d
             for i in $(seq 1 30); do
-              if curl -sf http://localhost:8080/health >/dev/null; then
-                echo "Health check passed"
+              if curl -sf http://localhost:8080/readiness >/dev/null; then
+                echo "Readiness check passed"
+                curl -s http://localhost:8080/readiness | python3 -m json.tool
                 exit 0
               fi
-              echo "Waiting for health endpoint (attempt $i/30)..."
+              echo "Waiting for readiness endpoint (attempt $i/30)..."
               sleep 2
             done
-            echo "Health check failed after 60 seconds"
+            echo "Readiness check failed after 60 seconds"
+            curl -s http://localhost:8080/readiness || true
             exit 1
