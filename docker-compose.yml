@@ -23,6 +23,7 @@ services:
   openclaw:
     image: ghcr.io/openclaw/openclaw:latest
     container_name: openclaw
+    entrypoint: ["/bin/sh", "-c", "chown -R node:node /home/node/.openclaw && exec docker-entrypoint.sh"]
     restart: unless-stopped
     depends_on:
       vizier-mcp:
