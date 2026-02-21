@@ -6,16 +6,6 @@
       "dmPolicy": "pairing"
     }
   },
-  "mcpServers": {
-    "vizier": {
-      "command": "docker",
-      "args": ["exec", "-i", "vizier-mcp", "uv", "run", "--directory", "vizier-mcp", "python", "-m", "vizier_mcp.server"],
-      "env": {
-        "VIZIER_ROOT": "/data/vizier",
-        "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}"
-      }
-    }
-  },
   "agents": {
     "defaults": {
       "workspace": "/home/node/.openclaw/workspace/vizier",
