@@ -219,7 +219,7 @@
 **Deliverables:**
 - [x] docker-compose.yml: added `openclaw` service depending on `vizier-mcp` health, mounting config and workspace volumes, exposing port 18789, named volume `openclaw-data`
 - [x] openclaw/config/openclaw.json: production config -- Telegram channel (pairing DM policy), MCP server wired via `docker exec` stdio transport, session compaction settings, persistent Vizier + Pasha sessions, spawned Worker + QG sessions, one_voice_policy
-- [x] openclaw/config/agents.json: agent definitions for Vizier (persistent/Opus), Pasha (persistent/Opus template), Worker (spawned/Sonnet template), Quality Gate (spawned/Sonnet template), routing config
+- [x] ~~openclaw/config/agents.json~~: removed -- agent definitions consolidated into `openclaw.json` under `agents.list[]`; file was never read by OpenClaw
 - [x] .env.example: added `TELEGRAM_BOT_TOKEN` as a required variable with instructions for obtaining it from @BotFather
 - [x] .github/workflows/deploy.yml: SCP step now copies `openclaw/config/` and `openclaw/workspaces/` to server; deploy script pulls OpenClaw image, runs dual health checks (Vizier MCP gate + OpenClaw informational)
 - [x] scripts/openclaw-setup.sh: first-time setup script with prerequisite checks, Telegram token validation, and pairing instructions

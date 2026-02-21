@@ -6,7 +6,7 @@
       "dmPolicy": "pairing"
     }
   },
-  "mcp_servers": {
+  "mcpServers": {
     "vizier": {
       "command": "docker",
       "args": ["exec", "-i", "vizier-mcp", "uv", "run", "--directory", "vizier-mcp", "python", "-m", "vizier_mcp.server"],
@@ -32,19 +32,6 @@
         "identity": {
           "name": "Vizier",
           "emoji": "👳"
-        },
-        "mcp": {
-          "servers": [
-            {
-              "name": "vizier",
-              "command": "docker",
-              "args": ["exec", "-i", "vizier-mcp", "uv", "run", "--directory", "vizier-mcp", "python", "-m", "vizier_mcp.server"],
-              "env": {
-                "VIZIER_ROOT": "/data/vizier",
-                "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}"
-              }
-            }
-          ]
         }
       }
     ]
@@ -58,7 +45,7 @@
     }
   ],
   "gateway": {
-    "bind": "0.0.0.0",
+    "bind": "lan",
     "port": 18789
   }
 }

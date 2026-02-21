@@ -113,7 +113,7 @@ jobs:
             docker pull ghcr.io/openclaw/openclaw:latest || echo "OpenClaw image pull failed (may not exist yet)"
             cd /opt/vizier
             echo "Verifying config files..."
-            ls -la openclaw/config/openclaw.json openclaw/config/agents.json || { echo "ERROR: OpenClaw config files missing after SCP"; exit 1; }
+            ls -la openclaw/config/openclaw.json || { echo "ERROR: OpenClaw config file missing after SCP"; exit 1; }
             ls -d openclaw/workspaces/vizier openclaw/workspaces/worker-template || { echo "ERROR: OpenClaw workspace dirs missing after SCP"; exit 1; }
             docker compose up -d --force-recreate 2>&1 || { echo "docker compose up failed"; docker compose logs; exit 1; }
             sleep 3
