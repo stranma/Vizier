@@ -1,0 +1,39 @@
+FROM python:3.11-slim AS base
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    UV_COMPILE_BYTECODE=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+WORKDIR /app
+
+# ---------- dependency layer (cached) ----------
+FROM base AS deps
+
+COPY vizier-mcp/pyproject.toml vizier-mcp/pyproject.toml
+COPY pyproject.toml pyproject.toml
+
+RUN uv sync --directory vizier-mcp --no-dev --no-install-project
+
+# ---------- application layer ----------
+FROM deps AS app
+
+COPY vizier-mcp/ vizier-mcp/
+
+RUN uv sync --directory vizier-mcp --no-dev
+
+ENV VIZIER_ROOT=/data/vizier \
+    HEALTH_PORT=8080
+
+EXPOSE 8080
+
+VOLUME ["/data/vizier"]
+
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -sf http://localhost:8080/health || exit 1
+
+ENTRYPOINT ["uv", "run", "--directory", "vizier-mcp", "python", "-m", "vizier_mcp"]

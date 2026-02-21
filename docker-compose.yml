@@ -1,0 +1,23 @@
+services:
+  vizier-mcp:
+    build: .
+    image: ghcr.io/stranma/vizier:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - vizier-data:/data/vizier
+    env_file:
+      - .env
+    environment:
+      - VIZIER_ROOT=/data/vizier
+      - HEALTH_PORT=8080
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      start-period: 5s
+      retries: 3
+
+volumes:
+  vizier-data:

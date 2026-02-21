@@ -10,11 +10,7 @@ on:
         required: true
         type: choice
         options:
-          - core
-          - daemon
-          - cli
-          - plugin-software
-          - plugin-documents
+          - vizier-mcp
 
 permissions:
   id-token: write
@@ -40,21 +36,17 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             PKG="${{ inputs.package }}"
           else
-            # Extract package from release tag (e.g., core-v0.1.0 -> core)
+            # Extract package from release tag (e.g., vizier-mcp-v0.6.0 -> vizier-mcp)
             PKG=$(echo "${{ github.ref_name }}" | sed 's/-v.*//')
           fi
 
           case "$PKG" in
-            core)              echo "path=libs/core" >> "$GITHUB_OUTPUT" ;;
-            daemon)            echo "path=apps/daemon" >> "$GITHUB_OUTPUT" ;;
-            cli)               echo "path=apps/cli" >> "$GITHUB_OUTPUT" ;;
-            plugin-software)   echo "path=plugins/software" >> "$GITHUB_OUTPUT" ;;
-            plugin-documents)  echo "path=plugins/documents" >> "$GITHUB_OUTPUT" ;;
-            *)                 echo "Unknown package: $PKG"; exit 1 ;;
+            vizier-mcp)  echo "path=vizier-mcp" >> "$GITHUB_OUTPUT" ;;
+            *)           echo "Unknown package: $PKG"; exit 1 ;;
           esac
 
       - name: Build package
-        run: uv build --package ${{ steps.pkg.outputs.path }}
+        run: uv build --directory ${{ steps.pkg.outputs.path }}
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

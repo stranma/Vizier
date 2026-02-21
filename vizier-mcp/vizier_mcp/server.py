@@ -39,7 +39,7 @@ def create_server(config: ServerConfig | None = None) -> FastMCP:
 
     mcp = FastMCP(
         name="vizier-mcp",
-        version="0.4.0",
+        version="0.6.0",
         instructions="Vizier MCP server providing spec lifecycle, sentinel security, and orchestration tools.",
     )
 
