@@ -31,7 +31,6 @@ services:
       - "18789:18789"
     volumes:
       - ./openclaw/config/openclaw.json:/home/node/.openclaw/openclaw.json:ro
-      - ./openclaw/config/agents.json:/home/node/.openclaw/agents.json:ro
       - ./openclaw/workspaces:/home/node/.openclaw/workspace:ro
       - openclaw-data:/home/node/.openclaw/agents
       - /var/run/docker.sock:/var/run/docker.sock

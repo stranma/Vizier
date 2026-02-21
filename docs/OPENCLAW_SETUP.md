@@ -94,7 +94,7 @@ Add the MCP server to your OpenClaw configuration (`openclaw/config/openclaw.jso
 
 ```json
 {
-  "mcp_servers": {
+  "mcpServers": {
     "vizier": {
       "command": "uv",
       "args": ["run", "--directory", "/path/to/vizier-mcp", "python", "-m", "vizier_mcp.server"],

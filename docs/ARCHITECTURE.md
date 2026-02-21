@@ -758,7 +758,6 @@ vizier/
           SOUL.md
     config/
       openclaw.json
-      agents.json
   docs/
     ARCHITECTURE.md                  # This document
     DECISIONS.md                     # Historical + new decisions
