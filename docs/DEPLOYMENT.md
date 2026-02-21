@@ -179,6 +179,13 @@ connects to the MCP server via `docker exec` stdio transport. See
 
 ## 9. OpenClaw + Telegram Deployment
 
+**WARNING -- Docker Socket Access:** OpenClaw mounts `/var/run/docker.sock` to
+spawn MCP sessions via `docker exec`. This grants the container full Docker daemon
+access, which is equivalent to root on the host. A compromised OpenClaw container
+(e.g., prompt injection via Telegram) could execute arbitrary Docker commands.
+For production use, deploy [docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy)
+to restrict API access to `exec` operations only. See "Docker Socket Security" below.
+
 ### Prerequisites
 
 1. **Telegram bot token** from [@BotFather](https://t.me/BotFather):
@@ -195,7 +202,9 @@ Add the Telegram bot token to your server `.env`:
 ```bash
 ssh vizier@your-server
 cd /opt/vizier
-echo "TELEGRAM_BOT_TOKEN=123456:ABC-DEF..." >> .env
+# Edit .env and add/update the token line:
+# TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
+nano .env
 ```
 
 ### Deployment

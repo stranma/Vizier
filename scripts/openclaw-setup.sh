@@ -24,7 +24,8 @@ if ! docker compose -f "$COMPOSE_DIR/docker-compose.yml" ps openclaw --format '{
 fi
 
 # Check for Telegram bot token
-if ! grep -q "TELEGRAM_BOT_TOKEN=" "$COMPOSE_DIR/.env" 2>/dev/null || grep -q "TELEGRAM_BOT_TOKEN=your-" "$COMPOSE_DIR/.env" 2>/dev/null; then
+token_val=$(grep "^TELEGRAM_BOT_TOKEN=" "$COMPOSE_DIR/.env" 2>/dev/null | cut -d= -f2- || true)
+if [ -z "$token_val" ] || [[ "$token_val" == your-* ]]; then
     echo "WARNING: TELEGRAM_BOT_TOKEN not set in $COMPOSE_DIR/.env"
     echo ""
     echo "To get a bot token:"
