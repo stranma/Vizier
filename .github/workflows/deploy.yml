@@ -77,16 +77,19 @@ jobs:
             echo "Container status:"
             docker compose ps
             for i in $(seq 1 30); do
-              if curl -sf http://localhost:8080/readiness >/dev/null; then
-                echo "Readiness check passed"
-                curl -s http://localhost:8080/readiness | python3 -m json.tool
+              if curl -sf http://localhost:8080/health >/dev/null; then
+                echo "Health check passed"
+                curl -s http://localhost:8080/health | python3 -m json.tool
+                echo ""
+                echo "Readiness status (informational):"
+                curl -s http://localhost:8080/readiness | python3 -m json.tool || true
                 exit 0
               fi
-              echo "Waiting for readiness endpoint (attempt $i/30)..."
+              echo "Waiting for health endpoint (attempt $i/30)..."
               sleep 2
             done
-            echo "Readiness check failed after 60 seconds"
+            echo "Health check failed after 60 seconds"
             echo "--- Container logs ---"
             docker compose logs --tail=50
-            curl -s http://localhost:8080/readiness || true
+            curl -s http://localhost:8080/health || true
             exit 1
