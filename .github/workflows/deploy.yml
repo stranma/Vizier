@@ -71,7 +71,7 @@ jobs:
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
             docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             cd /opt/vizier
-            mkdir -p /data/vizier/projects
+            touch .env
             docker compose up -d 2>&1 || { echo "docker compose up failed"; docker compose logs; exit 1; }
             sleep 3
             echo "Container status:"

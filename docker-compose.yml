@@ -7,8 +7,7 @@ services:
     volumes:
       - vizier-data:/data/vizier
     env_file:
-      - path: .env
-        required: false
+      - .env
     environment:
       - VIZIER_ROOT=/data/vizier
       - HEALTH_PORT=8080
