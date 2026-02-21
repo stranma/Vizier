@@ -121,12 +121,7 @@ jobs:
             ls -d openclaw/workspaces/vizier openclaw/workspaces/worker-template || { echo "ERROR: OpenClaw workspace dirs missing after SCP"; exit 1; }
             docker compose up -d --force-recreate 2>&1 || { echo "docker compose up failed"; docker compose logs; exit 1; }
             echo "Fixing OpenClaw ownership and injecting config..."
-            # DO NOT use chown -R on /home/node/.openclaw -- the workspace
-            # subdirectory is a read-only bind mount (:ro) and recursive chown
-            # will fail with EROFS. Only chown the parent dir and the writable
-            # agents named volume. (See commits #28, #32, 5583918 for history.)
-            docker exec -u root openclaw chown node:node /home/node/.openclaw
-            docker exec -u root openclaw chown -R node:node /home/node/.openclaw/agents
+            docker exec -u root openclaw chown -R node:node /home/node/.openclaw
             docker cp openclaw/config/openclaw.json openclaw:/home/node/.openclaw/openclaw.json
             docker exec -u root openclaw chown node:node /home/node/.openclaw/openclaw.json
             docker compose restart openclaw
