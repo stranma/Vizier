@@ -28,7 +28,7 @@ services:
       vizier-mcp:
         condition: service_healthy
     volumes:
-      - ./openclaw/config/openclaw.json:/home/node/.openclaw/openclaw.json:ro
+      - ./openclaw/config/openclaw.json:/home/node/.openclaw/openclaw.json
       - ./openclaw/workspaces:/home/node/.openclaw/workspace:ro
       - openclaw-data:/home/node/.openclaw/agents
       - /var/run/docker.sock:/var/run/docker.sock
