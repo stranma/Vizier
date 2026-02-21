@@ -109,23 +109,17 @@ is fully operational.
 
 ## 5. Azure Key Vault (Production)
 
-For production deployments, secrets can be read from Azure Key Vault instead of environment variables.
+Secrets are stored in Azure Key Vault (`https://vizier.vault.azure.net/`) and
+fetched automatically by the deploy pipeline. No secrets need to be stored on
+the server or in GitHub -- the pipeline pulls them from Key Vault at deploy time
+and writes them to the server's `.env` file.
 
-### Setup
+### How It Works
 
-1. Install Azure packages in the container (or add to dependencies):
-   ```
-   pip install azure-identity azure-keyvault-secrets
-   ```
-
-2. Set the vault URL:
-   ```bash
-   AZURE_KEY_VAULT_URL=https://vizier.vault.azure.net/
-   ```
-
-3. Configure authentication (Managed Identity or Service Principal):
-   - **Managed Identity** (recommended for Azure VMs/AKS): No additional config needed
-   - **Service Principal**: Set `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_CLIENT_SECRET`
+1. The deploy workflow authenticates to Azure via OIDC (federated identity)
+2. `Azure/get-keyvault-secrets` fetches all three secrets from Key Vault
+3. An SSH step writes them to `/opt/vizier/.env` on the server
+4. `docker compose up` reads `.env` and passes values to both containers
 
 ### Secret Mapping
 
@@ -135,12 +129,47 @@ For production deployments, secrets can be read from Azure Key Vault instead of 
 | `TELEGRAM_BOT_TOKEN` | `telegram-bot-token` | OpenClaw (Telegram channel) |
 | `TELEGRAM_SULTAN_CHAT_ID` | `telegram-sultan-chat-id` | OpenClaw (restricts bot to Sultan's chat) |
 
-The vizier-mcp container reads Key Vault directly via Python (`secrets.py`).
-OpenClaw reads secrets from environment variables only. The deploy pipeline
-runs `scripts/fetch-secrets.sh` to pull secrets from Key Vault into `.env`
-before `docker compose up`, so both containers get the values they need.
+### GitHub Actions Secrets Required
 
-To run the fetch manually:
+The deploy workflow needs these GitHub secrets to authenticate to Azure:
+
+| GitHub Secret | Value | Where to Find |
+|---|---|---|
+| `AZURE_CLIENT_ID` | App registration client ID | Azure Portal > App registrations > Vizier Deploy |
+| `AZURE_TENANT_ID` | `02a093aa-d995-4447-8f47-7bc3b9ff538b` | Azure Portal > Entra ID > Overview |
+| `AZURE_SUBSCRIPTION_ID` | `b3922654-5cf3-436e-bb34-ef3d8a4334dd` | Azure Portal > Subscriptions |
+
+### One-Time Azure Setup
+
+1. **Create an App Registration** in Azure Entra ID:
+   ```
+   Azure Portal > Entra ID > App registrations > New registration
+   Name: "Vizier Deploy (GitHub Actions)"
+   ```
+
+2. **Add a federated credential** for GitHub Actions OIDC:
+   ```
+   App registration > Certificates & secrets > Federated credentials > Add credential
+   Scenario: GitHub Actions deploying Azure resources
+   Organization: stranma
+   Repository: Vizier
+   Entity type: Environment
+   Environment: production
+   ```
+
+3. **Grant Key Vault access**:
+   ```
+   Key Vault > Access policies > Add access policy
+   Secret permissions: Get, List
+   Principal: "Vizier Deploy (GitHub Actions)"
+   ```
+
+4. **Add GitHub secrets** (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`)
+   to the repository's `production` environment.
+
+### Manual Fetch (with Azure CLI)
+
+If `az` CLI is installed on the server, you can also fetch secrets manually:
 
 ```bash
 cd /opt/vizier

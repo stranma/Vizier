@@ -45,10 +45,25 @@ jobs:
     permissions:
       contents: read
       packages: read
+      id-token: write
 
     steps:
       - name: Checkout (for docker-compose.yml)
         uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: Azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Fetch secrets from Key Vault
+        uses: Azure/get-keyvault-secrets@v1
+        with:
+          keyvault: vizier
+          secrets: "anthropic-api-key, telegram-bot-token, telegram-sultan-chat-id"
+        id: keyvault
 
       - name: Copy config files to server
         uses: appleboy/scp-action@v0.1.7
@@ -58,6 +73,31 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           source: "docker-compose.yml,openclaw/config/,openclaw/workspaces/,scripts/"
           target: /opt/vizier/
+
+      - name: Write secrets to server .env
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: vizier
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: ANTHROPIC_API_KEY,TELEGRAM_BOT_TOKEN,TELEGRAM_SULTAN_CHAT_ID
+          script: |
+            cd /opt/vizier
+            touch .env
+            for key in ANTHROPIC_API_KEY TELEGRAM_BOT_TOKEN TELEGRAM_SULTAN_CHAT_ID; do
+              val=$(eval echo "\$$key")
+              if [ -n "$val" ]; then
+                grep -v "^${key}=" .env > .env.tmp || true
+                echo "${key}=${val}" >> .env.tmp
+                mv .env.tmp .env
+                echo "  $key: written"
+              fi
+            done
+            echo "Secrets written to .env"
+        env:
+          ANTHROPIC_API_KEY: ${{ steps.keyvault.outputs.anthropic-api-key }}
+          TELEGRAM_BOT_TOKEN: ${{ steps.keyvault.outputs.telegram-bot-token }}
+          TELEGRAM_SULTAN_CHAT_ID: ${{ steps.keyvault.outputs.telegram-sultan-chat-id }}
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
@@ -72,8 +112,6 @@ jobs:
             docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             docker pull ghcr.io/openclaw/openclaw:latest || echo "OpenClaw image pull failed (may not exist yet)"
             cd /opt/vizier
-            touch .env
-            bash scripts/fetch-secrets.sh /opt/vizier/.env || echo "Key Vault fetch skipped or failed (non-fatal)"
             echo "Verifying config files..."
             ls -la openclaw/config/openclaw.json openclaw/config/agents.json || { echo "ERROR: OpenClaw config files missing after SCP"; exit 1; }
             ls -d openclaw/workspaces/vizier openclaw/workspaces/worker-template || { echo "ERROR: OpenClaw workspace dirs missing after SCP"; exit 1; }
