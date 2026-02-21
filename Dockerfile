@@ -26,7 +26,7 @@ COPY vizier-mcp/ vizier-mcp/
 
 RUN uv sync --directory vizier-mcp --no-dev
 
-RUN addgroup --system vizier && adduser --system --ingroup vizier vizier && \
+RUN addgroup --system vizier && adduser --system --home /home/vizier --ingroup vizier vizier && \
     mkdir -p /data/vizier/projects && chown -R vizier:vizier /data/vizier
 
 USER vizier
