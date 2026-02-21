@@ -3,7 +3,6 @@
     "telegram": {
       "enabled": true,
       "botToken": "${TELEGRAM_BOT_TOKEN}",
-      "allowedChatIds": ["${TELEGRAM_SULTAN_CHAT_ID}"],
       "dmPolicy": "pairing"
     }
   },
@@ -17,45 +16,49 @@
       }
     }
   },
-  "sessions": {
-    "compaction": {
-      "enabled": true,
-      "max_context_tokens": 150000,
-      "compaction_trigger_pct": 80,
-      "memory_flush_on_compact": true
-    },
-    "persistent": {
-      "vizier": {
-        "model": "anthropic/claude-opus-4-6",
-        "compaction": true,
-        "memory_enabled": true,
-        "workspace": "/home/node/.openclaw/workspace/vizier"
-      },
-      "pasha_template": {
-        "model": "anthropic/claude-opus-4-6",
-        "compaction": true,
-        "memory_enabled": true,
-        "workspace": "/home/node/.openclaw/workspace/pasha-template",
-        "trigger": "message_from_parent"
+  "agents": {
+    "defaults": {
+      "workspace": "/home/node/.openclaw/workspace/vizier",
+      "model": {
+        "primary": "anthropic/claude-opus-4-6"
       }
     },
-    "spawned": {
-      "worker": {
-        "model": "anthropic/claude-sonnet-4-6",
-        "default_timeout_minutes": 30,
-        "workspace": "/home/node/.openclaw/workspace/worker-template"
-      },
-      "quality_gate": {
-        "model": "anthropic/claude-sonnet-4-6",
-        "default_timeout_minutes": 15,
-        "workspace": "/home/node/.openclaw/workspace/quality-gate-template"
-      },
-      "max_concurrent": 5
-    }
+    "list": [
+      {
+        "id": "vizier",
+        "default": true,
+        "workspace": "/home/node/.openclaw/workspace/vizier",
+        "model": "anthropic/claude-opus-4-6",
+        "identity": {
+          "name": "Vizier",
+          "emoji": "👳"
+        },
+        "mcp": {
+          "servers": [
+            {
+              "name": "vizier",
+              "command": "docker",
+              "args": ["exec", "-i", "vizier-mcp", "uv", "run", "--directory", "vizier-mcp", "python", "-m", "vizier_mcp.server"],
+              "env": {
+                "VIZIER_ROOT": "/data/vizier",
+                "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}"
+              }
+            }
+          ]
+        }
+      }
+    ]
   },
-  "one_voice_policy": {
-    "enabled": true,
-    "sultan_contact": "vizier",
-    "escalation_chain": ["worker", "pasha", "vizier", "sultan"]
+  "bindings": [
+    {
+      "agentId": "vizier",
+      "match": {
+        "channel": "telegram"
+      }
+    }
+  ],
+  "gateway": {
+    "bind": "0.0.0.0",
+    "port": 18789
   }
 }
