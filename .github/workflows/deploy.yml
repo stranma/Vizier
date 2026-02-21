@@ -50,13 +50,13 @@ jobs:
       - name: Checkout (for docker-compose.yml)
         uses: actions/checkout@v4
 
-      - name: Copy docker-compose.yml to server
+      - name: Copy config files to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: vizier
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          source: docker-compose.yml
+          source: "docker-compose.yml,openclaw/config/,openclaw/workspaces/"
           target: /opt/vizier/
 
       - name: Deploy via SSH
@@ -70,26 +70,43 @@ jobs:
             docker login ghcr.io -u "${{ github.actor }}" --password-stdin <<< "${{ secrets.GITHUB_TOKEN }}"
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
             docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            docker pull ghcr.io/openclaw/openclaw:latest || echo "OpenClaw image pull failed (may not exist yet)"
             cd /opt/vizier
             touch .env
             docker compose up -d 2>&1 || { echo "docker compose up failed"; docker compose logs; exit 1; }
             sleep 3
             echo "Container status:"
             docker compose ps
+
+            echo "--- Vizier MCP health check ---"
             for i in $(seq 1 30); do
               if curl -sf http://localhost:8080/health >/dev/null; then
-                echo "Health check passed"
+                echo "Vizier MCP health check passed"
                 curl -s http://localhost:8080/health | python3 -m json.tool
                 echo ""
                 echo "Readiness status (informational):"
                 curl -s http://localhost:8080/readiness | python3 -m json.tool || true
+                break
+              fi
+              echo "Waiting for vizier-mcp health (attempt $i/30)..."
+              sleep 2
+              if [ "$i" -eq 30 ]; then
+                echo "Vizier MCP health check failed after 60 seconds"
+                docker compose logs vizier-mcp --tail=50
+                exit 1
+              fi
+            done
+
+            echo ""
+            echo "--- OpenClaw health check ---"
+            for i in $(seq 1 15); do
+              if curl -sf http://localhost:18789/ >/dev/null; then
+                echo "OpenClaw health check passed"
                 exit 0
               fi
-              echo "Waiting for health endpoint (attempt $i/30)..."
+              echo "Waiting for OpenClaw (attempt $i/15)..."
               sleep 2
             done
-            echo "Health check failed after 60 seconds"
-            echo "--- Container logs ---"
-            docker compose logs --tail=50
-            curl -s http://localhost:8080/health || true
-            exit 1
+            echo "OpenClaw health check failed (informational -- may need TELEGRAM_BOT_TOKEN)"
+            docker compose logs openclaw --tail=20 || true
+            exit 0

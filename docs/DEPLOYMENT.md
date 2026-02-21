@@ -173,28 +173,108 @@ Manual or release-triggered PyPI publish for the `vizier-mcp` package.
 
 ## 8. Connecting to OpenClaw
 
-After deployment, configure OpenClaw to connect to the running MCP server.
-See [OPENCLAW_SETUP.md](OPENCLAW_SETUP.md) for the full guide.
+OpenClaw runs as a co-located Docker container alongside vizier-mcp. It
+connects to the MCP server via `docker exec` stdio transport. See
+[OPENCLAW_SETUP.md](OPENCLAW_SETUP.md) for the standalone setup guide.
 
-For Docker deployments, OpenClaw spawns the MCP server process and
-communicates over stdio (the same pattern as local development):
+## 9. OpenClaw + Telegram Deployment
 
-```json
-{
-  "mcp_servers": {
-    "vizier": {
-      "command": "docker",
-      "args": ["exec", "-i", "vizier-mcp-vizier-mcp-1", "uv", "run", "--directory", "vizier-mcp", "python", "-m", "vizier_mcp.server"],
-      "env": {
-        "VIZIER_ROOT": "/data/vizier"
-      }
-    }
-  }
-}
+### Prerequisites
+
+1. **Telegram bot token** from [@BotFather](https://t.me/BotFather):
+   - Message @BotFather on Telegram
+   - Send `/newbot` and follow the prompts
+   - Copy the bot token (format: `123456:ABC-DEF...`)
+
+2. **Anthropic API key** (already required for Sentinel)
+
+### Configuration
+
+Add the Telegram bot token to your server `.env`:
+
+```bash
+ssh vizier@your-server
+cd /opt/vizier
+echo "TELEGRAM_BOT_TOKEN=123456:ABC-DEF..." >> .env
 ```
 
-Alternatively, if OpenClaw runs inside the same Docker Compose network, use
-the `command`/`args` pattern from `docs/OPENCLAW_SETUP.md`.
+### Deployment
+
+The CI/CD pipeline deploys both containers automatically. On first deploy
+with OpenClaw, ensure the `.env` file has `TELEGRAM_BOT_TOKEN` set before
+running `docker compose up -d`.
+
+```bash
+# Verify both containers are running
+docker compose ps
+
+# Check vizier-mcp health
+curl -s http://localhost:8080/health | python3 -m json.tool
+
+# Check OpenClaw health
+curl -s http://localhost:18789/ | python3 -m json.tool
+```
+
+### Telegram Pairing
+
+OpenClaw uses pairing-based DM access for security. New users must pair
+before they can interact with Vizier:
+
+1. Find your bot in Telegram (search by the name you gave @BotFather)
+2. Send `/start` to the bot
+3. The bot replies with a time-limited pairing code
+4. Approve the pairing on the server:
+   ```bash
+   docker exec openclaw openclaw approve-pairing <code>
+   ```
+5. After pairing, message the bot to interact with Vizier
+
+A first-time setup script is provided:
+
+```bash
+bash scripts/openclaw-setup.sh
+```
+
+### Architecture
+
+```
+Telegram --> OpenClaw (port 18789) --docker exec--> vizier-mcp (port 8080)
+                |                                        |
+                v                                        v
+         Agent sessions                           MCP tools (11)
+         SOUL.md workspaces                       /data/vizier/projects/
+```
+
+- **OpenClaw** handles messaging, agent sessions, and tool routing
+- **vizier-mcp** provides the 11 Vizier domain tools via MCP stdio
+- OpenClaw connects via `docker exec -i vizier-mcp ...` (requires Docker socket)
+- Agent workspace files (SOUL.md) are mounted read-only from `openclaw/workspaces/`
+
+### Docker Socket Security
+
+The OpenClaw container mounts `/var/run/docker.sock` to spawn MCP sessions
+via `docker exec`. This gives it full Docker API access. For single-user
+deployments this is acceptable. For hardening:
+
+- Use [docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy) to restrict API access
+- Restrict to `exec` operations only
+
+### Troubleshooting
+
+**OpenClaw container won't start:**
+- Check `TELEGRAM_BOT_TOKEN` is set in `.env`
+- Check logs: `docker compose logs openclaw`
+- Verify vizier-mcp is healthy first (OpenClaw depends on it)
+
+**Bot doesn't respond in Telegram:**
+- Verify the bot token is correct: `docker compose logs openclaw | grep -i telegram`
+- Check that pairing was completed: `docker exec openclaw openclaw list-pairings`
+- Restart: `docker compose restart openclaw`
+
+**MCP tools fail:**
+- Check vizier-mcp is running: `curl http://localhost:8080/health`
+- Test docker exec manually: `docker exec -i vizier-mcp uv run --directory vizier-mcp python -m vizier_mcp.server`
+- Check Docker socket is mounted: `docker exec openclaw ls /var/run/docker.sock`
 
 ## Troubleshooting
 

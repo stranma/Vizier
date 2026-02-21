@@ -2,6 +2,7 @@ services:
   vizier-mcp:
     build: .
     image: ghcr.io/stranma/vizier:latest
+    container_name: vizier-mcp
     ports:
       - "8080:8080"
     volumes:
@@ -19,5 +20,30 @@ services:
       start_period: 5s
       retries: 3
 
+  openclaw:
+    image: ghcr.io/openclaw/openclaw:latest
+    container_name: openclaw
+    restart: unless-stopped
+    depends_on:
+      vizier-mcp:
+        condition: service_healthy
+    ports:
+      - "18789:18789"
+    volumes:
+      - ./openclaw/config/openclaw.json:/root/.openclaw/openclaw.json:ro
+      - ./openclaw/config/agents.json:/root/.openclaw/agents.json:ro
+      - ./openclaw/workspaces:/root/.openclaw/workspace:ro
+      - openclaw-data:/root/.openclaw/agents
+      - /var/run/docker.sock:/var/run/docker.sock
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:18789/"]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
 volumes:
   vizier-data:
+  openclaw-data:
