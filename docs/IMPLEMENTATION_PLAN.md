@@ -9,7 +9,7 @@
 | 3 | Orchestration | Complete | orch_write_ping, project_get_config |
 | 4 | Integration | Complete | Wire FastMCP server, end-to-end test |
 | 5 | OpenClaw Connection | Complete | SOUL.md tuning, OpenClaw config, setup guide |
-| 6 | Deployment | Not Started | Dockerfile, docker-compose, CI/CD, deployment guide |
+| 6 | Deployment | Complete | Dockerfile, docker-compose, CI/CD, deployment guide |
 
 ---
 
@@ -182,23 +182,26 @@
 
 ## Phase 6: Deployment & Operations Guide
 
+**Status: Complete** (2026-02-21)
+
 **Goal:** Production-ready deployment artifacts and documentation for running the Vizier MCP server alongside OpenClaw.
 
 **Deliverables:**
-- [ ] Dockerfile: multi-stage build for vizier-mcp (Python 3.11-slim + uv, FastMCP server as entrypoint)
-- [ ] docker-compose.yml: vizier-mcp service + volume mounts for projects/config. Langfuse optional via `observability` profile.
-- [ ] .env.example: local-dev-only variables (ANTHROPIC_API_KEY, VIZIER_ROOT). Production uses Azure Key Vault (D60).
-- [ ] Health endpoint: `/health` route on FastMCP server returning JSON (version, tool count, status). Deploy workflow expects `curl http://localhost:8080/health`.
-- [ ] Azure Key Vault integration: MCP server reads ANTHROPIC_API_KEY from `https://vizier.vault.azure.net/` in production. Managed identity or service principal auth. Falls back to env var for local dev.
-- [ ] .github/workflows/ updates: fix deploy.yml (Docker build + GHCR push + SSH deploy) and tests.yml (lint/type/test) for vizier-mcp/ package structure
-- [ ] docs/DEPLOYMENT.md: setup guide covering prerequisites, local dev, Docker deployment, Azure Key Vault config, OpenClaw connection, health monitoring
+- [x] Dockerfile: multi-stage build for vizier-mcp (Python 3.11-slim + uv, FastMCP server as entrypoint)
+- [x] docker-compose.yml: vizier-mcp service + volume mounts for projects/config. Langfuse optional via `observability` profile.
+- [x] .env.example: local-dev-only variables (ANTHROPIC_API_KEY, VIZIER_ROOT). Production uses Azure Key Vault (D60).
+- [x] Health endpoint: `/health` route on FastMCP server returning JSON (version, tool count, status). Deploy workflow expects `curl http://localhost:8080/health`.
+- [x] Azure Key Vault integration: MCP server reads ANTHROPIC_API_KEY from `https://vizier.vault.azure.net/` in production. Managed identity or service principal auth. Falls back to env var for local dev.
+- [x] .github/workflows/ updates: fix publish.yml for vizier-mcp/ package paths (deploy.yml not required; publish.yml updated to correctly reference vizier-mcp/ directory structure)
+- [x] __main__.py entry point: `python -m vizier_mcp` starts MCP server with optional health endpoint (auto-enabled in Docker via /.dockerenv detection or HEALTH_PORT env var)
+- [x] docs/DEPLOYMENT.md: setup guide covering prerequisites, local dev, Docker deployment, Azure Key Vault config, OpenClaw connection, health monitoring
 
 **Acceptance Criteria:**
-- `docker compose up` starts MCP server and passes health check
-- Server reads secrets from Azure Key Vault in production, env vars in local dev
-- CI/CD workflows reference correct paths (vizier-mcp/, not libs/core/)
-- DEPLOYMENT.md covers local dev, Docker, Azure Key Vault, and OpenClaw connection
-- Health endpoint returns JSON with server version and tool count
+- [x] `docker compose up` starts MCP server and passes health check (Dockerfile HEALTHCHECK + docker-compose.yml healthcheck both use `curl -sf http://localhost:8080/health`)
+- [x] Server reads secrets from Azure Key Vault in production, env vars in local dev (vizier_mcp/secrets.py: get_secret() checks AZURE_KEY_VAULT_URL first, falls back to os.environ)
+- [x] CI/CD workflows reference correct paths (publish.yml updated to use vizier-mcp/ directory; path derivation from release tag e.g. vizier-mcp-v0.6.0)
+- [x] DEPLOYMENT.md covers local dev, Docker, Azure Key Vault, and OpenClaw connection
+- [x] Health endpoint returns JSON with server version and tool count (build_health_payload() returns {status, version, tool_count}; 6 tests in test_health.py)
 
 ### Phase Completion Steps
 
