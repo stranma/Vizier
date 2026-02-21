@@ -43,6 +43,7 @@ VAULT_NAME=$(echo "$VAULT_URL" | sed 's|https://||;s|\.vault\.azure\.net.*||')
 declare -A SECRETS=(
     ["ANTHROPIC_API_KEY"]="anthropic-api-key"
     ["TELEGRAM_BOT_TOKEN"]="telegram-bot-token"
+    ["TELEGRAM_SULTAN_CHAT_ID"]="telegram-sultan-chat-id"
 )
 
 update_env_var() {

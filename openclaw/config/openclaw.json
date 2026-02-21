@@ -3,6 +3,7 @@
     "telegram": {
       "enabled": true,
       "botToken": "${TELEGRAM_BOT_TOKEN}",
+      "allowedChatIds": ["${TELEGRAM_SULTAN_CHAT_ID}"],
       "dmPolicy": "pairing"
     }
   },
