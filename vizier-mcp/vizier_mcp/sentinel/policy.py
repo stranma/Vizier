@@ -6,6 +6,7 @@ allowlist -> denylist -> Haiku for commands, and glob matching for write-set.
 
 from __future__ import annotations
 
+import fnmatch
 import logging
 import re
 from typing import TYPE_CHECKING
@@ -16,6 +17,7 @@ from vizier_mcp.models.sentinel import (
     DenylistEntry,
     PolicyDecision,
     RolePermissions,
+    SecretScope,
     SentinelPolicy,
 )
 
@@ -64,11 +66,16 @@ def load_policy(config: ServerConfig, project_id: str) -> SentinelPolicy | dict:
     for role, perms in data.get("role_permissions", {}).items():
         role_perms[role] = RolePermissions(**perms)
 
+    scopes: dict[str, SecretScope] = {}
+    for name, scope_data in data.get("secret_scopes", {}).items():
+        scopes[name] = SecretScope(**scope_data)
+
     return SentinelPolicy(
         write_set=data.get("write_set", []),
         command_allowlist=data.get("command_allowlist", []),
         command_denylist=denylist,
         role_permissions=role_perms,
+        secret_scopes=scopes,
     )
 
 
@@ -86,6 +93,26 @@ def check_role_permission(policy: SentinelPolicy, agent_role: str, permission: s
         return False
     perms = policy.role_permissions[agent_role]
     return bool(getattr(perms, permission, False))
+
+
+def resolve_secret_scopes(policy: SentinelPolicy, command: str) -> list[str]:
+    """Resolve which secrets a command is allowed to access based on secret_scopes.
+
+    Iterates all scopes, fnmatch-matches command against each scope's patterns,
+    and returns the deduplicated union of matching secrets. Empty if no match (fail-closed).
+
+    :param policy: The loaded sentinel policy.
+    :param command: The shell command string.
+    :return: Deduplicated list of secret environment variable names.
+    """
+    secrets: set[str] = set()
+    cmd_stripped = command.strip()
+    for scope in policy.secret_scopes.values():
+        for pattern in scope.commands:
+            if fnmatch.fnmatch(cmd_stripped, pattern):
+                secrets.update(scope.secrets)
+                break
+    return sorted(secrets)
 
 
 def is_allowlisted(policy: SentinelPolicy, command: str) -> bool:

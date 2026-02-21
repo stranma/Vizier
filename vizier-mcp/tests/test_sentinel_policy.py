@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import yaml
 
-from vizier_mcp.models.sentinel import PolicyDecision, SentinelPolicy
+from vizier_mcp.models.sentinel import PolicyDecision, SecretScope, SentinelPolicy
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -16,6 +16,7 @@ from vizier_mcp.sentinel.policy import (
     is_allowlisted,
     is_denylisted,
     load_policy,
+    resolve_secret_scopes,
 )
 
 if TYPE_CHECKING:
@@ -249,3 +250,128 @@ class TestEvaluateCommand:
         )
         decision, _ = evaluate_command(policy, "git status")
         assert decision == PolicyDecision.ALLOW
+
+
+class TestSecretScopeModel:
+    """Tests for SecretScope model and SentinelPolicy.secret_scopes (D81)."""
+
+    def test_default_empty(self) -> None:
+        policy = SentinelPolicy()
+        assert policy.secret_scopes == {}
+
+    def test_inline_construction(self) -> None:
+        policy = SentinelPolicy(
+            secret_scopes={
+                "git": SecretScope(commands=["git *"], secrets=["GITHUB_TOKEN"]),
+            }
+        )
+        assert "git" in policy.secret_scopes
+        assert policy.secret_scopes["git"].commands == ["git *"]
+        assert policy.secret_scopes["git"].secrets == ["GITHUB_TOKEN"]
+
+    def test_multiple_scopes(self) -> None:
+        policy = SentinelPolicy(
+            secret_scopes={
+                "git": SecretScope(commands=["git *"], secrets=["GITHUB_TOKEN"]),
+                "npm": SecretScope(commands=["npm *"], secrets=["NPM_TOKEN"]),
+            }
+        )
+        assert len(policy.secret_scopes) == 2
+
+
+class TestLoadPolicySecretScopes:
+    """Tests for loading secret_scopes from sentinel.yaml (D81)."""
+
+    def test_loads_secret_scopes(self, config: ServerConfig, project_dir: Path) -> None:
+        sentinel_yaml = project_dir / "sentinel.yaml"
+        sentinel_yaml.write_text(
+            yaml.dump(
+                {
+                    "secret_scopes": {
+                        "git": {"commands": ["git *"], "secrets": ["GITHUB_TOKEN"]},
+                    }
+                }
+            )
+        )
+        result = load_policy(config, PROJECT_ID)
+        assert isinstance(result, SentinelPolicy)
+        assert "git" in result.secret_scopes
+        assert result.secret_scopes["git"].secrets == ["GITHUB_TOKEN"]
+
+    def test_no_secret_scopes_key(self, config: ServerConfig, project_dir: Path) -> None:
+        sentinel_yaml = project_dir / "sentinel.yaml"
+        sentinel_yaml.write_text(yaml.dump({"command_allowlist": ["echo"]}))
+        result = load_policy(config, PROJECT_ID)
+        assert isinstance(result, SentinelPolicy)
+        assert result.secret_scopes == {}
+
+    def test_multiple_scopes_from_yaml(self, config: ServerConfig, project_dir: Path) -> None:
+        sentinel_yaml = project_dir / "sentinel.yaml"
+        sentinel_yaml.write_text(
+            yaml.dump(
+                {
+                    "secret_scopes": {
+                        "git": {"commands": ["git *"], "secrets": ["GITHUB_TOKEN"]},
+                        "deploy": {"commands": ["ssh *", "scp *"], "secrets": ["SSH_KEY", "DEPLOY_TOKEN"]},
+                    }
+                }
+            )
+        )
+        result = load_policy(config, PROJECT_ID)
+        assert isinstance(result, SentinelPolicy)
+        assert len(result.secret_scopes) == 2
+        assert result.secret_scopes["deploy"].secrets == ["SSH_KEY", "DEPLOY_TOKEN"]
+
+
+class TestResolveSecretScopes:
+    """Tests for resolve_secret_scopes (D81)."""
+
+    def test_single_scope_match(self) -> None:
+        policy = SentinelPolicy(secret_scopes={"git": SecretScope(commands=["git *"], secrets=["GITHUB_TOKEN"])})
+        result = resolve_secret_scopes(policy, "git clone repo")
+        assert result == ["GITHUB_TOKEN"]
+
+    def test_multiple_scope_match_returns_union(self) -> None:
+        policy = SentinelPolicy(
+            secret_scopes={
+                "git": SecretScope(commands=["git *"], secrets=["GITHUB_TOKEN"]),
+                "all-git": SecretScope(commands=["git *"], secrets=["GIT_AUTHOR_TOKEN"]),
+            }
+        )
+        result = resolve_secret_scopes(policy, "git push origin main")
+        assert set(result) == {"GITHUB_TOKEN", "GIT_AUTHOR_TOKEN"}
+
+    def test_no_match_returns_empty(self) -> None:
+        policy = SentinelPolicy(secret_scopes={"git": SecretScope(commands=["git *"], secrets=["GITHUB_TOKEN"])})
+        result = resolve_secret_scopes(policy, "echo test")
+        assert result == []
+
+    def test_empty_secret_scopes_returns_empty(self) -> None:
+        policy = SentinelPolicy()
+        result = resolve_secret_scopes(policy, "git clone repo")
+        assert result == []
+
+    def test_git_star_matches_git_clone_but_not_github_cli(self) -> None:
+        policy = SentinelPolicy(secret_scopes={"git": SecretScope(commands=["git *"], secrets=["GITHUB_TOKEN"])})
+        assert resolve_secret_scopes(policy, "git clone repo") == ["GITHUB_TOKEN"]
+        assert resolve_secret_scopes(policy, "github-cli status") == []
+
+    def test_multiple_command_patterns_in_scope(self) -> None:
+        policy = SentinelPolicy(
+            secret_scopes={
+                "deploy": SecretScope(commands=["ssh *", "scp *"], secrets=["SSH_KEY"]),
+            }
+        )
+        assert resolve_secret_scopes(policy, "ssh user@host") == ["SSH_KEY"]
+        assert resolve_secret_scopes(policy, "scp file user@host:") == ["SSH_KEY"]
+        assert resolve_secret_scopes(policy, "rsync file host:") == []
+
+    def test_deduplicates_secrets(self) -> None:
+        policy = SentinelPolicy(
+            secret_scopes={
+                "scope1": SecretScope(commands=["git *"], secrets=["GITHUB_TOKEN", "SHARED"]),
+                "scope2": SecretScope(commands=["git *"], secrets=["SHARED", "OTHER"]),
+            }
+        )
+        result = resolve_secret_scopes(policy, "git push")
+        assert sorted(result) == sorted(["GITHUB_TOKEN", "SHARED", "OTHER"])

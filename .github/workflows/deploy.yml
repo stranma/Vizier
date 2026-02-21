@@ -63,7 +63,7 @@ jobs:
         id: keyvault
         with:
           inlineScript: |
-            for secret in anthropic-api-key telegram-bot-token telegram-sultan-chat-id; do
+            for secret in anthropic-api-key telegram-bot-token telegram-sultan-chat-id github-pat; do
               value=$(az keyvault secret show --vault-name vizier --name "$secret" --query value -o tsv)
               echo "::add-mask::$value"
               echo "${secret}=${value}" >> "$GITHUB_OUTPUT"
@@ -84,11 +84,11 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: vizier
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: ANTHROPIC_API_KEY,TELEGRAM_BOT_TOKEN,TELEGRAM_SULTAN_CHAT_ID
+          envs: ANTHROPIC_API_KEY,TELEGRAM_BOT_TOKEN,TELEGRAM_SULTAN_CHAT_ID,GITHUB_TOKEN
           script: |
             cd /opt/vizier
             touch .env
-            for key in ANTHROPIC_API_KEY TELEGRAM_BOT_TOKEN TELEGRAM_SULTAN_CHAT_ID; do
+            for key in ANTHROPIC_API_KEY TELEGRAM_BOT_TOKEN TELEGRAM_SULTAN_CHAT_ID GITHUB_TOKEN; do
               val=$(eval echo "\$$key")
               if [ -n "$val" ]; then
                 grep -v "^${key}=" .env > .env.tmp || true
@@ -102,6 +102,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ steps.keyvault.outputs.anthropic-api-key }}
           TELEGRAM_BOT_TOKEN: ${{ steps.keyvault.outputs.telegram-bot-token }}
           TELEGRAM_SULTAN_CHAT_ID: ${{ steps.keyvault.outputs.telegram-sultan-chat-id }}
+          GITHUB_TOKEN: ${{ steps.keyvault.outputs.github-pat }}
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1

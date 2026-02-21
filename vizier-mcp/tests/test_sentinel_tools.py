@@ -9,7 +9,9 @@ import pytest
 import yaml
 
 from vizier_mcp.tools.sentinel import (
+    _build_scoped_env,
     run_command_checked,
+    secret_check,
     sentinel_check_write,
     web_fetch_checked,
 )
@@ -209,6 +211,130 @@ class TestRunCommandChecked:
             assert result["allowed"] is True
             assert result["exit_code"] == 1
             assert "No such file" in result["stderr"]
+
+
+class TestBuildScopedEnv:
+    """Tests for _build_scoped_env (D81 AC-1 through AC-4)."""
+
+    def test_safe_env_vars_always_present(self) -> None:
+        with patch.dict("os.environ", {"PATH": "/usr/bin", "HOME": "/home/test"}, clear=True):
+            env = _build_scoped_env([])
+            assert env["PATH"] == "/usr/bin"
+            assert env["HOME"] == "/home/test"
+
+    def test_no_secrets_when_empty_list(self) -> None:
+        with patch.dict("os.environ", {"PATH": "/usr/bin", "ANTHROPIC_API_KEY": "sk-secret"}, clear=True):
+            env = _build_scoped_env([])
+            assert "ANTHROPIC_API_KEY" not in env
+            assert "PATH" in env
+
+    def test_requested_secret_injected(self) -> None:
+        with (
+            patch.dict("os.environ", {"PATH": "/usr/bin", "GITHUB_TOKEN": "ghp_test"}, clear=True),
+            patch(
+                "vizier_mcp.tools.sentinel.get_secret",
+                side_effect=lambda n: "ghp_test" if n == "GITHUB_TOKEN" else None,
+            ),
+        ):
+            env = _build_scoped_env(["GITHUB_TOKEN"])
+            assert env["GITHUB_TOKEN"] == "ghp_test"
+
+    def test_unrequested_secrets_excluded(self) -> None:
+        with (
+            patch.dict("os.environ", {"PATH": "/usr/bin", "ANTHROPIC_API_KEY": "sk-secret"}, clear=True),
+            patch(
+                "vizier_mcp.tools.sentinel.get_secret",
+                side_effect=lambda n: "ghp_test" if n == "GITHUB_TOKEN" else None,
+            ),
+        ):
+            env = _build_scoped_env(["GITHUB_TOKEN"])
+            assert "ANTHROPIC_API_KEY" not in env
+
+    def test_missing_secret_silently_skipped(self) -> None:
+        with (
+            patch.dict("os.environ", {"PATH": "/usr/bin"}, clear=True),
+            patch("vizier_mcp.tools.sentinel.get_secret", return_value=None),
+        ):
+            env = _build_scoped_env(["NONEXISTENT_SECRET"])
+            assert "NONEXISTENT_SECRET" not in env
+
+    def test_missing_safe_env_var_excluded(self) -> None:
+        with patch.dict("os.environ", {"PATH": "/usr/bin"}, clear=True):
+            env = _build_scoped_env([])
+            assert "HOME" not in env
+            assert "PATH" in env
+
+
+class TestScopedEnvWiring:
+    """Tests that run_command_checked passes scoped env to subprocess (D81 AC-1, AC-2, AC-3)."""
+
+    @pytest.mark.anyio
+    async def test_subprocess_receives_scoped_env(self, config: ServerConfig, project_dir: Path) -> None:
+        _write_sentinel_yaml(
+            project_dir,
+            {
+                "command_allowlist": ["git"],
+                "secret_scopes": {
+                    "git": {"commands": ["git *"], "secrets": ["GITHUB_TOKEN"]},
+                },
+            },
+        )
+        with (
+            patch.dict(
+                "os.environ", {"PATH": "/usr/bin", "HOME": "/home/test", "ANTHROPIC_API_KEY": "sk-secret"}, clear=True
+            ),
+            patch(
+                "vizier_mcp.tools.sentinel.get_secret",
+                side_effect=lambda n: "ghp_test" if n == "GITHUB_TOKEN" else None,
+            ),
+            patch("vizier_mcp.tools.sentinel.asyncio.create_subprocess_shell", new_callable=AsyncMock) as mock_proc,
+        ):
+            mock_proc.return_value.communicate = AsyncMock(return_value=(b"ok", b""))
+            mock_proc.return_value.returncode = 0
+            await run_command_checked(config, PROJECT_ID, "git clone repo", "worker")
+            mock_proc.assert_called_once()
+            env_arg = mock_proc.call_args.kwargs.get("env") or mock_proc.call_args[1].get("env")
+            assert env_arg is not None
+            assert "GITHUB_TOKEN" in env_arg
+            assert "ANTHROPIC_API_KEY" not in env_arg
+            assert "PATH" in env_arg
+
+    @pytest.mark.anyio
+    async def test_no_scope_match_no_secrets(self, config: ServerConfig, project_dir: Path) -> None:
+        _write_sentinel_yaml(
+            project_dir,
+            {
+                "command_allowlist": ["echo"],
+                "secret_scopes": {
+                    "git": {"commands": ["git *"], "secrets": ["GITHUB_TOKEN"]},
+                },
+            },
+        )
+        with (
+            patch.dict("os.environ", {"PATH": "/usr/bin", "HOME": "/home/test"}, clear=True),
+            patch("vizier_mcp.tools.sentinel.asyncio.create_subprocess_shell", new_callable=AsyncMock) as mock_proc,
+        ):
+            mock_proc.return_value.communicate = AsyncMock(return_value=(b"test", b""))
+            mock_proc.return_value.returncode = 0
+            await run_command_checked(config, PROJECT_ID, "echo test", "worker")
+            env_arg = mock_proc.call_args.kwargs.get("env") or mock_proc.call_args[1].get("env")
+            assert env_arg is not None
+            assert "GITHUB_TOKEN" not in env_arg
+            assert "PATH" in env_arg
+
+
+class TestSecretCheck:
+    """Tests for secret_check tool (D81 AC-5)."""
+
+    def test_secret_exists(self) -> None:
+        with patch("vizier_mcp.tools.sentinel.get_secret", return_value="some-value"):
+            result = secret_check("GITHUB_TOKEN")
+            assert result == {"name": "GITHUB_TOKEN", "exists": True}
+
+    def test_secret_missing(self) -> None:
+        with patch("vizier_mcp.tools.sentinel.get_secret", return_value=None):
+            result = secret_check("NONEXISTENT")
+            assert result == {"name": "NONEXISTENT", "exists": False}
 
 
 class TestWebFetchChecked:
