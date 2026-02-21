@@ -27,8 +27,6 @@ services:
     depends_on:
       vizier-mcp:
         condition: service_healthy
-    ports:
-      - "18789:18789"
     volumes:
       - ./openclaw/config/openclaw.json:/home/node/.openclaw/openclaw.json:ro
       - ./openclaw/workspaces:/home/node/.openclaw/workspace:ro
