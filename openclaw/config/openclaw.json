@@ -1,11 +1,18 @@
 {
-  "$schema": "OpenClaw gateway configuration",
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "botToken": "${TELEGRAM_BOT_TOKEN}",
+      "dmPolicy": "pairing"
+    }
+  },
   "mcp_servers": {
     "vizier": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/vizier-mcp", "python", "-m", "vizier_mcp.server"],
+      "command": "docker",
+      "args": ["exec", "-i", "vizier-mcp", "uv", "run", "--directory", "vizier-mcp", "python", "-m", "vizier_mcp.server"],
       "env": {
-        "VIZIER_ROOT": "/path/to/vizier-root"
+        "VIZIER_ROOT": "/data/vizier",
+        "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}"
       }
     }
   },
@@ -18,25 +25,29 @@
     },
     "persistent": {
       "vizier": {
-        "model": "claude-opus-4-6",
-        "compaction": true,
-        "memory_enabled": true
-      },
-      "pasha_template": {
-        "model": "claude-opus-4-6",
+        "model": "anthropic/claude-opus-4-6",
         "compaction": true,
         "memory_enabled": true,
+        "workspace": "/root/.openclaw/workspace/vizier"
+      },
+      "pasha_template": {
+        "model": "anthropic/claude-opus-4-6",
+        "compaction": true,
+        "memory_enabled": true,
+        "workspace": "/root/.openclaw/workspace/pasha-template",
         "trigger": "message_from_parent"
       }
     },
     "spawned": {
       "worker": {
-        "model": "claude-sonnet-4-6",
-        "default_timeout_minutes": 30
+        "model": "anthropic/claude-sonnet-4-6",
+        "default_timeout_minutes": 30,
+        "workspace": "/root/.openclaw/workspace/worker-template"
       },
       "quality_gate": {
-        "model": "claude-sonnet-4-6",
-        "default_timeout_minutes": 15
+        "model": "anthropic/claude-sonnet-4-6",
+        "default_timeout_minutes": 15,
+        "workspace": "/root/.openclaw/workspace/quality-gate-template"
       },
       "max_concurrent": 5
     }

@@ -10,6 +10,7 @@
 | 4 | Integration | Complete | Wire FastMCP server, end-to-end test |
 | 5 | OpenClaw Connection | Complete | SOUL.md tuning, OpenClaw config, setup guide |
 | 6 | Deployment | Complete | Dockerfile, docker-compose, CI/CD, deployment guide |
+| 7 | OpenClaw + Telegram Deployment | Complete | openclaw service, Telegram bot, dual health checks, setup script |
 
 ---
 
@@ -202,6 +203,35 @@
 - [x] CI/CD workflows reference correct paths (publish.yml updated to use vizier-mcp/ directory; path derivation from release tag e.g. vizier-mcp-v0.6.0)
 - [x] DEPLOYMENT.md covers local dev, Docker, Azure Key Vault, and OpenClaw connection
 - [x] Health endpoint returns JSON with server version and tool count (build_health_payload() returns {status, version, tool_count}; 6 tests in test_health.py)
+
+### Phase Completion Steps
+
+> After this phase, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md).
+
+---
+
+## Phase 7: OpenClaw + Telegram Deployment
+
+**Status: Complete** (2026-02-21)
+
+**Goal:** Extend the Docker deployment to include OpenClaw as a co-located service, enabling Sultan communication via a Telegram bot. The Vizier MCP server (Phase 6) becomes reachable through OpenClaw's Telegram channel so operators interact with Vizier by messaging a bot rather than making direct MCP calls.
+
+**Deliverables:**
+- [x] docker-compose.yml: added `openclaw` service depending on `vizier-mcp` health, mounting config and workspace volumes, exposing port 18789, named volume `openclaw-data`
+- [x] openclaw/config/openclaw.json: production config -- Telegram channel (pairing DM policy), MCP server wired via `docker exec` stdio transport, session compaction settings, persistent Vizier + Pasha sessions, spawned Worker + QG sessions, one_voice_policy
+- [x] openclaw/config/agents.json: agent definitions for Vizier (persistent/Opus), Pasha (persistent/Opus template), Worker (spawned/Sonnet template), Quality Gate (spawned/Sonnet template), routing config
+- [x] .env.example: added `TELEGRAM_BOT_TOKEN` as a required variable with instructions for obtaining it from @BotFather
+- [x] .github/workflows/deploy.yml: SCP step now copies `openclaw/config/` and `openclaw/workspaces/` to server; deploy script pulls OpenClaw image, runs dual health checks (Vizier MCP gate + OpenClaw informational)
+- [x] scripts/openclaw-setup.sh: first-time setup script with prerequisite checks, Telegram token validation, and pairing instructions
+- [x] docs/DEPLOYMENT.md: Section 9 covering Telegram bot setup, OpenClaw deployment, pairing procedure, architecture diagram, Docker socket security, and troubleshooting
+
+**Acceptance Criteria:**
+- [x] `docker compose up -d` starts both `vizier-mcp` and `openclaw` services. OpenClaw depends on vizier-mcp being healthy before starting.
+- [x] OpenClaw connects to Vizier MCP tools via `docker exec -i vizier-mcp uv run --directory vizier-mcp python -m vizier_mcp.server` (stdio transport).
+- [x] Telegram bot token is injected via `.env` (`TELEGRAM_BOT_TOKEN`). The `.env.example` documents the variable.
+- [x] CI/CD deploy workflow copies OpenClaw config files to the server and performs a health check for both services. OpenClaw health check failure is informational (non-blocking) to handle first-time deploys without a bot token.
+- [x] `scripts/openclaw-setup.sh` guides operators through token verification and Telegram pairing on first deployment.
+- [x] `docs/DEPLOYMENT.md` Section 9 covers the complete setup flow from bot creation to first message.
 
 ### Phase Completion Steps
 
