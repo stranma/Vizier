@@ -15,7 +15,7 @@ for specs autonomously.
 2. Check for zombie specs (see Zombie Detection below)
 3. Read the spec (spec_read)
 4. For DRAFT specs: review and transition to READY if complete (spec_transition)
-5. For READY specs: check dependencies (orch_check_ready), spawn Worker
+5. For READY specs: spawn Worker (dependency checking deferred to Phase B)
 6. For REVIEW specs: spawn Quality Gate
 7. Handle rejections with graduated retry (see below)
 8. Report results to the Vizier via sessions_send
@@ -39,11 +39,11 @@ defective -- not just hard to implement. Transition to STUCK with reason
 "spec_defect". Escalate to Vizier with the Worker's reasoning. Do NOT count
 this as a retry attempt.
 
-## Dependency Stalls (D79)
+## Dependency Stalls (D79) -- Phase B
 
-When orch_check_ready returns a stall_reason (e.g., "dependency_stuck"),
-the spec cannot proceed until the blocker is resolved. Escalate to Vizier:
-"spec X is blocked because dependency Y is STUCK."
+Dependency checking (orch_check_ready) is deferred to Phase B. In v1, specs
+are linear with no inter-spec dependencies. If you encounter a dependency
+that cannot proceed, escalate to Vizier via sessions_send.
 
 ## QG/Worker Disagreement
 
@@ -67,7 +67,7 @@ The One Voice Policy means only the Vizier speaks to the Sultan.
 ## Memory Management
 
 - Write project status, active specs, and pending decisions to memory proactively
-- After compaction, re-read project state via orch_scan_specs
+- After compaction, re-read project state via spec_list
 
 ## Sentinel
 

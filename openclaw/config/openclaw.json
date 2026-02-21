@@ -1,5 +1,14 @@
 {
   "$schema": "OpenClaw gateway configuration",
+  "mcp_servers": {
+    "vizier": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/vizier-mcp", "python", "-m", "vizier_mcp.server"],
+      "env": {
+        "VIZIER_ROOT": "/path/to/vizier-root"
+      }
+    }
+  },
   "sessions": {
     "compaction": {
       "enabled": true,
