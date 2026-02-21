@@ -66,11 +66,16 @@ jobs:
           username: vizier
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
+            set -e
             docker login ghcr.io -u "${{ github.actor }}" --password-stdin <<< "${{ secrets.GITHUB_TOKEN }}"
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
             docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             cd /opt/vizier
-            docker compose up -d
+            mkdir -p /data/vizier/projects
+            docker compose up -d 2>&1 || { echo "docker compose up failed"; docker compose logs; exit 1; }
+            sleep 3
+            echo "Container status:"
+            docker compose ps
             for i in $(seq 1 30); do
               if curl -sf http://localhost:8080/readiness >/dev/null; then
                 echo "Readiness check passed"
@@ -81,5 +86,7 @@ jobs:
               sleep 2
             done
             echo "Readiness check failed after 60 seconds"
+            echo "--- Container logs ---"
+            docker compose logs --tail=50
             curl -s http://localhost:8080/readiness || true
             exit 1
