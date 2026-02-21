@@ -57,15 +57,13 @@ The GitHub Actions deploy workflow builds and pushes to GHCR on every merge to m
 docker pull ghcr.io/stranma/vizier:latest
 ```
 
-## 3. Health Endpoint
+## 3. Health and Readiness Endpoints
 
-The health endpoint is automatically enabled inside Docker (port 8080).
+Both endpoints are automatically enabled inside Docker (port 8080).
 
-```
-GET /health
-```
+### Liveness: `GET /health`
 
-Response:
+Quick liveness check for load balancers and Docker healthcheck:
 
 ```json
 {
@@ -75,7 +73,28 @@ Response:
 }
 ```
 
-The Docker healthcheck and deploy workflow both use this endpoint to verify the server is running.
+### Readiness: `GET /readiness`
+
+Deep readiness check that verifies tool registration, data directory,
+and API key configuration. Returns 200 when ready, 503 when not:
+
+```json
+{
+  "ready": true,
+  "version": "0.6.0",
+  "checks": {
+    "tools": {"pass": true, "detail": "11/11 tools registered"},
+    "vizier_root": {"pass": true, "detail": "/data/vizier"},
+    "projects_dir": {"pass": true, "detail": "/data/vizier/projects"},
+    "writable": {"pass": true, "detail": "data directory is writable"},
+    "anthropic_api_key": {"pass": true, "detail": "set"}
+  }
+}
+```
+
+The Docker healthcheck uses `/health` (liveness). The deploy workflow
+uses `/readiness` (deep check) after deployment to verify the server
+is fully operational.
 
 ## 4. Environment Variables
 
