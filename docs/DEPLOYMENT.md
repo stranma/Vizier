@@ -279,7 +279,7 @@ before they can interact with Vizier:
 3. The bot replies with a time-limited pairing code
 4. Approve the pairing on the server:
    ```bash
-   docker exec openclaw openclaw approve-pairing <code>
+   docker exec openclaw node /app/openclaw.mjs pairing approve telegram <code>
    ```
 5. After pairing, message the bot to interact with Vizier
 
@@ -322,7 +322,7 @@ deployments this is acceptable. For hardening:
 
 **Bot doesn't respond in Telegram:**
 - Verify the bot token is correct: `docker compose logs openclaw | grep -i telegram`
-- Check that pairing was completed: `docker exec openclaw openclaw list-pairings`
+- Check that pairing was completed: `docker exec openclaw node /app/openclaw.mjs pairing list`
 - Restart: `docker compose restart openclaw`
 
 **MCP tools fail:**
