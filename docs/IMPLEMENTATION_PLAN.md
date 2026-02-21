@@ -6,7 +6,7 @@
 |-------|------|--------|-------|
 | 1 | Spec Lifecycle | Complete | spec_create, spec_read, spec_list, spec_transition, spec_update, spec_write_feedback |
 | 2 | Sentinel | Complete | sentinel_check_write, run_command_checked, web_fetch_checked |
-| 3 | Orchestration | Not Started | orch_write_ping, project_get_config |
+| 3 | Orchestration | Complete | orch_write_ping, project_get_config |
 | 4 | Integration | Not Started | Wire FastMCP server, end-to-end test |
 | 5 | OpenClaw Connection | Not Started | SOUL.md tuning, real agent test |
 | 6 | Deployment | Not Started | Dockerfile, docker-compose, CI/CD, deployment guide |
@@ -99,16 +99,27 @@
 **Goal:** 2 remaining MVP tools: supervisor pings and project configuration.
 
 **Deliverables:**
-- [ ] orch_write_ping: write ping file with urgency (QUESTION, BLOCKER, IMPOSSIBLE)
-- [ ] project_get_config: load and return project config.yaml
-- [ ] Pydantic models: PingMessage, ProjectConfig
-- [ ] Unit tests for both tools
-- [ ] Integration test: Worker writes ping, ping file appears in correct location
+- [x] orch_write_ping: write ping file with urgency (QUESTION, BLOCKER, IMPOSSIBLE)
+- [x] project_get_config: load and return project config.yaml
+- [x] Pydantic models: PingMessage, ProjectConfig
+- [x] Unit tests for both tools
+- [x] Integration test: Worker writes ping, ping file appears in correct location
 
 **Acceptance Criteria:**
-- Ping files written to correct directory with urgency level
-- project_get_config returns complete project configuration
-- Invalid urgency values rejected
+- AC-O1: orch_write_ping accepts config, project_id, spec_id, urgency, message. Valid urgencies are QUESTION, BLOCKER, IMPOSSIBLE. Returns {"written": true, "path": str} where path is the ping file location and matches the AC-O2 path formula.
+- AC-O2: orch_write_ping writes a JSON file to {projects_dir}/{project_id}/specs/{spec_id}/pings/{timestamp}-{urgency}.json containing spec_id, urgency, message, created_at.
+- AC-O3: orch_write_ping with invalid urgency returns {"error": str} without writing a file. Non-existent project or spec returns {"error": str}.
+- AC-O4: project_get_config loads {projects_dir}/{project_id}/config.yaml and returns all fields as a dict. Missing config.yaml returns {"type": null, "settings": {}} (sensible default).
+- AC-O5: project_get_config for non-existent project returns {"error": str}. Malformed YAML returns {"error": str}.
+- AC-O6: PingMessage model validates urgency against allowed enum values. PingUrgency enum has exactly QUESTION, BLOCKER, IMPOSSIBLE.
+- AC-O7: Integration test: orch_write_ping creates a file, file is valid JSON loadable as PingMessage model, urgency and message match inputs. Two pings for the same spec with different urgencies both produce files without collision.
+- AC-O8: Cumulative: all Phase 1 (AC-1 through AC-10) and Phase 2 (AC-S1 through AC-S12) acceptance criteria still pass.
+
+**PIRR Acknowledgments (WARN items):**
+- AC-O4 default return shape WARN: Missing config.yaml returns `{"type": null, "settings": {}}` matching the stub's docstring return shape of `{"type": str, "settings": dict}` with null type.
+- AC-O1 project_id input WARN: AC-O1 updated to include `config` and `project_id` as required parameters. ARCHITECTURE.md section 3.1 omitted project_id from the inputs table but AC-O2's path formula requires it. Phase 3 tools take `config: ServerConfig` as first parameter consistent with Phase 1/2 convention.
+- D77 vs D80 IMPOSSIBLE conflict WARN: D77 takes precedence over D80's drop recommendation. IMPOSSIBLE is implemented as a distinct urgency value because ARCHITECTURE.md section 4.2 Pasha SOUL.md references IMPOSSIBLE with specific handling logic, and the semantic distinction between "I need help" (BLOCKER) and "the spec is defective" (IMPOSSIBLE) is worth the minimal implementation cost.
+- Concurrent ping coverage WARN: AC-O7 updated to include two-ping collision test. Path-return verification is covered by AC-O1 requiring the path matches the AC-O2 formula.
 
 ### Phase Completion Steps
 
