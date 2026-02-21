@@ -7,7 +7,7 @@
 | 1 | Spec Lifecycle | Complete | spec_create, spec_read, spec_list, spec_transition, spec_update, spec_write_feedback |
 | 2 | Sentinel | Complete | sentinel_check_write, run_command_checked, web_fetch_checked |
 | 3 | Orchestration | Complete | orch_write_ping, project_get_config |
-| 4 | Integration | Not Started | Wire FastMCP server, end-to-end test |
+| 4 | Integration | Complete | Wire FastMCP server, end-to-end test |
 | 5 | OpenClaw Connection | Not Started | SOUL.md tuning, real agent test |
 | 6 | Deployment | Not Started | Dockerfile, docker-compose, CI/CD, deployment guide |
 
@@ -132,17 +132,21 @@
 **Goal:** Wire all 11 tools into FastMCP server. End-to-end test of full spec lifecycle.
 
 **Deliverables:**
-- [ ] FastMCP server (server.py) registering all 11 tools
-- [ ] Server startup/shutdown lifecycle
-- [ ] End-to-end test: spec goes DRAFT -> READY -> IN_PROGRESS -> REVIEW -> DONE using all relevant tools
-- [ ] End-to-end test: spec goes through REJECTED -> retry -> DONE path
-- [ ] End-to-end test: spec reaches STUCK after max retries
+- [x] FastMCP server (server.py) registering all 11 tools
+- [x] Server startup/shutdown lifecycle
+- [x] End-to-end test: spec goes DRAFT -> READY -> IN_PROGRESS -> REVIEW -> DONE using all relevant tools
+- [x] End-to-end test: spec goes through REJECTED -> retry -> DONE path
+- [x] End-to-end test: spec reaches STUCK after max retries
 
 **Acceptance Criteria:**
-- All 11 tools callable via MCP protocol
-- Full happy path works end-to-end
-- Rejection/retry path works end-to-end
-- STUCK escalation path works end-to-end
+- AC-I1: create_server(config) returns a FastMCP instance with exactly 11 tools registered. list_tools() returns all 11 by name.
+- AC-I2: Each of the 11 tools is callable via mcp.call_tool(name, args) and returns the expected result shape (not an error for valid inputs).
+- AC-I3: End-to-end happy path: spec_create -> spec_transition DRAFT->READY -> spec_transition READY->IN_PROGRESS -> spec_transition IN_PROGRESS->REVIEW -> spec_write_feedback -> spec_transition REVIEW->DONE. All via call_tool.
+- AC-I4: End-to-end rejection path: spec through REVIEW -> REJECTED -> spec_write_feedback -> spec_transition REJECTED->READY -> IN_PROGRESS -> REVIEW -> DONE. retry_count incremented.
+- AC-I5: End-to-end STUCK path: spec_transition READY->STUCK returns success. Spec status is STUCK.
+- AC-I6: Config injection: tools receive ServerConfig via closure. Tool functions that need config (spec_*, sentinel_*, orch_write_ping, project_get_config) work correctly with injected config.
+- AC-I7: Async tools (run_command_checked, web_fetch_checked) are callable via call_tool and return correct shapes.
+- AC-I8: Cumulative: all Phase 1-3 acceptance criteria still pass (AC-1 through AC-10, AC-S1 through AC-S12, AC-O1 through AC-O8).
 
 ### Phase Completion Steps
 
