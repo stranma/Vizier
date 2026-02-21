@@ -23,6 +23,7 @@ from vizier_mcp.tools.spec import spec_transition as _spec_transition
 from vizier_mcp.tools.spec import spec_update as _spec_update
 from vizier_mcp.tools.spec import spec_write_feedback as _spec_write_feedback
 
+__version__ = "0.6.0"
 TOOL_COUNT = 11
 
 
@@ -39,7 +40,7 @@ def create_server(config: ServerConfig | None = None) -> FastMCP:
 
     mcp = FastMCP(
         name="vizier-mcp",
-        version="0.6.0",
+        version=__version__,
         instructions="Vizier MCP server providing spec lifecycle, sentinel security, and orchestration tools.",
     )
 

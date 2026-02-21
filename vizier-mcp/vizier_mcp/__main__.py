@@ -13,7 +13,7 @@ import os
 import signal
 
 from vizier_mcp.health import DEFAULT_HEALTH_PORT, start_health_server
-from vizier_mcp.server import TOOL_COUNT, create_server
+from vizier_mcp.server import TOOL_COUNT, __version__, create_server
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,13 +38,10 @@ def _health_port() -> int | None:
 
 async def _run_with_health(port: int) -> None:
     """Run MCP stdio server alongside the HTTP health endpoint."""
-    from importlib.metadata import version as pkg_version
-
     mcp = create_server()
-    ver = pkg_version("vizier-mcp")
 
-    health_srv = await start_health_server(ver, TOOL_COUNT, port=port)
-    logger.info("Vizier MCP server starting (version=%s, tools=%d)", ver, TOOL_COUNT)
+    health_srv = await start_health_server(__version__, TOOL_COUNT, port=port)
+    logger.info("Vizier MCP server starting (version=%s, tools=%d)", __version__, TOOL_COUNT)
 
     mcp_task = asyncio.create_task(mcp.run_async())
 
