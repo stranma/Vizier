@@ -8,6 +8,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+## [0.4.0] - 2026-02-21
+
+Phase 4: Integration. All 11 MVP tools are now wired into a single FastMCP server factory. Agents can reach every tool through one MCP connection instead of importing individual modules, and the full spec lifecycle from DRAFT to DONE (including the rejection-retry loop and STUCK escalation) is validated end-to-end through the MCP protocol.
+
+### Added
+
+- **create_server factory** -- `vizier_mcp.server.create_server(config)` returns a configured `FastMCP` instance with all 11 MVP tools registered. Config is injected into every tool via closure so callers never manipulate global state. Passing `None` falls back to `ServerConfig()` defaults. The factory is the single entry point for both production startup (`server.run()`) and in-process test usage (`call_tool`).
+- **All 11 tools registered via closures** -- spec_create, spec_read, spec_list, spec_transition, spec_update, spec_write_feedback (Phase 1); sentinel_check_write, run_command_checked, web_fetch_checked (Phase 2); orch_write_ping, project_get_config (Phase 3) are all reachable through `mcp.call_tool(name, args)` without any additional setup. The `TOOL_COUNT = 11` constant is exported for assertion in downstream tests.
+- **Async tool support** -- run_command_checked and web_fetch_checked are registered as `async def` tools. FastMCP handles async dispatch transparently so agents calling these tools receive the same result shapes defined in Phase 2 (AC-S3 through AC-S8).
+- **End-to-end happy path test** -- `TestEndToEndHappyPath.test_happy_path_lifecycle` drives a spec from DRAFT through READY, IN_PROGRESS, REVIEW, feedback write, and DONE entirely via `server.call_tool`. Confirms the final status on disk by reading back through `spec_read`.
+- **End-to-end rejection path test** -- `TestEndToEndRejection.test_rejection_retry_lifecycle` drives a spec to REJECTED, writes rejection feedback, retries through the full loop to DONE, and asserts `retry_count == 1` in the persisted spec.
+- **End-to-end STUCK path test** -- `TestEndToEndStuck.test_stuck_escalation` confirms a READY spec can be transitioned directly to STUCK and that the status is persisted correctly.
+- **20 new server tests** -- Three test classes covering tool registration (AC-I1), per-tool callability with config injection (AC-I2, AC-I6, AC-I7), and the three end-to-end lifecycle paths (AC-I3, AC-I4, AC-I5). Total test suite: 217 tests, all passing.
+
 ## [0.3.0] - 2026-02-20
 
 Phase 3: Orchestration. Two MVP tools enabling inner agents to communicate status back to their Pasha and read project configuration without direct filesystem access.

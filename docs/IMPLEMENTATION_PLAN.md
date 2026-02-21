@@ -7,7 +7,7 @@
 | 1 | Spec Lifecycle | Complete | spec_create, spec_read, spec_list, spec_transition, spec_update, spec_write_feedback |
 | 2 | Sentinel | Complete | sentinel_check_write, run_command_checked, web_fetch_checked |
 | 3 | Orchestration | Complete | orch_write_ping, project_get_config |
-| 4 | Integration | Not Started | Wire FastMCP server, end-to-end test |
+| 4 | Integration | Complete | Wire FastMCP server, end-to-end test |
 | 5 | OpenClaw Connection | Not Started | SOUL.md tuning, real agent test |
 | 6 | Deployment | Not Started | Dockerfile, docker-compose, CI/CD, deployment guide |
 
@@ -132,11 +132,11 @@
 **Goal:** Wire all 11 tools into FastMCP server. End-to-end test of full spec lifecycle.
 
 **Deliverables:**
-- [ ] FastMCP server (server.py) registering all 11 tools
-- [ ] Server startup/shutdown lifecycle
-- [ ] End-to-end test: spec goes DRAFT -> READY -> IN_PROGRESS -> REVIEW -> DONE using all relevant tools
-- [ ] End-to-end test: spec goes through REJECTED -> retry -> DONE path
-- [ ] End-to-end test: spec reaches STUCK after max retries
+- [x] FastMCP server (server.py) registering all 11 tools
+- [x] Server startup/shutdown lifecycle
+- [x] End-to-end test: spec goes DRAFT -> READY -> IN_PROGRESS -> REVIEW -> DONE using all relevant tools
+- [x] End-to-end test: spec goes through REJECTED -> retry -> DONE path
+- [x] End-to-end test: spec reaches STUCK after max retries
 
 **Acceptance Criteria:**
 - AC-I1: create_server(config) returns a FastMCP instance with exactly 11 tools registered. list_tools() returns all 11 by name.
