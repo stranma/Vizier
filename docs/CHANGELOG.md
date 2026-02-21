@@ -8,6 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+## [0.5.0] - 2026-02-21
+
+Phase 5: OpenClaw Connection. SOUL.md files validated and updated for the 11 MVP tools, OpenClaw configuration aligned with MCP server, and setup documentation written.
+
+### Changed
+
+- **Pasha SOUL.md updated for MVP tools** -- Replaced `orch_check_ready` reference (Phase B deferred tool) with a note that dependency checking is deferred to Phase B. Replaced `orch_scan_specs` with `spec_list` for post-compaction state recovery. All four SOUL.md files now reference only the 11 MVP tools.
+- **OpenClaw config updated** -- Added `mcp_servers.vizier` section to `openclaw/config/openclaw.json` specifying the MCP server command, args, and environment variables for connecting agents to the Vizier MCP server.
+
+### Added
+
+- **OpenClaw setup guide** -- `docs/OPENCLAW_SETUP.md` covers prerequisites, MCP server installation, project directory creation with Sentinel policy, OpenClaw gateway configuration, standalone server testing, agent-to-tool mapping table, manual smoke test procedure (7-step lifecycle validation), SOUL.md workspace setup, and troubleshooting guide.
+
 ## [0.4.0] - 2026-02-21
 
 Phase 4: Integration. All 11 MVP tools are now wired into a single FastMCP server factory. Agents can reach every tool through one MCP connection instead of importing individual modules, and the full spec lifecycle from DRAFT to DONE (including the rejection-retry loop and STUCK escalation) is validated end-to-end through the MCP protocol.
