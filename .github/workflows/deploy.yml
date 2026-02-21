@@ -168,7 +168,7 @@ jobs:
             echo "--- [4/5] OpenClaw health endpoint ---"
             OC_HEALTHY=false
             for i in $(seq 1 20); do
-              if curl -sf http://localhost:18789/ >/dev/null 2>&1; then
+              if docker compose exec -T openclaw curl -sf http://localhost:18789/ >/dev/null 2>&1; then
                 echo "PASS: openclaw gateway responding"
                 OC_HEALTHY=true
                 break
