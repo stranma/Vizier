@@ -38,7 +38,7 @@ def build_readiness_payload(version: str, tool_count: int, expected_tools: int) 
     """Build the JSON payload for the /readiness endpoint.
 
     Checks:
-    - Tool count matches expected (11 MVP tools)
+    - Tool count matches expected (12 tools)
     - VIZIER_ROOT directory exists and is writable
     - projects/ subdirectory exists
     - ANTHROPIC_API_KEY is set (required for Sentinel Haiku evaluator)
@@ -159,7 +159,7 @@ async def start_health_server(
     tool_count: int,
     host: str = DEFAULT_HEALTH_HOST,
     port: int = DEFAULT_HEALTH_PORT,
-    expected_tools: int = 11,
+    expected_tools: int = 12,
 ) -> Any:
     """Start the async TCP health server with /health and /readiness endpoints.
 

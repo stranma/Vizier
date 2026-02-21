@@ -1,6 +1,6 @@
 """FastMCP server entry point for the Vizier MCP server.
 
-Registers all 11 MVP tools and provides the create_server factory
+Registers all 12 tools and provides the create_server factory
 for both production use and testing.
 """
 
@@ -14,6 +14,7 @@ from vizier_mcp.config import ServerConfig
 from vizier_mcp.tools.config_tool import project_get_config as _project_get_config
 from vizier_mcp.tools.orchestration import orch_write_ping as _orch_write_ping
 from vizier_mcp.tools.sentinel import run_command_checked as _run_command_checked
+from vizier_mcp.tools.sentinel import secret_check as _secret_check
 from vizier_mcp.tools.sentinel import sentinel_check_write as _sentinel_check_write
 from vizier_mcp.tools.sentinel import web_fetch_checked as _web_fetch_checked
 from vizier_mcp.tools.spec import spec_create as _spec_create
@@ -23,14 +24,14 @@ from vizier_mcp.tools.spec import spec_transition as _spec_transition
 from vizier_mcp.tools.spec import spec_update as _spec_update
 from vizier_mcp.tools.spec import spec_write_feedback as _spec_write_feedback
 
-__version__ = "0.6.0"
-TOOL_COUNT = 11
+__version__ = "0.7.0"
+TOOL_COUNT = 12
 
 
 def create_server(config: ServerConfig | None = None) -> FastMCP:
     """Create and configure the Vizier MCP server.
 
-    Registers all 11 MVP tools with config injected via closures.
+    Registers all 12 tools with config injected via closures.
 
     :param config: Server configuration. Uses defaults if None.
     :return: Configured FastMCP instance ready to run.
@@ -139,6 +140,11 @@ def create_server(config: ServerConfig | None = None) -> FastMCP:
     def project_get_config(project_id: str) -> dict[str, Any]:
         """Get project configuration (write-set, criteria, settings)."""
         return _project_get_config(cfg, project_id)
+
+    @mcp.tool()
+    def secret_check(name: str) -> dict[str, Any]:
+        """Check whether a named secret is available (without revealing its value)."""
+        return _secret_check(name)
 
     return mcp
 

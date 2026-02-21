@@ -43,6 +43,16 @@ class TestGetSecret:
             get_secret("ANTHROPIC_API_KEY")
             mock_vault.assert_called_with("https://test.vault.azure.net/", "anthropic-api-key")
 
+    def test_github_token_mapping(self) -> None:
+        env = {"AZURE_KEY_VAULT_URL": "https://test.vault.azure.net/"}
+        with (
+            patch.dict("os.environ", env, clear=False),
+            patch("vizier_mcp.secrets._read_from_vault", return_value="ghp_test") as mock_vault,
+        ):
+            result = get_secret("GITHUB_TOKEN")
+            assert result == "ghp_test"
+            mock_vault.assert_called_with("https://test.vault.azure.net/", "github-pat")
+
     def test_unknown_key_uses_default_mapping(self) -> None:
         env = {"AZURE_KEY_VAULT_URL": "https://test.vault.azure.net/"}
         with (

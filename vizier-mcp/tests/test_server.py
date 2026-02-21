@@ -35,6 +35,7 @@ EXPECTED_TOOLS = {
     "web_fetch_checked",
     "orch_write_ping",
     "project_get_config",
+    "secret_check",
 }
 
 
@@ -65,7 +66,7 @@ class TestServerToolRegistration:
 
     @pytest.mark.anyio
     async def test_tool_count_constant(self) -> None:
-        assert TOOL_COUNT == 11
+        assert TOOL_COUNT == 12
 
 
 class TestToolCallability:
@@ -197,6 +198,14 @@ class TestToolCallability:
         data = _data(result)
         assert data["type"] is None
         assert data["settings"] == {}
+
+    @pytest.mark.anyio
+    async def test_secret_check(self, server: FastMCP) -> None:
+        with patch("vizier_mcp.tools.sentinel.get_secret", return_value=None):
+            result = await server.call_tool("secret_check", {"name": "SOME_SECRET"})
+            data = _data(result)
+            assert data["name"] == "SOME_SECRET"
+            assert data["exists"] is False
 
 
 class TestEndToEndHappyPath:

@@ -1508,3 +1508,31 @@ litellm.failure_callback = ["langfuse"]
 **Why:** Build the minimum that lets the first spec go from DRAFT to DONE. Everything else is Phase B -- designed, documented, built when needed.
 
 **Trade-off:** Phase B tools will need implementation when multi-spec projects start. Acceptable because: the architecture is designed, the decisions are documented, and adding 4 tools later is straightforward.
+
+### D81: Scoped Secret Injection for run_command_checked
+
+**Context:** Agents need secrets to do useful work (e.g., `git clone` a private repo requires `GITHUB_TOKEN`), but the MCP server's process environment contains ALL secrets (`ANTHROPIC_API_KEY`, `TELEGRAM_BOT_TOKEN`, etc.). Currently `run_command_checked` calls `create_subprocess_shell` with no `env` argument, inheriting the full environment. Any agent command can read any secret via `env` or `printenv`. The old codebase (pre-D63) had a `ToolExecutor` with scoped secret injection and a `secret_check` tool -- both were deleted in the architectural reset and never rebuilt.
+
+**Decision:** Two changes:
+
+1. **Scoped secret injection in `run_command_checked`.** Instead of inheriting the full environment, the subprocess gets a clean environment with only the secrets explicitly allowed for the command type. Scoping rules are defined per-project in `sentinel.yaml`:
+
+```yaml
+secret_scopes:
+  git:
+    commands: ["git *"]
+    secrets: ["GITHUB_TOKEN"]
+  build:
+    commands: ["npm *", "cargo *", "uv *"]
+    secrets: ["GITHUB_TOKEN"]
+```
+
+When a command matches a scope's pattern, only those secrets (plus non-secret env vars like `PATH`, `HOME`, `LANG`) are injected. Commands matching no scope get zero secrets. This is fail-closed: unlisted secrets are never exposed.
+
+2. **`secret_check` MCP tool.** Agents can verify whether a required secret is configured without seeing its value. Returns `{"name": str, "exists": bool}`. Vizier uses this to tell Workers "GITHUB_TOKEN is configured, you can clone" or "not configured, ask the Sultan."
+
+3. **Deploy pipeline addition.** Add `github-pat` to Azure Key Vault. Update the deploy workflow to fetch it and write `GITHUB_TOKEN=<value>` to `.env`. The vizier-mcp container already reads `.env` via `env_file`.
+
+**Why:** Principle of least privilege. An agent running `pytest` should not have access to `ANTHROPIC_API_KEY`. An agent running `git clone` needs `GITHUB_TOKEN` but not `TELEGRAM_BOT_TOKEN`. The old codebase had this right -- secrets exist only for the lifetime of the subprocess, scoped to what the command actually needs.
+
+**Trade-off:** Adds complexity to `_execute_command`. Scoping rules need maintenance as new tools/secrets are added. Acceptable because: the alternative (all secrets visible to all commands) is a real security risk, and the scoping config is declarative and auditable.

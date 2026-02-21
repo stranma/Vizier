@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 _VAULT_URL_ENV = "AZURE_KEY_VAULT_URL"
 _SECRET_MAPPING = {
     "ANTHROPIC_API_KEY": "anthropic-api-key",
+    "GITHUB_TOKEN": "github-pat",
 }
 
 

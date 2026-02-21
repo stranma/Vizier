@@ -18,7 +18,7 @@ from vizier_mcp.server import TOOL_COUNT
 
 pytestmark = pytest.mark.anyio
 
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 
 
 class TestBuildHealthPayload:
@@ -47,7 +47,7 @@ class TestBuildReadinessPayload:
 
         env = {"VIZIER_ROOT": str(root), "ANTHROPIC_API_KEY": "test-key"}
         with patch.dict("os.environ", env, clear=False):
-            payload = build_readiness_payload(VERSION, 11, 11)
+            payload = build_readiness_payload(VERSION, 12, 12)
 
         assert payload["ready"] is True
         assert payload["version"] == VERSION
@@ -65,7 +65,7 @@ class TestBuildReadinessPayload:
 
         env = {"VIZIER_ROOT": str(root), "ANTHROPIC_API_KEY": "test-key"}
         with patch.dict("os.environ", env, clear=False):
-            payload = build_readiness_payload(VERSION, 5, 11)
+            payload = build_readiness_payload(VERSION, 5, 12)
 
         assert payload["ready"] is False
         assert payload["checks"]["tools"]["pass"] is False
@@ -73,7 +73,7 @@ class TestBuildReadinessPayload:
     def test_missing_vizier_root_fails(self) -> None:
         env = {"VIZIER_ROOT": "/nonexistent/path", "ANTHROPIC_API_KEY": "test-key"}
         with patch.dict("os.environ", env, clear=False):
-            payload = build_readiness_payload(VERSION, 11, 11)
+            payload = build_readiness_payload(VERSION, 12, 12)
 
         assert payload["ready"] is False
         assert payload["checks"]["vizier_root"]["pass"] is False
@@ -87,7 +87,7 @@ class TestBuildReadinessPayload:
 
         env = {"VIZIER_ROOT": str(root)}
         with patch.dict("os.environ", env, clear=True):
-            payload = build_readiness_payload(VERSION, 11, 11)
+            payload = build_readiness_payload(VERSION, 12, 12)
 
         assert payload["ready"] is False
         assert payload["checks"]["anthropic_api_key"]["pass"] is False
@@ -100,7 +100,7 @@ class TestBuildReadinessPayload:
 
         env = {"VIZIER_ROOT": str(root), "ANTHROPIC_API_KEY": "test-key"}
         with patch.dict("os.environ", env, clear=False):
-            payload = build_readiness_payload(VERSION, 11, 11)
+            payload = build_readiness_payload(VERSION, 12, 12)
 
         assert payload["ready"] is False
         assert payload["checks"]["projects_dir"]["pass"] is False

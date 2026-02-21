@@ -34,6 +34,17 @@ class RolePermissions(BaseModel):
     can_read: bool = True
 
 
+class SecretScope(BaseModel):
+    """A named scope mapping command patterns to secret environment variables.
+
+    :param commands: fnmatch patterns for matching commands (e.g. ``["git *"]``).
+    :param secrets: Environment variable names to inject (e.g. ``["GITHUB_TOKEN"]``).
+    """
+
+    commands: list[str]
+    secrets: list[str]
+
+
 class SentinelPolicy(BaseModel):
     """Project-level Sentinel policy loaded from sentinel.yaml.
 
@@ -41,12 +52,14 @@ class SentinelPolicy(BaseModel):
     :param command_allowlist: Commands/patterns that are always allowed.
     :param command_denylist: Commands/patterns that are always blocked.
     :param role_permissions: Per-role permission flags.
+    :param secret_scopes: Named scopes mapping command patterns to secrets (D81).
     """
 
     write_set: list[str] = Field(default_factory=list)
     command_allowlist: list[str] = Field(default_factory=list)
     command_denylist: list[str | DenylistEntry] = Field(default_factory=list)
     role_permissions: dict[str, RolePermissions] = Field(default_factory=dict)
+    secret_scopes: dict[str, SecretScope] = Field(default_factory=dict)
 
 
 class CommandCheckResult(BaseModel):

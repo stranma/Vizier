@@ -9,27 +9,50 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from typing import TYPE_CHECKING
 
 import httpx
 
 from vizier_mcp.models.sentinel import PolicyDecision
+from vizier_mcp.secrets import get_secret
 from vizier_mcp.sentinel.haiku import LLMCallable
 from vizier_mcp.sentinel.haiku import evaluate_command as haiku_evaluate
 from vizier_mcp.sentinel.injection import scan_for_injection
 from vizier_mcp.sentinel.policy import (
     check_role_permission,
     load_policy,
+    resolve_secret_scopes,
 )
 from vizier_mcp.sentinel.policy import (
     evaluate_command as evaluate_command_policy,
 )
 from vizier_mcp.sentinel.write_set import WriteSetChecker
 
+_SAFE_ENV_VARS = ("PATH", "HOME", "LANG", "LC_ALL", "TERM", "USER", "SHELL", "TMPDIR", "TZ")
+
 if TYPE_CHECKING:
     from vizier_mcp.config import ServerConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _build_scoped_env(secret_names: list[str]) -> dict[str, str]:
+    """Build a minimal environment with safe vars and requested secrets only.
+
+    :param secret_names: Environment variable names to inject (from resolve_secret_scopes).
+    :return: Environment dict with safe vars + resolved secrets.
+    """
+    env: dict[str, str] = {}
+    for k in _SAFE_ENV_VARS:
+        v = os.environ.get(k)
+        if v is not None:
+            env[k] = v
+    for name in secret_names:
+        value = get_secret(name)
+        if value is not None:
+            env[name] = value
+    return env
 
 
 def sentinel_check_write(
@@ -116,13 +139,16 @@ async def run_command_checked(
         if verdict.decision == PolicyDecision.DENY:
             return {"allowed": False, "reason": verdict.reason}
 
-    return await _execute_command(command)
+    secret_names = resolve_secret_scopes(policy, command)
+    scoped_env = _build_scoped_env(secret_names)
+    return await _execute_command(command, env=scoped_env)
 
 
-async def _execute_command(command: str) -> dict:
+async def _execute_command(command: str, env: dict[str, str] | None = None) -> dict:
     """Execute a shell command and return D78-shaped result.
 
     :param command: The shell command to execute.
+    :param env: Environment variables for the subprocess. If None, inherits parent.
     :return: {"allowed": True, "exit_code": int, "stdout": str, "stderr": str}
     """
     try:
@@ -130,6 +156,7 @@ async def _execute_command(command: str) -> dict:
             command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=env,
         )
         stdout_bytes, stderr_bytes = await proc.communicate()
         return {
@@ -194,3 +221,13 @@ async def web_fetch_checked(
         "content": content,
         "status_code": response.status_code,
     }
+
+
+def secret_check(name: str) -> dict:
+    """Check whether a named secret is available (without revealing its value).
+
+    :param name: The environment variable name (e.g. ``GITHUB_TOKEN``).
+    :return: {"name": str, "exists": bool}
+    """
+    value = get_secret(name)
+    return {"name": name, "exists": value is not None}
