@@ -4,7 +4,7 @@
       "type": "persistent",
       "model": "anthropic/claude-opus-4-6",
       "description": "Grand Vizier -- singleton orchestrator, Sultan's primary contact",
-      "workspace": "/root/.openclaw/workspace/vizier",
+      "workspace": "/home/node/.openclaw/workspace/vizier",
       "mcp_servers": ["vizier"],
       "compaction": true,
       "memory_enabled": true
@@ -14,7 +14,7 @@
       "template": true,
       "model": "anthropic/claude-opus-4-6",
       "description": "Per-project orchestrator, manages specs and delegates to workers",
-      "workspace": "/root/.openclaw/workspace/pasha-template",
+      "workspace": "/home/node/.openclaw/workspace/pasha-template",
       "mcp_servers": ["vizier"],
       "compaction": true,
       "memory_enabled": true,
@@ -25,7 +25,7 @@
       "template": true,
       "model": "anthropic/claude-sonnet-4-6",
       "description": "Fresh-context executor, implements one spec at a time",
-      "workspace": "/root/.openclaw/workspace/worker-template",
+      "workspace": "/home/node/.openclaw/workspace/worker-template",
       "mcp_servers": ["vizier"],
       "timeout_minutes": 30,
       "parent": "pasha"
@@ -35,7 +35,7 @@
       "template": true,
       "model": "anthropic/claude-sonnet-4-6",
       "description": "Reviews completed work against spec acceptance criteria",
-      "workspace": "/root/.openclaw/workspace/quality-gate-template",
+      "workspace": "/home/node/.openclaw/workspace/quality-gate-template",
       "mcp_servers": ["vizier"],
       "timeout_minutes": 15,
       "parent": "pasha"

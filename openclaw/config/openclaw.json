@@ -29,13 +29,13 @@
         "model": "anthropic/claude-opus-4-6",
         "compaction": true,
         "memory_enabled": true,
-        "workspace": "/root/.openclaw/workspace/vizier"
+        "workspace": "/home/node/.openclaw/workspace/vizier"
       },
       "pasha_template": {
         "model": "anthropic/claude-opus-4-6",
         "compaction": true,
         "memory_enabled": true,
-        "workspace": "/root/.openclaw/workspace/pasha-template",
+        "workspace": "/home/node/.openclaw/workspace/pasha-template",
         "trigger": "message_from_parent"
       }
     },
@@ -43,12 +43,12 @@
       "worker": {
         "model": "anthropic/claude-sonnet-4-6",
         "default_timeout_minutes": 30,
-        "workspace": "/root/.openclaw/workspace/worker-template"
+        "workspace": "/home/node/.openclaw/workspace/worker-template"
       },
       "quality_gate": {
         "model": "anthropic/claude-sonnet-4-6",
         "default_timeout_minutes": 15,
-        "workspace": "/root/.openclaw/workspace/quality-gate-template"
+        "workspace": "/home/node/.openclaw/workspace/quality-gate-template"
       },
       "max_concurrent": 5
     }

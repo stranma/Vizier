@@ -30,10 +30,10 @@ services:
     ports:
       - "18789:18789"
     volumes:
-      - ./openclaw/config/openclaw.json:/root/.openclaw/openclaw.json:ro
-      - ./openclaw/config/agents.json:/root/.openclaw/agents.json:ro
-      - ./openclaw/workspaces:/root/.openclaw/workspace:ro
-      - openclaw-data:/root/.openclaw/agents
+      - ./openclaw/config/openclaw.json:/home/node/.openclaw/openclaw.json:ro
+      - ./openclaw/config/agents.json:/home/node/.openclaw/agents.json:ro
+      - ./openclaw/workspaces:/home/node/.openclaw/workspace:ro
+      - openclaw-data:/home/node/.openclaw/agents
       - /var/run/docker.sock:/var/run/docker.sock
     env_file:
       - .env
