@@ -159,7 +159,7 @@ async def start_health_server(
     tool_count: int,
     host: str = DEFAULT_HEALTH_HOST,
     port: int = DEFAULT_HEALTH_PORT,
-    expected_tools: int = 12,
+    expected_tools: int = 14,
 ) -> Any:
     """Start the async TCP health server with /health and /readiness endpoints.
 

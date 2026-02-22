@@ -1,6 +1,6 @@
-"""Tests for FastMCP server integration (Phase 4).
+"""Tests for FastMCP server integration (Phase 4, updated Phase 8).
 
-Tests that all 11 tools are registered and callable via call_tool,
+Tests that all tools are registered and callable via call_tool,
 plus end-to-end lifecycle tests through the MCP protocol.
 """
 
@@ -36,6 +36,8 @@ EXPECTED_TOOLS = {
     "orch_write_ping",
     "project_get_config",
     "secret_check",
+    "system_get_logs",
+    "system_get_errors",
 }
 
 
@@ -66,7 +68,7 @@ class TestServerToolRegistration:
 
     @pytest.mark.anyio
     async def test_tool_count_constant(self) -> None:
-        assert TOOL_COUNT == 12
+        assert TOOL_COUNT == 14
 
 
 class TestToolCallability:
@@ -164,7 +166,7 @@ class TestToolCallability:
         assert data["exit_code"] == 0
 
     @pytest.mark.anyio
-    async def test_web_fetch_checked(self, server: FastMCP) -> None:
+    async def test_web_fetch_checked(self, server: FastMCP, project_dir: Path) -> None:
         """AC-I7: Async tool callable via call_tool."""
         with patch("vizier_mcp.tools.sentinel.httpx.AsyncClient") as mock_client_cls:
             mock_response = AsyncMock()
@@ -178,7 +180,7 @@ class TestToolCallability:
 
             result = await server.call_tool(
                 "web_fetch_checked",
-                {"url": "https://example.com", "agent_role": "worker"},
+                {"project_id": PROJECT_ID, "url": "https://example.com", "agent_role": "worker"},
             )
             assert _data(result)["safe"] is True
 
@@ -206,6 +208,34 @@ class TestToolCallability:
             data = _data(result)
             assert data["name"] == "SOME_SECRET"
             assert data["exists"] is False
+
+    @pytest.mark.anyio
+    async def test_system_get_logs(self, server: FastMCP) -> None:
+        result = await server.call_tool("system_get_logs", {"since_minutes": 5})
+        data = _data(result)
+        assert "entries" in data
+        assert "total_matched" in data
+        assert "truncated" in data
+
+    @pytest.mark.anyio
+    async def test_system_get_errors(self, server: FastMCP) -> None:
+        result = await server.call_tool("system_get_errors", {"since_minutes": 5})
+        data = _data(result)
+        assert "errors" in data
+        assert "total" in data
+
+
+class TestToolLogging:
+    """Tests for structured logging of tool calls (AC-8.2)."""
+
+    @pytest.mark.anyio
+    async def test_tool_call_produces_log_entry(self, server: FastMCP, project_dir: Path, config: ServerConfig) -> None:
+        await server.call_tool("spec_list", {"project_id": PROJECT_ID})
+        result = await server.call_tool("system_get_logs", {"event": "tool_call", "since_minutes": 1})
+        data = _data(result)
+        assert data["total_matched"] >= 1
+        tools_logged = [e["data"]["tool"] for e in data["entries"] if "tool" in e.get("data", {})]
+        assert "spec_list" in tools_logged
 
 
 class TestEndToEndHappyPath:

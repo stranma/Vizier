@@ -31,11 +31,16 @@ class ServerConfig(BaseModel):
     file_locking: bool = True
     startup_recovery: bool = True
     claim_timeout: int = 30
+    log_dir: Path | None = None
+    log_max_size_mb: int = 10
+    log_max_files: int = 5
 
     def model_post_init(self, __context: object) -> None:
-        """Set projects_dir default based on vizier_root."""
+        """Set projects_dir and log_dir defaults based on vizier_root."""
         if self.projects_dir is None:
             self.projects_dir = self.vizier_root / "projects"
+        if self.log_dir is None:
+            self.log_dir = self.vizier_root / "logs"
 
 
 def load_config(config_path: Path | None = None) -> ServerConfig:

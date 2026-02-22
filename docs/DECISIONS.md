@@ -1536,3 +1536,25 @@ When a command matches a scope's pattern, only those secrets (plus non-secret en
 **Why:** Principle of least privilege. An agent running `pytest` should not have access to `ANTHROPIC_API_KEY`. An agent running `git clone` needs `GITHUB_TOKEN` but not `TELEGRAM_BOT_TOKEN`. The old codebase had this right -- secrets exist only for the lifetime of the subprocess, scoped to what the command actually needs.
 
 **Trade-off:** Adds complexity to `_execute_command`. Scoping rules need maintenance as new tools/secrets are added. Acceptable because: the alternative (all secrets visible to all commands) is a real security risk, and the scoping config is declarative and auditable.
+
+### D82: Self-Bootstrapping Vizier (Observability)
+
+**Context:** Vizier MVP v1 (Phases 1-7) is complete: 12 MCP tools, 217+ tests, Docker deployment with health checks, Telegram integration. However, the system has no way to observe its own behavior. Logs go to stdout, accessible only via `docker logs` (requires SSH). Agents cannot query logs, inspect system status, or diagnose failures through MCP tools. The Sultan should not need to SSH into a Docker container to find out why a spec is stuck. The future Retrospective agent needs programmatic access to operational data.
+
+**Decision:** Implement observability in three tiers:
+
+1. **Tier 1 (Phase 8): Logging + Log Query Tools.** Structured JSONL logging (`{vizier_root}/logs/vizier-mcp.jsonl`) with log rotation (10MB x 5 files). All 12 existing tool calls instrumented with entry/exit/duration logging. Two new MCP tools: `system_get_logs` (filtered log query) and `system_get_errors` (convenience ERROR filter). Bug fix: `web_fetch_checked` gains role-based Sentinel gating (matching `run_command_checked` and `sentinel_check_write`).
+
+2. **Tier 2 (Phase 9): Status + Analytics Tools.** `system_get_status` returns operational intelligence (version, uptime, spec counts by status, stuck/in-progress specs with timing, recent activity summary). `spec_analytics` returns per-project metrics (throughput, timing, quality, sentinel stats). Both read from spec filesystem and structured logs.
+
+3. **Tier 3 (Future): Retrospective Agent Activation.** The Retrospective agent (designed in D8, deferred in D75) will consume Tier 1-2 data programmatically via these MCP tools instead of parsing raw logs.
+
+**Relationship to D28 (Structured JSONL):** Supersedes D28's "MODIFIED: OpenClaw transcripts" status. MCP server telemetry (tool calls, sentinel decisions, spec transitions) and OpenClaw agent transcripts are complementary, not substitutes. D28's original JSONL format is adopted for the log entries.
+
+**Read-only observability tools need no Sentinel gating.** Any role can query its own logs -- reading operational data is never a security risk. Write operations (log injection, log deletion) are not exposed.
+
+**No database.** JSONL files + spec YAML frontmatter, consistent with D4 (filesystem as message bus).
+
+**Why:** You cannot fix what you cannot see. Self-debugging and self-improvement require observability. The Sultan and future Retrospective agent both need programmatic access to operational data without SSH.
+
+**Trade-off:** Log files add disk I/O overhead and storage requirements. Mitigated by rotation (50MB max history) and per-entry open/write/close pattern for thread safety.

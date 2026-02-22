@@ -175,6 +175,8 @@ async def _execute_command(command: str, env: dict[str, str] | None = None) -> d
 
 
 async def web_fetch_checked(
+    config: ServerConfig,
+    project_id: str,
     url: str,
     agent_role: str,
 ) -> dict:
@@ -188,10 +190,21 @@ async def web_fetch_checked(
     - Fetched: {"safe": True, "content": str, "status_code": 200}
     - Failed: {"safe": True, "content": "", "status_code": N, "error": str}
 
+    :param config: Server configuration.
+    :param project_id: Project identifier for loading Sentinel policy.
     :param url: The URL to fetch.
     :param agent_role: The calling agent's role.
     :return: One of the three D78 shapes.
     """
+    policy_result = load_policy(config, project_id)
+    if isinstance(policy_result, dict):
+        return {"safe": False, "reason": policy_result.get("error", "Policy load failed")}
+
+    policy = policy_result
+
+    if policy.role_permissions and not check_role_permission(policy, agent_role, "can_web_fetch"):
+        return {"safe": False, "reason": f"Role '{agent_role}' does not have web_fetch permission"}
+
     try:
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             response = await client.get(url)
