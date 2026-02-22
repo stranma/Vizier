@@ -32,6 +32,7 @@ class RolePermissions(BaseModel):
     can_write: bool = True
     can_bash: bool = True
     can_read: bool = True
+    can_web_fetch: bool = True
 
 
 class SecretScope(BaseModel):

@@ -11,6 +11,8 @@
 | 5 | OpenClaw Connection | Complete | SOUL.md tuning, OpenClaw config, setup guide |
 | 6 | Deployment | Complete | Dockerfile, docker-compose, CI/CD, deployment guide |
 | 7 | OpenClaw + Telegram Deployment | Complete | openclaw service, Telegram bot, dual health checks, setup script |
+| 8 | Observability | Complete | system_get_logs, system_get_errors (+ bug fix: web_fetch_checked role enforcement, JSONL logging) |
+| 9 | Self-Diagnosis | Complete | system_get_status, spec_analytics |
 
 ---
 
@@ -232,6 +234,68 @@
 - [x] CI/CD deploy workflow copies OpenClaw config files to the server and performs a health check for both services. OpenClaw health check failure is informational (non-blocking) to handle first-time deploys without a bot token.
 - [x] `scripts/openclaw-setup.sh` guides operators through token verification and Telegram pairing on first deployment.
 - [x] `docs/DEPLOYMENT.md` Section 9 covers the complete setup flow from bot creation to first message.
+
+### Phase Completion Steps
+
+> After this phase, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md).
+
+---
+
+## Phase 8: Observability
+
+**Status: Complete** (2026-02-22)
+
+**Version:** 0.8.0
+
+**Goal:** Add structured logging, log query tools, and fix the web_fetch_checked role enforcement bug. Provides the foundation for system self-diagnosis by making all tool calls observable through JSONL logs and queryable through MCP tools.
+
+**Deliverables:**
+- [x] Bug fix: `web_fetch_checked` now accepts `config` and `project_id` parameters and checks `can_web_fetch` role permission via Sentinel policy (matching `run_command_checked` pattern)
+- [x] `can_web_fetch` field added to `RolePermissions` model (default: `True`)
+- [x] `StructuredLogger` class (`logging_structured.py`): JSONL writing, size-based rotation (configurable max size/files), thread-safe, `read_entries()` with filtering
+- [x] Log config fields added to `ServerConfig`: `log_dir`, `log_max_size_mb`, `log_max_files`
+- [x] All 12 existing tools instrumented with logging wrappers (`_logged_sync`, `_logged_async`) recording entry/exit/duration
+- [x] `system_get_logs` MCP tool: query JSONL logs with filters (level, module, event, since_minutes, limit, spec_id)
+- [x] `system_get_errors` MCP tool: convenience filter for ERROR-level entries
+- [x] 16 tests for StructuredLogger, 8 tests for observability tools
+- [x] Tool count: 12 -> 14
+
+**Acceptance Criteria:**
+- [x] AC-8.1: `web_fetch_checked` with `project_id` checks `can_web_fetch` role permission. Missing role -> deny.
+- [x] AC-8.2: Every MCP tool call produces a JSONL log entry with timestamp, tool name, duration_ms.
+- [x] AC-8.3: Log rotation at `log_max_size_mb`. Old files renamed with `.1`, `.2` suffixes.
+- [x] AC-8.4: `system_get_logs(since_minutes=5)` returns recent entries. All filters work. Empty log -> empty list.
+- [x] AC-8.5: `system_get_errors(since_minutes=60)` returns ERROR entries from last hour.
+- [x] AC-8.6: `create_server()` returns FastMCP with 14 tools registered.
+- [x] AC-8.7: Cumulative: all Phase 1-7 acceptance criteria still pass.
+
+### Phase Completion Steps
+
+> After this phase, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md).
+
+---
+
+## Phase 9: Self-Diagnosis Tools
+
+**Status: Complete** (2026-02-22)
+
+**Version:** 0.9.0
+
+**Goal:** Add system status and spec analytics MCP tools, enabling agents and operators to query operational intelligence and per-project metrics without SSH access.
+
+**Deliverables:**
+- [x] `system_get_status` MCP tool (`tools/status.py`): returns server info (version, tool count, uptime), spec summary (counts by status, stuck specs with timing, in-progress specs with age), recent activity (transitions/errors/sentinel denials in last hour), optional `project_id` filter
+- [x] `spec_analytics` MCP tool (`tools/analytics.py`): returns per-project throughput (completed, stuck, success rate), timing (avg time to done, avg time in review, slowest spec), quality (rejections, retries), sentinel stats (checks, denials)
+- [x] 8 tests for status tool, 6 tests for analytics tool
+- [x] Tool count: 14 -> 16
+- [x] Version bumped to 0.9.0
+
+**Acceptance Criteria:**
+- [x] AC-9.1: `system_get_status()` returns correct spec counts by status. STUCK/IN_PROGRESS specs listed with timing.
+- [x] AC-9.2: `system_get_status(project_id="X")` scopes to project X. Non-existent project -> zeroes.
+- [x] AC-9.3: `spec_analytics(project_id="X")` returns throughput, timing, quality, sentinel metrics. No specs -> zeroes.
+- [x] AC-9.4: `create_server()` returns FastMCP with 16 tools registered.
+- [x] AC-9.5: Cumulative: all Phase 1-8 acceptance criteria still pass.
 
 ### Phase Completion Steps
 

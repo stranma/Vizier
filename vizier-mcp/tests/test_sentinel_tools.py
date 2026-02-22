@@ -338,10 +338,10 @@ class TestSecretCheck:
 
 
 class TestWebFetchChecked:
-    """Tests for web_fetch_checked (AC-S7, AC-S8)."""
+    """Tests for web_fetch_checked (AC-S7, AC-S8, AC-8.1)."""
 
     @pytest.mark.anyio
-    async def test_clean_content(self) -> None:
+    async def test_clean_content(self, config: ServerConfig, project_dir: Path) -> None:
         with patch("vizier_mcp.tools.sentinel.httpx.AsyncClient") as mock_client_cls:
             mock_response = AsyncMock()
             mock_response.status_code = 200
@@ -352,13 +352,13 @@ class TestWebFetchChecked:
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_client_cls.return_value = mock_client
 
-            result = await web_fetch_checked("https://example.com", "worker")
+            result = await web_fetch_checked(config, PROJECT_ID, "https://example.com", "worker")
             assert result["safe"] is True
             assert result["content"] == "Hello, World!"
             assert result["status_code"] == 200
 
     @pytest.mark.anyio
-    async def test_injection_detected(self) -> None:
+    async def test_injection_detected(self, config: ServerConfig, project_dir: Path) -> None:
         with patch("vizier_mcp.tools.sentinel.httpx.AsyncClient") as mock_client_cls:
             mock_response = AsyncMock()
             mock_response.status_code = 200
@@ -369,12 +369,12 @@ class TestWebFetchChecked:
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_client_cls.return_value = mock_client
 
-            result = await web_fetch_checked("https://evil.com", "worker")
+            result = await web_fetch_checked(config, PROJECT_ID, "https://evil.com", "worker")
             assert result["safe"] is False
             assert "reason" in result
 
     @pytest.mark.anyio
-    async def test_http_error_status(self) -> None:
+    async def test_http_error_status(self, config: ServerConfig, project_dir: Path) -> None:
         with patch("vizier_mcp.tools.sentinel.httpx.AsyncClient") as mock_client_cls:
             mock_response = AsyncMock()
             mock_response.status_code = 404
@@ -384,14 +384,14 @@ class TestWebFetchChecked:
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_client_cls.return_value = mock_client
 
-            result = await web_fetch_checked("https://example.com/missing", "worker")
+            result = await web_fetch_checked(config, PROJECT_ID, "https://example.com/missing", "worker")
             assert result["safe"] is True
             assert result["content"] == ""
             assert result["status_code"] == 404
             assert "error" in result
 
     @pytest.mark.anyio
-    async def test_connection_error(self) -> None:
+    async def test_connection_error(self, config: ServerConfig, project_dir: Path) -> None:
         import httpx as httpx_mod
 
         with patch("vizier_mcp.tools.sentinel.httpx.AsyncClient") as mock_client_cls:
@@ -401,14 +401,14 @@ class TestWebFetchChecked:
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_client_cls.return_value = mock_client
 
-            result = await web_fetch_checked("https://unreachable.local", "worker")
+            result = await web_fetch_checked(config, PROJECT_ID, "https://unreachable.local", "worker")
             assert result["safe"] is True
             assert result["content"] == ""
             assert result["status_code"] == 0
             assert "error" in result
 
     @pytest.mark.anyio
-    async def test_500_error(self) -> None:
+    async def test_500_error(self, config: ServerConfig, project_dir: Path) -> None:
         with patch("vizier_mcp.tools.sentinel.httpx.AsyncClient") as mock_client_cls:
             mock_response = AsyncMock()
             mock_response.status_code = 500
@@ -418,10 +418,50 @@ class TestWebFetchChecked:
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_client_cls.return_value = mock_client
 
-            result = await web_fetch_checked("https://example.com/error", "worker")
+            result = await web_fetch_checked(config, PROJECT_ID, "https://example.com/error", "worker")
             assert result["safe"] is True
             assert result["status_code"] == 500
             assert "error" in result
+
+    @pytest.mark.anyio
+    async def test_role_without_web_fetch_permission(self, config: ServerConfig, project_dir: Path) -> None:
+        _write_sentinel_yaml(
+            project_dir,
+            {
+                "role_permissions": {
+                    "restricted": {"can_write": True, "can_bash": True, "can_read": True, "can_web_fetch": False}
+                },
+            },
+        )
+        result = await web_fetch_checked(config, PROJECT_ID, "https://example.com", "restricted")
+        assert result["safe"] is False
+        assert "web_fetch permission" in result["reason"].lower()
+
+    @pytest.mark.anyio
+    async def test_unknown_role_denied(self, config: ServerConfig, project_dir: Path) -> None:
+        _write_sentinel_yaml(
+            project_dir,
+            {
+                "role_permissions": {"worker": {"can_web_fetch": True}},
+            },
+        )
+        result = await web_fetch_checked(config, PROJECT_ID, "https://example.com", "unknown_role")
+        assert result["safe"] is False
+
+    @pytest.mark.anyio
+    async def test_no_role_permissions_allows_all_roles(self, config: ServerConfig, project_dir: Path) -> None:
+        with patch("vizier_mcp.tools.sentinel.httpx.AsyncClient") as mock_client_cls:
+            mock_response = AsyncMock()
+            mock_response.status_code = 200
+            mock_response.text = "Clean content"
+            mock_client = AsyncMock()
+            mock_client.get.return_value = mock_response
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_cls.return_value = mock_client
+
+            result = await web_fetch_checked(config, PROJECT_ID, "https://example.com", "any_role")
+            assert result["safe"] is True
 
 
 class TestSentinelIntegration:
