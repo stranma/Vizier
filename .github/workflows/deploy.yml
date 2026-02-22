@@ -69,6 +69,16 @@ jobs:
               echo "${secret}=${value}" >> "$GITHUB_OUTPUT"
             done
 
+      - name: Fix file ownership before SCP
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: vizier
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            sudo chown -R vizier:vizier /opt/vizier/openclaw/ 2>/dev/null || true
+            sudo chown -R vizier:vizier /opt/vizier/scripts/ 2>/dev/null || true
+
       - name: Copy config files to server
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -77,6 +87,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           source: "docker-compose.yml,openclaw/config/,openclaw/workspaces/,scripts/"
           target: /opt/vizier/
+          overwrite: true
 
       - name: Write secrets to server .env
         uses: appleboy/ssh-action@v1
