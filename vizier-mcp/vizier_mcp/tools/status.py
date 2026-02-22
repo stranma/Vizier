@@ -11,38 +11,14 @@ import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-import yaml
-
-from vizier_mcp.models.spec import SpecMetadata, SpecStatus
+from vizier_mcp.models.spec import SpecStatus
+from vizier_mcp.tools._spec_utils import parse_spec_metadata
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from vizier_mcp.config import ServerConfig
     from vizier_mcp.logging_structured import StructuredLogger
 
 _SERVER_START_TIME = time.monotonic()
-
-
-def _parse_spec_metadata(spec_file: Path) -> SpecMetadata | None:
-    """Parse spec.md frontmatter into SpecMetadata, returning None on error."""
-    try:
-        content = spec_file.read_text()
-        lines = content.split("\n")
-        if not lines or lines[0].strip() != "---":
-            return None
-        end_idx = -1
-        for i in range(1, len(lines)):
-            if lines[i].strip() == "---":
-                end_idx = i
-                break
-        if end_idx == -1:
-            return None
-        frontmatter = "\n".join(lines[1:end_idx])
-        meta_dict = yaml.safe_load(frontmatter) or {}
-        return SpecMetadata(**meta_dict)
-    except Exception:
-        return None
 
 
 def system_get_status(
@@ -90,7 +66,7 @@ def system_get_status(
             spec_file = spec_dir / "spec.md"
             if not spec_file.exists():
                 continue
-            meta = _parse_spec_metadata(spec_file)
+            meta = parse_spec_metadata(spec_file)
             if meta is None:
                 continue
 
