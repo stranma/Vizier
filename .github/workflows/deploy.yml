@@ -77,7 +77,9 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             sudo chown -R vizier:vizier /opt/vizier/openclaw/ 2>/dev/null || true
+            sudo chmod -R u+rwX /opt/vizier/openclaw/ 2>/dev/null || true
             sudo chown -R vizier:vizier /opt/vizier/scripts/ 2>/dev/null || true
+            sudo chmod -R u+rwX /opt/vizier/scripts/ 2>/dev/null || true
 
       - name: Copy config files to server
         uses: appleboy/scp-action@v0.1.7
