@@ -164,12 +164,21 @@ def create_server(config: ServerConfig | None = None) -> FastMCP:
         agent_role: str,
     ) -> dict[str, Any]:
         """Validate a file write against Sentinel policy."""
-        result = _logged_sync(slog, "sentinel_check_write", _sentinel_check_write)(cfg, project_id, file_path, agent_role)
+        result = _logged_sync(slog, "sentinel_check_write", _sentinel_check_write)(
+            cfg, project_id, file_path, agent_role
+        )
         denied = not result.get("allowed", True)
-        slog.log("INFO", "sentinel", "sentinel_decision", {
-            "tool": "sentinel_check_write", "project_id": project_id, "denied": denied,
-            "agent_role": agent_role,
-        })
+        slog.log(
+            "INFO",
+            "sentinel",
+            "sentinel_decision",
+            {
+                "tool": "sentinel_check_write",
+                "project_id": project_id,
+                "denied": denied,
+                "agent_role": agent_role,
+            },
+        )
         return result
 
     @mcp.tool()
@@ -183,10 +192,17 @@ def create_server(config: ServerConfig | None = None) -> FastMCP:
             cfg, project_id, command, agent_role
         )
         denied = not result.get("allowed", True)
-        slog.log("INFO", "sentinel", "sentinel_decision", {
-            "tool": "run_command_checked", "project_id": project_id, "denied": denied,
-            "agent_role": agent_role,
-        })
+        slog.log(
+            "INFO",
+            "sentinel",
+            "sentinel_decision",
+            {
+                "tool": "run_command_checked",
+                "project_id": project_id,
+                "denied": denied,
+                "agent_role": agent_role,
+            },
+        )
         return result
 
     @mcp.tool()
@@ -198,10 +214,17 @@ def create_server(config: ServerConfig | None = None) -> FastMCP:
         """Fetch a URL and scan content for prompt injection."""
         result = await _logged_async(slog, "web_fetch_checked", _web_fetch_checked)(cfg, project_id, url, agent_role)
         denied = not result.get("safe", True)
-        slog.log("INFO", "sentinel", "sentinel_decision", {
-            "tool": "web_fetch_checked", "project_id": project_id, "denied": denied,
-            "agent_role": agent_role,
-        })
+        slog.log(
+            "INFO",
+            "sentinel",
+            "sentinel_decision",
+            {
+                "tool": "web_fetch_checked",
+                "project_id": project_id,
+                "denied": denied,
+                "agent_role": agent_role,
+            },
+        )
         return result
 
     @mcp.tool()
