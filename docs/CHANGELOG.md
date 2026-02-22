@@ -18,6 +18,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **`scripts/openclaw-setup.sh`** -- A first-time setup script that checks whether the OpenClaw container is running, warns if `TELEGRAM_BOT_TOKEN` is missing or still set to the placeholder value, and prints step-by-step Telegram pairing instructions. Operators run this once after the first deployment to complete the bot setup.
 - **`docs/DEPLOYMENT.md` Section 9: OpenClaw + Telegram** -- Extends the deployment guide with prerequisites (bot token from @BotFather), configuration instructions, post-deploy verification commands, the Telegram pairing procedure, an architecture diagram showing the Telegram -> OpenClaw -> vizier-mcp connection path, Docker socket security guidance, and a troubleshooting section covering the most common failure modes (container not starting, bot not responding, MCP tool failures).
 
+## [0.9.0] - 2026-02-22
+
+Phase 9: Self-Diagnosis Tools. Two new MCP tools providing operational intelligence and per-project analytics, enabling agents and operators to query system state without SSH access.
+
+### Added
+
+- **`system_get_status` MCP tool** -- Returns server info (version, tool count, uptime), spec summary (counts by status, stuck specs with timing, in-progress specs with age), and recent activity metrics (transitions, errors, sentinel denials in last hour). Optional `project_id` parameter scopes results to a single project; omit for system-wide view. Non-existent project returns zeroes rather than errors.
+- **`spec_analytics` MCP tool** -- Returns per-project metrics: throughput (completed, stuck, success rate), timing (avg time to DONE, avg time in REVIEW, slowest spec), quality (rejection count, retries, specs with retries), and sentinel stats (total checks, denials). Reads from spec YAML frontmatter, feedback directories, and structured logs. No specs returns zeroes for all metrics.
+
+## [0.8.0] - 2026-02-22
+
+Phase 8: Observability. Structured JSONL logging with rotation, log query tools, and a bug fix for web_fetch_checked role enforcement. All MCP tool calls are now observable and queryable.
+
+### Added
+
+- **Structured JSONL logging** -- `StructuredLogger` class writes timestamped JSON entries to `{vizier_root}/logs/vizier-mcp.jsonl`. Entry format: `{timestamp, level, module, event, data}`. Thread-safe with size-based rotation (10MB default, 5 files). All 16 MCP tools are instrumented with timing wrappers recording tool name, duration_ms, and outcome on every call.
+- **`system_get_logs` MCP tool** -- Query structured logs with filters: `level`, `module`, `event`, `since_minutes` (default 60), `limit` (default 100), `spec_id`. Returns `{entries, total_matched, truncated}`. Newest entries first.
+- **`system_get_errors` MCP tool** -- Convenience wrapper returning ERROR-level entries from the last hour. Returns `{errors, total}`.
+- **Log configuration** -- Three new `ServerConfig` fields: `log_dir` (defaults to `{vizier_root}/logs`), `log_max_size_mb` (default 10), `log_max_files` (default 5).
+
+### Fixed
+
+- **`web_fetch_checked` role enforcement** -- Previously accepted `agent_role` parameter but never checked it against Sentinel policy. Now loads the project's `sentinel.yaml` and checks `can_web_fetch` permission (matching `run_command_checked` pattern). Roles without `can_web_fetch: true` are denied. Added `can_web_fetch` field to `RolePermissions` model (default: `true`).
+
 ## [0.6.0] - 2026-02-21
 
 Phase 6: Deployment & Operations. The Vizier MCP server is now production-deployable via Docker with an HTTP health endpoint, Azure Key Vault secret management, a `python -m vizier_mcp` entry point, and a complete operations guide.
