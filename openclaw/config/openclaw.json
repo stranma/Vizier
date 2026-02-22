@@ -9,7 +9,8 @@
     "defaults": {
       "workspace": "/home/node/.openclaw/workspace/vizier",
       "model": {
-        "primary": "anthropic/claude-opus-4-6"
+        "primary": "anthropic/claude-opus-4-6",
+        "fallbacks": ["anthropic/claude-sonnet-4-6"]
       }
     },
     "list": [
@@ -17,7 +18,10 @@
         "id": "vizier",
         "default": true,
         "workspace": "/home/node/.openclaw/workspace/vizier",
-        "model": "anthropic/claude-opus-4-6",
+        "model": {
+          "primary": "anthropic/claude-opus-4-6",
+          "fallbacks": ["anthropic/claude-sonnet-4-6"]
+        },
         "identity": {
           "name": "Vizier",
           "emoji": "👳"
