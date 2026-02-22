@@ -18,6 +18,7 @@ from fastmcp import FastMCP
 
 from vizier_mcp.config import ServerConfig
 from vizier_mcp.logging_structured import StructuredLogger
+from vizier_mcp.tools.analytics import spec_analytics as _spec_analytics
 from vizier_mcp.tools.config_tool import project_get_config as _project_get_config
 from vizier_mcp.tools.observability import system_get_errors as _system_get_errors
 from vizier_mcp.tools.observability import system_get_logs as _system_get_logs
@@ -32,9 +33,10 @@ from vizier_mcp.tools.spec import spec_read as _spec_read
 from vizier_mcp.tools.spec import spec_transition as _spec_transition
 from vizier_mcp.tools.spec import spec_update as _spec_update
 from vizier_mcp.tools.spec import spec_write_feedback as _spec_write_feedback
+from vizier_mcp.tools.status import system_get_status as _system_get_status
 
-__version__ = "0.8.0"
-TOOL_COUNT = 14
+__version__ = "0.9.0"
+TOOL_COUNT = 16
 
 
 def _logged_sync(slog: StructuredLogger, tool_name: str, fn: Callable[..., Any]) -> Callable[..., Any]:
@@ -223,6 +225,20 @@ def create_server(config: ServerConfig | None = None) -> FastMCP:
     ) -> dict[str, Any]:
         """Get recent ERROR-level log entries."""
         return _system_get_errors(slog, since_minutes, limit)
+
+    @mcp.tool()
+    def system_get_status(
+        project_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Get operational status: server info, spec summary, recent activity."""
+        return _system_get_status(cfg, slog, __version__, TOOL_COUNT, project_id)
+
+    @mcp.tool()
+    def spec_analytics(
+        project_id: str,
+    ) -> dict[str, Any]:
+        """Get per-project spec analytics: throughput, timing, quality, sentinel."""
+        return _spec_analytics(cfg, slog, project_id)
 
     return mcp
 

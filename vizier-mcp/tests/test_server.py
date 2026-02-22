@@ -38,6 +38,8 @@ EXPECTED_TOOLS = {
     "secret_check",
     "system_get_logs",
     "system_get_errors",
+    "system_get_status",
+    "spec_analytics",
 }
 
 
@@ -68,7 +70,7 @@ class TestServerToolRegistration:
 
     @pytest.mark.anyio
     async def test_tool_count_constant(self) -> None:
-        assert TOOL_COUNT == 14
+        assert TOOL_COUNT == 16
 
 
 class TestToolCallability:
@@ -223,6 +225,24 @@ class TestToolCallability:
         data = _data(result)
         assert "errors" in data
         assert "total" in data
+
+    @pytest.mark.anyio
+    async def test_system_get_status(self, server: FastMCP, project_dir: Path) -> None:
+        result = await server.call_tool("system_get_status", {})
+        data = _data(result)
+        assert "server" in data
+        assert "specs" in data
+        assert "recent_activity" in data
+
+    @pytest.mark.anyio
+    async def test_spec_analytics(self, server: FastMCP, project_dir: Path) -> None:
+        result = await server.call_tool("spec_analytics", {"project_id": PROJECT_ID})
+        data = _data(result)
+        assert data["project_id"] == PROJECT_ID
+        assert "throughput" in data
+        assert "timing" in data
+        assert "quality" in data
+        assert "sentinel" in data
 
 
 class TestToolLogging:
