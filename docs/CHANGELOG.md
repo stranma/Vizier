@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.11.0] - 2026-02-23
+
+Phase 11: Failure Learnings. Three new MCP tools for extracting failure context from rejected/stuck specs and injecting it into retry attempts, giving Workers awareness of past failures.
+
+### Added
+
+- **`learnings_extract` MCP tool** -- Scans REJECTED and STUCK specs in a project, reads feedback and ping files, categorizes failures via keyword heuristic (test_failure, lint_failure, type_error, spec_ambiguity, sentinel_denied, timeout, impossible), and stores learnings as append-only JSONL. Deduplicates by source_spec_id so extraction is idempotent.
+- **`learnings_list` MCP tool** -- Lists learnings with optional filters by spec_id and category. Sorted newest-first with configurable limit. Invalid category returns error with valid options.
+- **`learnings_inject` MCP tool** -- Matches learnings to a target spec by (a) same source_spec_id (prior attempts) or (b) keyword overlap from spec title. Returns matched learnings with pre-formatted markdown `context_text` for prepending to Worker context. Limited to 10 matches.
+- **Pydantic models** -- `Learning`, `LearningCategory` (7 categories), `LearningMatch` for typed failure context data.
+- **Pasha SOUL.md: Failure Learnings workflow** -- After REJECTED/STUCK: call `learnings_extract`. Before assigning Worker: call `learnings_inject` and prepend context.
+- **Worker SOUL.md updated** -- Process step references injected learnings from Pasha.
+
+## [0.10.0] - 2026-02-23
+
+Phase 10: Budget Tracking (Lite). Two new MCP tools for cost visibility without enforcement.
+
+### Added
+
+- **`budget_record` MCP tool** -- Records cost events with project_id, event_type, cost_estimate (USD), optional spec_id, agent_role, and metadata. Validates cost >= 0. Append-only JSONL storage.
+- **`budget_summary` MCP tool** -- Aggregates totals by event_type and by spec_id with filtering by since_minutes, spec_id, event_type. Optional include_events flag returns individual events. Costs rounded to 6 decimal places.
+- **Pydantic models** -- `BudgetEvent`, `BudgetEventType` (haiku_eval, spec_attempt, web_fetch, custom), `BudgetSummary`.
+
 ## [Unreleased]
 
 ### Added

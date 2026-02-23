@@ -13,6 +13,8 @@
 | 7 | OpenClaw + Telegram Deployment | Complete | openclaw service, Telegram bot, dual health checks, setup script |
 | 8 | Observability | Complete | system_get_logs, system_get_errors (+ bug fix: web_fetch_checked role enforcement, JSONL logging) |
 | 9 | Self-Diagnosis | Complete | system_get_status, spec_analytics |
+| 10 | Budget Tracking (Lite) | Complete | budget_record, budget_summary |
+| 11 | Failure Learnings | Complete | learnings_extract, learnings_list, learnings_inject |
 
 ---
 
@@ -300,6 +302,59 @@
 ### Phase Completion Steps
 
 > After this phase, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md).
+
+---
+
+## Phase 10: Budget Tracking (Lite)
+
+**Status: Complete** (2026-02-23)
+
+**Version:** 0.10.0
+
+**Goal:** 2 new MCP tools (`budget_record`, `budget_summary`) for cost visibility. No enforcement.
+
+**Deliverables:**
+- [x] Pydantic models: `BudgetEvent`, `BudgetEventType`, `BudgetSummary`
+- [x] `budget_record`: record cost events with metadata to append-only JSONL
+- [x] `budget_summary`: aggregate totals by event type and spec, with filtering
+- [x] 20 tests covering record, summary, filtering, and integration
+- [x] Tool count: 16 -> 18
+
+**Acceptance Criteria:**
+- [x] AC-10.1: `budget_record` with valid inputs returns `{"recorded": true, "event": dict}`. Negative cost returns error.
+- [x] AC-10.2: `budget_summary` returns aggregated totals by event_type and by spec_id.
+- [x] AC-10.3: Filters work: since_minutes, spec_id, event_type, include_events flag.
+- [x] AC-10.4: `create_server()` returns FastMCP with 18 tools registered.
+- [x] AC-10.5: Cumulative: all Phase 1-9 acceptance criteria still pass.
+
+---
+
+## Phase 11: Failure Learnings
+
+**Status: Complete** (2026-02-23)
+
+**Version:** 0.11.0
+
+**Goal:** 3 new MCP tools (`learnings_extract`, `learnings_list`, `learnings_inject`) for extracting failure context from rejected/stuck specs and injecting it into retry attempts.
+
+**Deliverables:**
+- [x] Pydantic models: `Learning`, `LearningCategory`, `LearningMatch`
+- [x] `learnings_extract`: scan REJECTED/STUCK specs, categorize via keyword heuristic, deduplicate
+- [x] `learnings_list`: filter by spec_id/category, sorted newest-first, paginated
+- [x] `learnings_inject`: match by same-spec or keyword overlap, format markdown context
+- [x] 29 tests covering extract, list, inject, categorization, and integration
+- [x] Pasha SOUL.md: extract learnings after failure, inject before Worker assignment
+- [x] Worker SOUL.md: reference injected learnings in process step
+- [x] Tool count: 18 -> 21
+
+**Acceptance Criteria:**
+- [x] AC-11.1: `learnings_extract` from REJECTED spec creates learning with correct category.
+- [x] AC-11.2: `learnings_extract` deduplicates by source_spec_id (idempotent).
+- [x] AC-11.3: `learnings_list` filters by spec_id, category; sorted newest-first; limit works.
+- [x] AC-11.4: `learnings_inject` matches same-spec and keyword-overlap learnings, formats context_text.
+- [x] AC-11.5: Full extract -> list -> inject cycle works end-to-end.
+- [x] AC-11.6: `create_server()` returns FastMCP with 21 tools registered.
+- [x] AC-11.7: Cumulative: all Phase 1-10 acceptance criteria still pass.
 
 ---
 
