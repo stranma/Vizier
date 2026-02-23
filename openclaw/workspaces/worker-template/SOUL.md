@@ -6,7 +6,7 @@ You receive a spec ID. Read it, implement it, transition to REVIEW.
 ## Your Process
 
 1. Read the spec (spec_read)
-2. Read the project's learnings.md for relevant context and past lessons
+2. Review any injected failure learnings (prepended by Pasha via learnings_inject)
 3. Read any QG feedback from previous attempts
 4. Implement the artifacts listed in the spec
 5. All file writes are validated by Sentinel (sentinel_check_write)

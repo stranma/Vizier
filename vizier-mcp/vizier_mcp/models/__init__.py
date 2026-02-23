@@ -1,9 +1,14 @@
-"""Pydantic models (spec, sentinel, orchestration, budget, messages, events)."""
+"""Pydantic models (spec, sentinel, orchestration, budget, learnings, messages, events)."""
 
 from vizier_mcp.models.budget import (
     BudgetEvent,
     BudgetEventType,
     BudgetSummary,
+)
+from vizier_mcp.models.learnings import (
+    Learning,
+    LearningCategory,
+    LearningMatch,
 )
 from vizier_mcp.models.orchestration import (
     PingMessage,
@@ -40,6 +45,9 @@ __all__ = [
     "CommandCheckResult",
     "DenylistEntry",
     "HaikuVerdict",
+    "Learning",
+    "LearningCategory",
+    "LearningMatch",
     "PingMessage",
     "PingUrgency",
     "PolicyDecision",

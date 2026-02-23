@@ -22,6 +22,9 @@ from vizier_mcp.tools.analytics import spec_analytics as _spec_analytics
 from vizier_mcp.tools.budget import budget_record as _budget_record
 from vizier_mcp.tools.budget import budget_summary as _budget_summary
 from vizier_mcp.tools.config_tool import project_get_config as _project_get_config
+from vizier_mcp.tools.learnings import learnings_extract as _learnings_extract
+from vizier_mcp.tools.learnings import learnings_inject as _learnings_inject
+from vizier_mcp.tools.learnings import learnings_list as _learnings_list
 from vizier_mcp.tools.observability import system_get_errors as _system_get_errors
 from vizier_mcp.tools.observability import system_get_logs as _system_get_logs
 from vizier_mcp.tools.orchestration import orch_write_ping as _orch_write_ping
@@ -37,8 +40,8 @@ from vizier_mcp.tools.spec import spec_update as _spec_update
 from vizier_mcp.tools.spec import spec_write_feedback as _spec_write_feedback
 from vizier_mcp.tools.status import system_get_status as _system_get_status
 
-__version__ = "0.10.0"
-TOOL_COUNT = 18
+__version__ = "0.11.0"
+TOOL_COUNT = 21
 
 
 def _logged_sync(slog: StructuredLogger, tool_name: str, fn: Callable[..., Any]) -> Callable[..., Any]:
@@ -296,6 +299,32 @@ def create_server(config: ServerConfig | None = None) -> FastMCP:
         return _logged_sync(slog, "budget_record", _budget_record)(
             cfg, project_id, event_type, cost_estimate, spec_id, agent_role, metadata
         )
+
+    @mcp.tool()
+    def learnings_extract(
+        project_id: str,
+        spec_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Extract failure learnings from REJECTED and STUCK specs."""
+        return _logged_sync(slog, "learnings_extract", _learnings_extract)(cfg, project_id, spec_id)
+
+    @mcp.tool()
+    def learnings_list(
+        project_id: str,
+        spec_id: str | None = None,
+        category: str | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        """List failure learnings with optional filters."""
+        return _logged_sync(slog, "learnings_list", _learnings_list)(cfg, project_id, spec_id, category, limit)
+
+    @mcp.tool()
+    def learnings_inject(
+        project_id: str,
+        spec_id: str,
+    ) -> dict[str, Any]:
+        """Match and format failure learnings for injection into a Worker's context."""
+        return _logged_sync(slog, "learnings_inject", _learnings_inject)(cfg, project_id, spec_id)
 
     @mcp.tool()
     def budget_summary(

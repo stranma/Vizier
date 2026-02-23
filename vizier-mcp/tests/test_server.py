@@ -42,6 +42,9 @@ EXPECTED_TOOLS = {
     "spec_analytics",
     "budget_record",
     "budget_summary",
+    "learnings_extract",
+    "learnings_list",
+    "learnings_inject",
 }
 
 
@@ -72,7 +75,7 @@ class TestServerToolRegistration:
 
     @pytest.mark.anyio
     async def test_tool_count_constant(self) -> None:
-        assert TOOL_COUNT == 18
+        assert TOOL_COUNT == 21
 
 
 class TestToolCallability:
@@ -260,6 +263,39 @@ class TestToolCallability:
         data = _data(result)
         assert data["project_id"] == PROJECT_ID
         assert "total_cost" in data
+
+    @pytest.mark.anyio
+    async def test_learnings_extract(self, server: FastMCP, project_dir: Path) -> None:
+        result = await server.call_tool("learnings_extract", {"project_id": PROJECT_ID})
+        data = _data(result)
+        assert "extracted" in data
+
+    @pytest.mark.anyio
+    async def test_learnings_list(self, server: FastMCP, project_dir: Path) -> None:
+        result = await server.call_tool("learnings_list", {"project_id": PROJECT_ID})
+        data = _data(result)
+        assert "learnings" in data
+        assert "total" in data
+
+    @pytest.mark.anyio
+    async def test_learnings_inject(self, server: FastMCP, project_dir: Path) -> None:
+        import yaml as _yaml
+
+        spec_dir = project_dir / "specs" / "001-test"
+        spec_dir.mkdir(parents=True)
+        meta = {
+            "spec_id": "001-test",
+            "project_id": PROJECT_ID,
+            "title": "Test",
+            "status": "READY",
+            "complexity": "MEDIUM",
+            "retry_count": 0,
+        }
+        (spec_dir / "spec.md").write_text(f"---\n{_yaml.dump(meta)}---\nBody\n")
+        result = await server.call_tool("learnings_inject", {"project_id": PROJECT_ID, "spec_id": "001-test"})
+        data = _data(result)
+        assert "matches" in data
+        assert "context_text" in data
 
 
 class TestToolLogging:
