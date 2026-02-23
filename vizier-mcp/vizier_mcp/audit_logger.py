@@ -123,7 +123,13 @@ class AuditLogger:
 
         :return: List of matching AuditEntry objects, newest first.
         """
-        path = self._spec_audit_path(project_id, spec_id) if project_id and spec_id else self.global_log_path
+        reading_per_spec = bool(project_id and spec_id)
+        if reading_per_spec:
+            assert project_id is not None
+            assert spec_id is not None
+            path = self._spec_audit_path(project_id, spec_id)
+        else:
+            path = self.global_log_path
 
         entries = self._read_file(path)
 
@@ -132,9 +138,9 @@ class AuditLogger:
 
             cutoff = datetime.now(UTC) - timedelta(minutes=since_minutes)
             entries = [e for e in entries if e.recorded_at >= cutoff]
-        if project_id:
+        if project_id and not reading_per_spec:
             entries = [e for e in entries if e.project_id == project_id]
-        if spec_id:
+        if spec_id and not reading_per_spec:
             entries = [e for e in entries if e.spec_id == spec_id]
         if tool_name:
             entries = [e for e in entries if e.tool_name == tool_name]

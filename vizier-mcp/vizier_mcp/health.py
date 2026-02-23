@@ -38,7 +38,7 @@ def build_readiness_payload(version: str, tool_count: int, expected_tools: int) 
     """Build the JSON payload for the /readiness endpoint.
 
     Checks:
-    - Tool count matches expected (12 tools)
+    - Tool count matches expected (27 tools)
     - VIZIER_ROOT directory exists and is writable
     - projects/ subdirectory exists
     - ANTHROPIC_API_KEY is set (required for Sentinel Haiku evaluator)
@@ -167,7 +167,7 @@ async def start_health_server(
     :param tool_count: Number of registered MCP tools.
     :param host: Bind address (default 0.0.0.0).
     :param port: Bind port (default 8080).
-    :param expected_tools: Expected tool count for readiness check (default 11).
+    :param expected_tools: Expected tool count for readiness check (default 27).
     :return: asyncio.Server instance (call .close() to stop).
     """
 

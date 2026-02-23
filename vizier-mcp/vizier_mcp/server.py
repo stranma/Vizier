@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 from fastmcp import FastMCP
+from pydantic import BaseModel
 
 from vizier_mcp.audit_logger import AuditLogger
 from vizier_mcp.config import ServerConfig
@@ -52,51 +53,13 @@ __version__ = "0.13.0"
 TOOL_COUNT = 27
 
 
-def _logged_sync(slog: StructuredLogger, tool_name: str, fn: Callable[..., Any]) -> Callable[..., Any]:
-    """Wrap a sync tool function with structured logging."""
-
-    @functools.wraps(fn)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        t0 = time.monotonic()
-        try:
-            result = fn(*args, **kwargs)
-            duration = (time.monotonic() - t0) * 1000
-            slog.log_tool_call(tool_name, duration, success=True)
-            return result
-        except Exception as exc:
-            duration = (time.monotonic() - t0) * 1000
-            slog.log_tool_call(tool_name, duration, success=False, data={"error": str(exc)})
-            raise
-
-    return wrapper
-
-
-def _logged_async(slog: StructuredLogger, tool_name: str, fn: Callable[..., Any]) -> Callable[..., Any]:
-    """Wrap an async tool function with structured logging."""
-
-    @functools.wraps(fn)
-    async def wrapper(*args: Any, **kwargs: Any) -> Any:
-        t0 = time.monotonic()
-        try:
-            result = await fn(*args, **kwargs)
-            duration = (time.monotonic() - t0) * 1000
-            slog.log_tool_call(tool_name, duration, success=True)
-            return result
-        except Exception as exc:
-            duration = (time.monotonic() - t0) * 1000
-            slog.log_tool_call(tool_name, duration, success=False, data={"error": str(exc)})
-            raise
-
-    return wrapper
-
-
 def _extract_audit_kwargs(fn: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
     """Extract a serializable kwargs dict from positional+keyword args using function signature."""
     try:
         sig = inspect.signature(fn)
         bound = sig.bind(*args, **kwargs)
         bound.apply_defaults()
-        return {k: v for k, v in bound.arguments.items() if not hasattr(v, "model_post_init")}
+        return {k: v for k, v in bound.arguments.items() if not isinstance(v, BaseModel)}
     except (TypeError, ValueError):
         return dict(kwargs)
 
