@@ -1558,3 +1558,19 @@ When a command matches a scope's pattern, only those secrets (plus non-secret en
 **Why:** You cannot fix what you cannot see. Self-debugging and self-improvement require observability. The Sultan and future Retrospective agent both need programmatic access to operational data without SSH.
 
 **Trade-off:** Log files add disk I/O overhead and storage requirements. Mitigated by rotation (50MB max history) and per-entry open/write/close pattern for thread safety.
+
+### D83: Empire Briefing System + Event-Driven Alerts
+
+**Context:** The Vizier agent told the Sultan "No Sentinel is running yet. The MCP server isn't deployed" -- both false. Root cause: Vizier's SOUL.md had zero awareness of the MCP server (v0.11.0, 21 tools), Sentinel (81 tests, fully operational), or deployment infrastructure. Static SOUL.md beliefs rot when new tools are added between sessions.
+
+**Decision:** Two complementary fixes:
+
+1. **Deploy-time Empire Briefing.** A `scripts/generate_briefing.py` script runs during CI/CD deployment. It introspects the MCP server's live tool registry (via `create_server()` + `list_tools()`), maps tools to agent roles via `TOOL_ROLE_MAP`, and generates `EMPIRE_BRIEFING.md` in the Vizier workspace. Optionally polished by Claude Haiku; falls back to a deterministic template if Haiku unavailable. The briefing is always in sync with the deployed server because it is generated FROM the server.
+
+2. **Event-driven budget alerts.** After each `budget_record` call, the system checks project spend against configurable soft/hard limits (`BudgetConfig` in `ServerConfig`). Threshold violations write JSON alert files to `{vizier_root}/alerts/`. Alerts are deduplicated (same type+project skips if unacknowledged alert exists). `system_get_status` now includes an `alerts` field with unacknowledged alerts, so the Vizier sees them on every status check.
+
+3. **SOUL.md Activation Protocol.** Vizier's SOUL.md now instructs it to (a) read EMPIRE_BRIEFING.md for capabilities, (b) call `system_get_status()` on first message to surface alerts and stuck specs, and (c) report alerts to the Sultan immediately.
+
+**Why:** Static prompts cannot track dynamic infrastructure. Deploy-time generation + event-driven alerts ensure agents always have accurate awareness of their own capabilities and system state.
+
+**Trade-off:** Deploy-time briefing adds ~5s to CI/CD pipeline (one Haiku call or template generation). Alert files add marginal disk I/O per budget_record. Both are negligible relative to the cost of Vizier giving the Sultan incorrect information about system capabilities.

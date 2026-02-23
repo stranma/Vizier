@@ -22,12 +22,21 @@ class SentinelConfig(BaseModel):
     learning_threshold: int = 3
 
 
+class BudgetConfig(BaseModel):
+    """Budget threshold configuration for alerts."""
+
+    soft_limit_usd: float = 5.0
+    hard_limit_usd: float = 20.0
+
+
 class ServerConfig(BaseModel):
     """Top-level MCP server configuration."""
 
     vizier_root: Path = Field(default_factory=lambda: Path(os.environ.get("VIZIER_ROOT", "/data/vizier")))
     projects_dir: Path | None = None
     sentinel: SentinelConfig = Field(default_factory=SentinelConfig)
+    budget: BudgetConfig = Field(default_factory=BudgetConfig)
+    alerts_dir: Path | None = None
     file_locking: bool = True
     startup_recovery: bool = True
     claim_timeout: int = 30
@@ -36,11 +45,13 @@ class ServerConfig(BaseModel):
     log_max_files: int = 5
 
     def model_post_init(self, __context: object) -> None:
-        """Set projects_dir and log_dir defaults based on vizier_root."""
+        """Set projects_dir, log_dir, and alerts_dir defaults based on vizier_root."""
         if self.projects_dir is None:
             self.projects_dir = self.vizier_root / "projects"
         if self.log_dir is None:
             self.log_dir = self.vizier_root / "logs"
+        if self.alerts_dir is None:
+            self.alerts_dir = self.vizier_root / "alerts"
 
 
 def load_config(config_path: Path | None = None) -> ServerConfig:

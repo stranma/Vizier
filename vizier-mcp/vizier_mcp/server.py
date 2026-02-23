@@ -40,7 +40,7 @@ from vizier_mcp.tools.spec import spec_update as _spec_update
 from vizier_mcp.tools.spec import spec_write_feedback as _spec_write_feedback
 from vizier_mcp.tools.status import system_get_status as _system_get_status
 
-__version__ = "0.11.0"
+__version__ = "0.12.0"
 TOOL_COUNT = 21
 
 

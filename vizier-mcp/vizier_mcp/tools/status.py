@@ -1,12 +1,13 @@
 """System status MCP tool (D82, Phase 9).
 
 Returns operational intelligence: server info, spec summary,
-and recent activity metrics. Goes beyond the health endpoint
-by providing actionable data for agents and operators.
+recent activity metrics, and unacknowledged alerts. Goes beyond
+the health endpoint by providing actionable data for agents and operators.
 """
 
 from __future__ import annotations
 
+import json
 import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -19,6 +20,31 @@ if TYPE_CHECKING:
     from vizier_mcp.logging_structured import StructuredLogger
 
 _SERVER_START_TIME = time.monotonic()
+
+
+def _read_unacknowledged_alerts(config: ServerConfig, project_id: str | None = None) -> list[dict[str, Any]]:
+    """Read unacknowledged alerts from the alerts directory.
+
+    :param config: Server configuration.
+    :param project_id: Optional project filter. None = all projects.
+    :return: List of alert dicts.
+    """
+    assert config.alerts_dir is not None
+    if not config.alerts_dir.exists():
+        return []
+
+    alerts: list[dict[str, Any]] = []
+    for alert_file in sorted(config.alerts_dir.glob("*.json")):
+        try:
+            data = json.loads(alert_file.read_text(encoding="utf-8"))
+            if data.get("acknowledged", False):
+                continue
+            if project_id and data.get("project_id") != project_id:
+                continue
+            alerts.append(data)
+        except Exception:
+            continue
+    return alerts
 
 
 def system_get_status(
@@ -35,7 +61,7 @@ def system_get_status(
     :param version: Server version string.
     :param tool_count: Number of registered tools.
     :param project_id: Optional project filter. None = system-wide.
-    :return: Status dict with server, specs, and activity sections.
+    :return: Status dict with server, specs, activity, and alerts sections.
     """
     uptime_s = round(time.monotonic() - _SERVER_START_TIME, 1)
 
@@ -101,6 +127,7 @@ def system_get_status(
                 )
 
     recent_activity = _get_recent_activity(slog)
+    alerts = _read_unacknowledged_alerts(config, project_id)
 
     return {
         "server": server_info,
@@ -110,6 +137,7 @@ def system_get_status(
             "in_progress": in_progress_specs,
         },
         "recent_activity": recent_activity,
+        "alerts": alerts,
     }
 
 

@@ -69,6 +69,14 @@ jobs:
               echo "${secret}=${value}" >> "$GITHUB_OUTPUT"
             done
 
+      - name: Generate Empire Briefing
+        env:
+          ANTHROPIC_API_KEY: ${{ steps.keyvault.outputs.anthropic-api-key }}
+        run: |
+          pip install uv
+          uv sync --all-packages --no-dev
+          PYTHONPATH=vizier-mcp uv run python scripts/generate_briefing.py
+
       - name: Clean deployment dirs before SCP
         uses: appleboy/ssh-action@v1
         with:
