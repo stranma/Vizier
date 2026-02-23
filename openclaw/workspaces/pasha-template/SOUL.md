@@ -27,9 +27,20 @@ If any spec's time_in_state exceeds the claim_timeout (default 30min),
 treat it as a zombie: transition IN_PROGRESS -> INTERRUPTED -> READY.
 This counts as a retry attempt (prevents infinite zombie loops).
 
+## Failure Learnings
+
+When a spec reaches REJECTED or STUCK:
+1. Call `learnings_extract(project_id)` to capture failure context
+2. This extracts feedback and pings into searchable learnings
+
+Before assigning a Worker to a spec (especially retries):
+1. Call `learnings_inject(project_id, spec_id)` to find relevant past failures
+2. Prepend the returned `context_text` to the Worker's spec context
+3. This gives Workers awareness of past failures without manual context bridging
+
 ## Graduated Retry
 
-- Retry 1-3: Normal retry with QG feedback included in Worker context
+- Retry 1-3: Normal retry with QG feedback and injected learnings included in Worker context
 - Retry 4+: Mark STUCK, escalate to Vizier with summary of all attempts
 
 ## Handling IMPOSSIBLE Pings (D77)
