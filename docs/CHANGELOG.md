@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.13.0] - 2026-02-23
+
+Phase 13: Imperial Observability (D84). Three-level debugging for Vizier -- automatic audit interception, agent-reported Golden Trace, and direct repo access for rule introspection.
+
+### Added
+
+- **Automatic audit interception** (Imperial Spymaster) -- `AuditLogger` middleware captures full kwargs and return values of every MCP tool call. Dual-write: global `{vizier_root}/audit/audit.jsonl` + per-spec `{spec_dir}/.vizier/audit.jsonl`. Size-based rotation (10MB x 5 files). Large outputs truncated to configurable max (4000 chars default). Uses `inspect.signature` to extract args from positional calls.
+- **`audit_query` MCP tool** -- Search audit entries with filters by project_id, spec_id, tool_name, agent_role, since_minutes, and limit.
+- **`audit_timeline` MCP tool** -- Chronological view of all tool calls on a spec with per-call summaries, agent list, and total duration.
+- **`audit_stats` MCP tool** -- Aggregate statistics: total calls, error count/rate, average duration, breakdowns by tool and agent.
+- **`trace_record` MCP tool** -- Record a Golden Trace entry with project_id, spec_id, agent_role, action_type (11 standard types), summary, detail, and metadata. Per-spec append-only JSONL at `{spec_dir}/.vizier/trace.jsonl`.
+- **`trace_query` MCP tool** -- Query trace entries with filters by action_type, agent_role, since_minutes, and limit.
+- **`trace_timeline` MCP tool** -- Full chronological timeline with agents seen, action types seen, and total duration.
+- **`TraceEntry` and `TraceActionType` Pydantic models** -- 11 standard action types: command_executed, file_written, file_read, decision_made, tool_called, error_encountered, escalation_sent, feedback_received, spec_transitioned, test_result, reasoning.
+- **`AuditEntry` Pydantic model** -- tool_name, kwargs, result, success, error, duration_ms, project_id, spec_id, agent_role, recorded_at.
+- **Vizier SOUL.md: Imperial Observability section** -- Three investigation levels (audit, trace, repo access) with investigation pattern guide.
+- **Vizier SOUL.md: Imperial Divan** -- Instructions for direct repo access to read SOUL.md files, Sentinel policies, and server code for rule introspection.
+- **Worker SOUL.md: Golden Trace** -- Instructions for logging reasoning, decisions, errors, file writes, and test results.
+- **Pasha SOUL.md: Observability** -- Instructions for using trace_record, trace_query, and audit_timeline.
+- **QG SOUL.md: Golden Trace** -- Instructions for logging test results, findings, and accept/reject reasoning.
+
+### Changed
+
+- **`server.py`** -- All tool registrations upgraded from `_logged_sync`/`_logged_async` to `_audited_sync`/`_audited_async` wrappers that capture both structured logs AND audit entries.
+- **`ServerConfig`** -- Added `audit_dir` and `audit_max_output_chars` fields with defaults.
+- **`health.py`** -- Updated `expected_tools` default from 21 to 27.
+- **`generate_briefing.py`** -- Added 6 new tools to `TOOL_ROLE_MAP` and 2 new categories (Audit, Trace) to `TOOL_CATEGORIES`.
+- **Tool count** -- 21 to 27 tools.
+- **Version** -- 0.12.0 to 0.13.0.
+
 ## [0.12.0] - 2026-02-23
 
 Phase 12: Empire Briefing System + Event-Driven Alerts (D83). Fixes Vizier's lack of awareness of its own capabilities by generating a deploy-time briefing document and adding event-driven budget alerts to system_get_status.
