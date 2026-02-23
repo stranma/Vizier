@@ -84,14 +84,21 @@ DEFAULT_OUTPUT = Path(__file__).resolve().parent.parent / "openclaw" / "workspac
 def extract_tool_registry() -> list[dict[str, Any]]:
     """Extract the tool registry from the MCP server.
 
+    Uses a temp directory for vizier_root to avoid creating directories
+    at the default /data/vizier path during tool introspection.
+
     :return: List of tool dicts with name, description, parameters, and roles.
     """
     import asyncio
+    import tempfile
 
+    from vizier_mcp.config import ServerConfig  # type: ignore[import-not-found]
     from vizier_mcp.server import create_server  # type: ignore[import-not-found]
 
-    server = create_server()
-    raw_tools = asyncio.run(server.list_tools())
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config = ServerConfig(vizier_root=Path(tmpdir))
+        server = create_server(config)
+        raw_tools = asyncio.run(server.list_tools())
     tools: list[dict[str, Any]] = []
     for tool in raw_tools:
         tool_info: dict[str, Any] = {
