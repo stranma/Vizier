@@ -15,6 +15,7 @@
 | 9 | Self-Diagnosis | Complete | system_get_status, spec_analytics |
 | 10 | Budget Tracking (Lite) | Complete | budget_record, budget_summary |
 | 11 | Failure Learnings | Complete | learnings_extract, learnings_list, learnings_inject |
+| 12 | Empire Briefing + Alerts | Complete | AlertData model, BudgetConfig, budget alerts, alerts in status, briefing generator |
 
 ---
 

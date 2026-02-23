@@ -459,6 +459,10 @@ def spec_write_feedback(
 
     timestamp = fb.created_at.strftime("%Y%m%dT%H%M%S%f")
     fb_file = fb_dir / f"{timestamp}-{verdict.lower()}.json"
+    counter = 1
+    while fb_file.exists():
+        fb_file = fb_dir / f"{timestamp}-{verdict.lower()}-{counter}.json"
+        counter += 1
     _atomic_write(fb_file, json.dumps(fb.model_dump(mode="json"), indent=2))
 
     return {"path": str(fb_file)}

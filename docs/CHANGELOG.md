@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.12.0] - 2026-02-23
+
+Phase 12: Empire Briefing System + Event-Driven Alerts (D83). Fixes Vizier's lack of awareness of its own capabilities by generating a deploy-time briefing document and adding event-driven budget alerts to system_get_status.
+
+### Added
+
+- **Empire Briefing generator** -- `scripts/generate_briefing.py` introspects the MCP server's live tool registry at deploy time, maps tools to agent roles via `TOOL_ROLE_MAP`, and generates `EMPIRE_BRIEFING.md` in the Vizier workspace. Optionally polished by Claude Haiku; falls back to a deterministic template if Haiku is unavailable. Briefing includes: Empire Overview, Your Tools (grouped table), Your Agents, Sentinel Security, Operational Commands, and Implemented vs Deferred sections.
+- **Budget threshold alerts** -- After each `budget_record` call, project spend is checked against configurable soft/hard limits (`BudgetConfig` with `soft_limit_usd=5.0`, `hard_limit_usd=20.0`). Threshold violations write JSON alert files to `{vizier_root}/alerts/`. Alerts are deduplicated: same type+project skips if an unacknowledged alert already exists. Acknowledged alerts allow new ones.
+- **`AlertData` Pydantic model** -- `alert_type`, `project_id`, `message`, `severity` (warning/critical), `created_at`, `acknowledged`, and `data` dict. Plus `AlertSeverity` and `AlertType` enums.
+- **`BudgetConfig` model** -- Configurable `soft_limit_usd` and `hard_limit_usd` thresholds in `ServerConfig`.
+- **Alerts in `system_get_status`** -- New `alerts` field returns unacknowledged alerts, filtered by `project_id` when specified. Vizier sees budget warnings on every status check.
+- **Vizier SOUL.md: System Awareness + Activation Protocol** -- Vizier now reads EMPIRE_BRIEFING.md for capabilities, calls `system_get_status()` on first message to surface alerts and stuck specs, and reports alerts immediately.
+- **Vizier SOUL.md: Sentinel section** -- Explicit reminder that Sentinel is always active with 3-tier enforcement.
+- **Deploy workflow: briefing generation step** -- `.github/workflows/deploy.yml` generates the Empire Briefing after fetching secrets and before SCP, so the briefing ships with every deployment.
+
+### Changed
+
+- **`docs/OPENCLAW_SETUP.md`** -- Updated tool count from 11 to 21 (3 occurrences). Agent-to-Tool Mapping table now includes all 21 tools with correct role assignments.
+
 ## [0.11.0] - 2026-02-23
 
 Phase 11: Failure Learnings. Three new MCP tools for extracting failure context from rejected/stuck specs and injecting it into retry attempts, giving Workers awareness of past failures.

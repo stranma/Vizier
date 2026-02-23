@@ -3,13 +3,18 @@
 Provides budget_record and budget_summary tools for recording
 and querying project-level cost events. Storage is append-only
 JSONL at {projects_dir}/{project_id}/.vizier/budget/events.jsonl.
+
+After each budget_record, checks project totals against configured
+soft/hard limits and writes alert files when thresholds are exceeded.
 """
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
+from vizier_mcp.models.alerts import AlertData, AlertSeverity, AlertType
 from vizier_mcp.models.budget import BudgetEvent
 
 if TYPE_CHECKING:
@@ -57,6 +62,73 @@ def _read_events(config: ServerConfig, project_id: str) -> list[BudgetEvent]:
     return events
 
 
+def _has_unacknowledged_alert(config: ServerConfig, alert_type: str, project_id: str) -> bool:
+    """Check if an unacknowledged alert of the given type+project already exists."""
+    assert config.alerts_dir is not None
+    if not config.alerts_dir.exists():
+        return False
+    for alert_file in config.alerts_dir.glob("*.json"):
+        try:
+            data = json.loads(alert_file.read_text(encoding="utf-8"))
+            if (
+                data.get("alert_type") == alert_type
+                and data.get("project_id") == project_id
+                and not data.get("acknowledged", False)
+            ):
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _write_alert(config: ServerConfig, alert: AlertData) -> Path:
+    """Write an alert JSON file to the alerts directory."""
+    assert config.alerts_dir is not None
+    config.alerts_dir.mkdir(parents=True, exist_ok=True)
+    ts = alert.created_at.strftime("%Y%m%dT%H%M%S%f")
+    filename = f"{ts}-{alert.alert_type}-{alert.project_id}.json"
+    alert_path = config.alerts_dir / filename
+    alert_path.write_text(alert.model_dump_json(indent=2), encoding="utf-8")
+    return alert_path
+
+
+def _check_budget_thresholds(config: ServerConfig, project_id: str) -> list[str]:
+    """Check project budget against soft/hard limits and write alerts if exceeded.
+
+    :return: List of alert types triggered (for testing visibility).
+    """
+    events = _read_events(config, project_id)
+    total_cost = sum(e.cost_estimate for e in events)
+    triggered: list[str] = []
+
+    if total_cost >= config.budget.hard_limit_usd:
+        alert_type = AlertType.budget_hard_limit
+        if not _has_unacknowledged_alert(config, alert_type, project_id):
+            alert = AlertData(
+                alert_type=alert_type,
+                project_id=project_id,
+                message=f"Project '{project_id}' has exceeded the hard budget limit of ${config.budget.hard_limit_usd:.2f} (current: ${total_cost:.2f})",
+                severity=AlertSeverity.critical,
+                data={"total_cost": round(total_cost, 6), "hard_limit": config.budget.hard_limit_usd},
+            )
+            _write_alert(config, alert)
+            triggered.append(alert_type)
+    elif total_cost >= config.budget.soft_limit_usd:
+        alert_type = AlertType.budget_soft_limit
+        if not _has_unacknowledged_alert(config, alert_type, project_id):
+            alert = AlertData(
+                alert_type=alert_type,
+                project_id=project_id,
+                message=f"Project '{project_id}' has exceeded the soft budget limit of ${config.budget.soft_limit_usd:.2f} (current: ${total_cost:.2f})",
+                severity=AlertSeverity.warning,
+                data={"total_cost": round(total_cost, 6), "soft_limit": config.budget.soft_limit_usd},
+            )
+            _write_alert(config, alert)
+            triggered.append(alert_type)
+
+    return triggered
+
+
 def budget_record(
     config: ServerConfig,
     project_id: str,
@@ -92,7 +164,11 @@ def budget_record(
             metadata=metadata or {},
         )
         _append_event(config, event)
-        return {"recorded": True, "event": event.model_dump(mode="json")}
+        alerts_triggered = _check_budget_thresholds(config, project_id)
+        result: dict[str, Any] = {"recorded": True, "event": event.model_dump(mode="json")}
+        if alerts_triggered:
+            result["alerts_triggered"] = alerts_triggered
+        return result
     except Exception as exc:
         return {"error": str(exc)}
 

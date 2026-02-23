@@ -1,5 +1,10 @@
-"""Pydantic models (spec, sentinel, orchestration, budget, learnings, messages, events)."""
+"""Pydantic models (spec, sentinel, orchestration, budget, learnings, alerts, messages, events)."""
 
+from vizier_mcp.models.alerts import (
+    AlertData,
+    AlertSeverity,
+    AlertType,
+)
 from vizier_mcp.models.budget import (
     BudgetEvent,
     BudgetEventType,
@@ -39,6 +44,9 @@ from vizier_mcp.models.spec import (
 
 __all__ = [
     "VALID_TRANSITIONS",
+    "AlertData",
+    "AlertSeverity",
+    "AlertType",
     "BudgetEvent",
     "BudgetEventType",
     "BudgetSummary",

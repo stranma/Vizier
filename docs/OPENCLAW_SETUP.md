@@ -1,7 +1,7 @@
 # Connecting Vizier MCP Server to OpenClaw
 
 This guide covers how to connect the Vizier MCP server to an OpenClaw gateway
-so that agents (Vizier, Pasha, Worker, Quality Gate) can use the 11 MVP tools.
+so that agents (Vizier, Pasha, Worker, Quality Gate) can use the 21 tools.
 
 ## Prerequisites
 
@@ -113,16 +113,16 @@ cd vizier-mcp
 VIZIER_ROOT=/path/to/vizier-root uv run python -m vizier_mcp.server
 ```
 
-The server exposes 11 tools via the MCP stdio transport.
+The server exposes 21 tools via the MCP stdio transport.
 
 ## 6. Agent-to-Tool Mapping
 
-Each agent role uses a specific subset of the 11 MVP tools:
+Each agent role uses a specific subset of the 21 tools:
 
 | Tool | Vizier | Pasha | Worker | QG |
 |------|--------|-------|--------|-----|
 | spec_create | x | | | |
-| spec_read | | x | x | x |
+| spec_read | x | x | x | x |
 | spec_list | x | x | | |
 | spec_transition | | x | x | x |
 | spec_update | | x | | |
@@ -132,6 +132,16 @@ Each agent role uses a specific subset of the 11 MVP tools:
 | web_fetch_checked | | | x | |
 | orch_write_ping | | x | x | |
 | project_get_config | x | x | x | x |
+| secret_check | x | x | | |
+| system_get_logs | x | x | | |
+| system_get_errors | x | x | | |
+| system_get_status | x | | | |
+| spec_analytics | x | x | | |
+| budget_record | | x | x | |
+| budget_summary | x | x | | |
+| learnings_extract | | x | | |
+| learnings_list | x | x | | |
+| learnings_inject | | x | | |
 
 ## 7. Smoke Test (Manual)
 
