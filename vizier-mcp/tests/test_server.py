@@ -40,6 +40,8 @@ EXPECTED_TOOLS = {
     "system_get_errors",
     "system_get_status",
     "spec_analytics",
+    "budget_record",
+    "budget_summary",
 }
 
 
@@ -70,7 +72,7 @@ class TestServerToolRegistration:
 
     @pytest.mark.anyio
     async def test_tool_count_constant(self) -> None:
-        assert TOOL_COUNT == 16
+        assert TOOL_COUNT == 18
 
 
 class TestToolCallability:
@@ -243,6 +245,21 @@ class TestToolCallability:
         assert "timing" in data
         assert "quality" in data
         assert "sentinel" in data
+
+    @pytest.mark.anyio
+    async def test_budget_record(self, server: FastMCP, project_dir: Path) -> None:
+        result = await server.call_tool(
+            "budget_record",
+            {"project_id": PROJECT_ID, "event_type": "haiku_eval", "cost_estimate": 0.001},
+        )
+        assert _data(result)["recorded"] is True
+
+    @pytest.mark.anyio
+    async def test_budget_summary(self, server: FastMCP, project_dir: Path) -> None:
+        result = await server.call_tool("budget_summary", {"project_id": PROJECT_ID})
+        data = _data(result)
+        assert data["project_id"] == PROJECT_ID
+        assert "total_cost" in data
 
 
 class TestToolLogging:
