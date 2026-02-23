@@ -19,6 +19,8 @@ from fastmcp import FastMCP
 from vizier_mcp.config import ServerConfig
 from vizier_mcp.logging_structured import StructuredLogger
 from vizier_mcp.tools.analytics import spec_analytics as _spec_analytics
+from vizier_mcp.tools.budget import budget_record as _budget_record
+from vizier_mcp.tools.budget import budget_summary as _budget_summary
 from vizier_mcp.tools.config_tool import project_get_config as _project_get_config
 from vizier_mcp.tools.observability import system_get_errors as _system_get_errors
 from vizier_mcp.tools.observability import system_get_logs as _system_get_logs
@@ -35,8 +37,8 @@ from vizier_mcp.tools.spec import spec_update as _spec_update
 from vizier_mcp.tools.spec import spec_write_feedback as _spec_write_feedback
 from vizier_mcp.tools.status import system_get_status as _system_get_status
 
-__version__ = "0.9.0"
-TOOL_COUNT = 16
+__version__ = "0.10.0"
+TOOL_COUNT = 18
 
 
 def _logged_sync(slog: StructuredLogger, tool_name: str, fn: Callable[..., Any]) -> Callable[..., Any]:
@@ -280,6 +282,33 @@ def create_server(config: ServerConfig | None = None) -> FastMCP:
     ) -> dict[str, Any]:
         """Get per-project spec analytics: throughput, timing, quality, sentinel."""
         return _spec_analytics(cfg, slog, project_id)
+
+    @mcp.tool()
+    def budget_record(
+        project_id: str,
+        event_type: str,
+        cost_estimate: float,
+        spec_id: str | None = None,
+        agent_role: str = "",
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Record a cost event for budget tracking."""
+        return _logged_sync(slog, "budget_record", _budget_record)(
+            cfg, project_id, event_type, cost_estimate, spec_id, agent_role, metadata
+        )
+
+    @mcp.tool()
+    def budget_summary(
+        project_id: str,
+        since_minutes: int | None = None,
+        spec_id: str | None = None,
+        event_type: str | None = None,
+        include_events: bool = False,
+    ) -> dict[str, Any]:
+        """Get aggregated cost summary for a project."""
+        return _logged_sync(slog, "budget_summary", _budget_summary)(
+            cfg, project_id, since_minutes, spec_id, event_type, include_events
+        )
 
     return mcp
 
