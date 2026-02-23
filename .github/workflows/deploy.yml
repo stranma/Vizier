@@ -69,15 +69,14 @@ jobs:
               echo "${secret}=${value}" >> "$GITHUB_OUTPUT"
             done
 
-      - name: Fix file ownership before SCP
+      - name: Clean deployment dirs before SCP
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: vizier
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            sudo rm -rf /opt/vizier/openclaw/ 2>/dev/null || true
-            sudo rm -rf /opt/vizier/scripts/ 2>/dev/null || true
+            docker run --rm -v /opt/vizier:/mnt busybox:1.37 sh -c "rm -rf /mnt/openclaw/ /mnt/scripts/"
 
       - name: Copy config files to server
         uses: appleboy/scp-action@v0.1.7
