@@ -1,4 +1,4 @@
-"""Tests for FastMCP server integration (Phase 4, updated Phase 8).
+"""Tests for FastMCP server integration (Phase 4, updated Phase 13).
 
 Tests that all tools are registered and callable via call_tool,
 plus end-to-end lifecycle tests through the MCP protocol.
@@ -45,6 +45,12 @@ EXPECTED_TOOLS = {
     "learnings_extract",
     "learnings_list",
     "learnings_inject",
+    "audit_query",
+    "audit_timeline",
+    "audit_stats",
+    "trace_record",
+    "trace_query",
+    "trace_timeline",
 }
 
 
@@ -75,7 +81,7 @@ class TestServerToolRegistration:
 
     @pytest.mark.anyio
     async def test_tool_count_constant(self) -> None:
-        assert TOOL_COUNT == 21
+        assert TOOL_COUNT == 27
 
 
 class TestToolCallability:
@@ -296,6 +302,58 @@ class TestToolCallability:
         data = _data(result)
         assert "matches" in data
         assert "context_text" in data
+
+    @pytest.mark.anyio
+    async def test_audit_query(self, server: FastMCP, project_dir: Path) -> None:
+        result = await server.call_tool("audit_query", {"limit": 10})
+        data = _data(result)
+        assert "entries" in data
+        assert "total" in data
+
+    @pytest.mark.anyio
+    async def test_audit_timeline(self, server: FastMCP, project_dir: Path) -> None:
+        result = await server.call_tool("audit_timeline", {"project_id": PROJECT_ID, "spec_id": "001-test"})
+        data = _data(result)
+        assert "timeline" in data
+        assert "total_calls" in data
+
+    @pytest.mark.anyio
+    async def test_audit_stats(self, server: FastMCP, project_dir: Path) -> None:
+        result = await server.call_tool("audit_stats", {})
+        data = _data(result)
+        assert "total_calls" in data
+        assert "by_tool" in data
+
+    @pytest.mark.anyio
+    async def test_trace_record(self, server: FastMCP, project_dir: Path) -> None:
+        spec_dir = project_dir / "specs" / "001-test"
+        spec_dir.mkdir(parents=True)
+        result = await server.call_tool(
+            "trace_record",
+            {
+                "project_id": PROJECT_ID,
+                "spec_id": "001-test",
+                "agent_role": "worker",
+                "action_type": "reasoning",
+                "summary": "Test trace",
+            },
+        )
+        data = _data(result)
+        assert data["recorded"] is True
+
+    @pytest.mark.anyio
+    async def test_trace_query(self, server: FastMCP, project_dir: Path) -> None:
+        result = await server.call_tool("trace_query", {"project_id": PROJECT_ID, "spec_id": "001-test"})
+        data = _data(result)
+        assert "entries" in data
+        assert "total" in data
+
+    @pytest.mark.anyio
+    async def test_trace_timeline(self, server: FastMCP, project_dir: Path) -> None:
+        result = await server.call_tool("trace_timeline", {"project_id": PROJECT_ID, "spec_id": "001-test"})
+        data = _data(result)
+        assert "timeline" in data
+        assert "total_entries" in data
 
 
 class TestToolLogging:

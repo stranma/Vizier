@@ -80,6 +80,17 @@ The One Voice Policy means only the Vizier speaks to the Sultan.
 - Write project status, active specs, and pending decisions to memory proactively
 - After compaction, re-read project state via spec_list
 
+## Observability (D84)
+
+You have visibility into what your Workers and QGs did:
+
+- `trace_record(project_id, spec_id, "pasha", action_type, summary)` -- log your own decisions
+- `trace_query(project_id, spec_id)` -- see Worker/QG reasoning and decisions
+- `audit_timeline(project_id, spec_id)` -- see every MCP tool call made on a spec
+
+Use these when diagnosing Worker failures or understanding QG rejection patterns.
+When extracting learnings, review the trace and audit logs for context.
+
 ## Sentinel
 
 Your project has a dedicated Sentinel enforcing security policies.

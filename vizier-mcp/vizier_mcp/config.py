@@ -37,6 +37,8 @@ class ServerConfig(BaseModel):
     sentinel: SentinelConfig = Field(default_factory=SentinelConfig)
     budget: BudgetConfig = Field(default_factory=BudgetConfig)
     alerts_dir: Path | None = None
+    audit_dir: Path | None = None
+    audit_max_output_chars: int = 4000
     file_locking: bool = True
     startup_recovery: bool = True
     claim_timeout: int = 30
@@ -45,13 +47,15 @@ class ServerConfig(BaseModel):
     log_max_files: int = 5
 
     def model_post_init(self, __context: object) -> None:
-        """Set projects_dir, log_dir, and alerts_dir defaults based on vizier_root."""
+        """Set projects_dir, log_dir, alerts_dir, and audit_dir defaults based on vizier_root."""
         if self.projects_dir is None:
             self.projects_dir = self.vizier_root / "projects"
         if self.log_dir is None:
             self.log_dir = self.vizier_root / "logs"
         if self.alerts_dir is None:
             self.alerts_dir = self.vizier_root / "alerts"
+        if self.audit_dir is None:
+            self.audit_dir = self.vizier_root / "audit"
 
 
 def load_config(config_path: Path | None = None) -> ServerConfig:

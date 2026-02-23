@@ -305,11 +305,20 @@ mindmap
         JSONL for agent logs
         Why: single-user scale, git-trackable, human-readable
         Alt rejected: SQLite - breaks git-trackability for no benefit at this scale
-      Observability - two layers
-        Structured JSONL D28 for EA consumption
-        Langfuse D45 for developer debugging
-          Self-hosted, native LiteLLM callback
-          Docker Compose alongside daemon
+      Observability - three layers D84
+        Automatic audit interception D84
+          MCP server middleware captures full I/O of all tool calls
+          Zero agent cooperation needed
+          Per-spec + global JSONL files
+        Agent-reported Golden Trace D57/D84
+          Agents log reasoning and decisions via trace_record MCP tool
+          Captures the why not just the what
+          Per-spec trace.jsonl
+        Direct repo access for rule introspection D84
+          Vizier reads SOUL.md, Sentinel policies, server code directly
+          PR-based changes, Sultan merges
+        Structured JSONL D28 for operational logs
+        Langfuse D45 dropped, replaced by audit + trace layers
       VCR record-replay testing D41
         Extends litellm mock strategy
         VIZIER_VCR_MODE: record / replay / off
@@ -1574,3 +1583,28 @@ When a command matches a scope's pattern, only those secrets (plus non-secret en
 **Why:** Static prompts cannot track dynamic infrastructure. Deploy-time generation + event-driven alerts ensure agents always have accurate awareness of their own capabilities and system state.
 
 **Trade-off:** Deploy-time briefing adds ~5s to CI/CD pipeline (one Haiku call or template generation). Alert files add marginal disk I/O per budget_record. Both are negligible relative to the cost of Vizier giving the Sultan incorrect information about system capabilities.
+
+---
+
+### D84: Imperial Observability (Three-Level Debugging)
+
+**Context:** Vizier has zero visibility into what sub-agents (Pasha, Worker, QG) actually did during their sessions. Existing observability (system_get_status, spec_analytics, structured logs) only shows state -- not process or governance rules. Vizier cannot reconstruct what a Worker did on a spec, why it made decisions, or what rules govern agent behavior.
+
+**Decision:** Implement three complementary observability layers:
+
+1. **Automatic audit interception** (Approach 2 -- "Imperial Spymaster") -- MCP server middleware captures full kwargs + return values of every tool call. Zero agent cooperation needed. Dual-write: global audit.jsonl + per-spec audit.jsonl. New tools: audit_query, audit_timeline, audit_stats.
+
+2. **Agent-reported Golden Trace** (Approach 1 -- "Imperial Chronicle", resurrecting D57) -- Agents log reasoning, decisions, and observations via trace_record MCP tool. Per-spec trace.jsonl. New tools: trace_record, trace_query, trace_timeline.
+
+3. **Direct repo access** (Approach 3 -- "Imperial Divan") -- Vizier reads the Vizier repo directly for rule introspection (SOUL.md, Sentinel policies, server code, configs). Changes proposed via PR, Sultan merges. No MCP tools needed -- Opus-tier LLM reads code natively.
+
+**Relationship to prior decisions:**
+- Supersedes D57 (Golden Trace deferred) -- now implemented as MCP tools
+- Extends D82 (structured logging) -- audit layer captures full I/O, not just name+duration
+- Extends D28 (structured JSONL) -- new JSONL files for audit and trace
+- Complements D45 (Langfuse, dropped) -- these tools provide agent-accessible observability
+- Rule introspection via direct repo access preferred over MCP tools: Sultan-as-gatekeeper provides natural safety
+
+**Why:** Together: the audit log tells you what happened (objective), the trace log tells you why (subjective), and direct repo access lets Vizier understand what rules govern behavior and propose changes.
+
+**Trade-off:** Audit interception adds marginal overhead per tool call (JSON serialization of kwargs/results). Trace logging requires agent cooperation. Direct repo access costs tokens for LLM code reading. All are negligible compared to the cost of debugging blind.
