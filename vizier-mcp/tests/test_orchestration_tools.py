@@ -91,9 +91,10 @@ class TestOrchWritePing:
         """AC-O1/AC-O2: returned path matches {specs}/{spec_id}/pings/{timestamp}-{urgency}.json."""
         _create_spec_dir(project_dir)
         result = orch_write_ping(config, PROJECT_ID, SPEC_ID, "QUESTION", "test")
-        path = result["path"]
-        assert f"/specs/{SPEC_ID}/pings/" in path
-        assert path.endswith("-QUESTION.json")
+        ping_path = pathlib.Path(result["path"])
+        assert ping_path.parent.name == "pings"
+        assert ping_path.parent.parent.name == SPEC_ID
+        assert ping_path.name.endswith("-QUESTION.json")
 
     def test_nonexistent_project(self, config: ServerConfig) -> None:
         result = orch_write_ping(config, "nonexistent-project", SPEC_ID, "QUESTION", "test")

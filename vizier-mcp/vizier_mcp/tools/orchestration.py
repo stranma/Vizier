@@ -99,6 +99,10 @@ def orch_write_ping(
     timestamp = now.strftime("%Y%m%dT%H%M%S%f")
     filename = f"{timestamp}-{urgency}.json"
     ping_path = pings_dir / filename
+    counter = 1
+    while ping_path.exists():
+        ping_path = pings_dir / f"{timestamp}-{urgency}-{counter}.json"
+        counter += 1
 
     _atomic_write(ping_path, json.dumps(ping.model_dump(mode="json"), indent=2))
 
