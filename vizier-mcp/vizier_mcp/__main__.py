@@ -93,7 +93,7 @@ async def _run_with_health(health_port: int, transport: McpTransport) -> None:
             )
         )
     else:
-        mcp_task = asyncio.create_task(mcp.run_async())
+        mcp_task = asyncio.create_task(mcp.run_async(show_banner=False))
 
     loop = asyncio.get_running_loop()
     stop = loop.create_future()
@@ -123,7 +123,7 @@ def main() -> None:
         logger.info("Health endpoint enabled on port %d", health_port)
         asyncio.run(_run_with_health(health_port, transport))
     elif transport == "streamable-http":
-        logger.info("Health endpoint enabled (required for HTTP transport)")
+        logger.info("Health endpoint enabled on port %d (required for HTTP transport)", DEFAULT_HEALTH_PORT)
         asyncio.run(_run_with_health(DEFAULT_HEALTH_PORT, transport))
     else:
         server = create_server()

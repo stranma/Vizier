@@ -144,7 +144,7 @@ jobs:
             docker cp openclaw/config/openclaw.json openclaw:/home/node/.openclaw/openclaw.json
             docker exec -u root openclaw chown node:node /home/node/.openclaw/openclaw.json
             echo "Installing openclaw-mcp-adapter plugin..."
-            docker exec openclaw npx openclaw plugins install mcp-adapter || echo "WARN: mcp-adapter plugin install failed (non-blocking)"
+            docker exec openclaw npx openclaw plugins install mcp-adapter || { echo "WARN: mcp-adapter plugin install failed"; ADAPTER_INSTALL_FAILED=true; }
             docker compose restart openclaw
             sleep 3
             echo "Container status:"
@@ -238,12 +238,18 @@ jobs:
 
             echo ""
             echo "--- [7/7] MCP adapter plugin ---"
-            ADAPTER_LOGS=$(docker compose logs openclaw --tail=100 2>&1)
-            if echo "$ADAPTER_LOGS" | grep -qi "mcp-adapter"; then
-              echo "PASS: mcp-adapter plugin detected in logs"
-              echo "$ADAPTER_LOGS" | grep -i "mcp-adapter" | tail -5
+            if [ "${ADAPTER_INSTALL_FAILED:-}" = "true" ]; then
+              echo "FAIL: mcp-adapter plugin install failed in earlier step"
+              DEPLOY_OK=false
             else
-              echo "WARN: mcp-adapter not detected in openclaw logs (plugin may not be loaded)"
+              ADAPTER_LOGS=$(docker compose logs openclaw --tail=100 2>&1)
+              if echo "$ADAPTER_LOGS" | grep -qi "mcp-adapter"; then
+                echo "PASS: mcp-adapter plugin detected in logs"
+                echo "$ADAPTER_LOGS" | grep -i "mcp-adapter" | tail -5
+              else
+                echo "WARN: mcp-adapter not detected in openclaw logs (plugin may not be loaded)"
+                DEPLOY_OK=false
+              fi
             fi
 
             echo ""
