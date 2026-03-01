@@ -50,7 +50,7 @@ venvPath = "."
 venv = ".venv"
 
 [tool.pytest.ini_options]
-testpaths = ["vizier-mcp/tests"]
+testpaths = ["vizier-mcp/tests", "tests"]
 markers = [
     "slow: marks tests as slow",
     "integration: marks integration tests",
