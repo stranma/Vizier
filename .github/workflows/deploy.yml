@@ -143,6 +143,8 @@ jobs:
             docker exec -u root openclaw chown -R node:node /home/node/.openclaw
             docker cp openclaw/config/openclaw.json openclaw:/home/node/.openclaw/openclaw.json
             docker exec -u root openclaw chown node:node /home/node/.openclaw/openclaw.json
+            echo "Installing openclaw-mcp-adapter plugin..."
+            docker exec openclaw npx openclaw plugins install mcp-adapter || echo "WARN: mcp-adapter plugin install failed (non-blocking)"
             docker compose restart openclaw
             sleep 3
             echo "Container status:"
@@ -154,7 +156,7 @@ jobs:
             DEPLOY_OK=true
 
             echo ""
-            echo "--- [1/5] Vizier MCP liveness (/health) ---"
+            echo "--- [1/7] Vizier MCP liveness (/health) ---"
             for i in $(seq 1 30); do
               if curl -sf http://localhost:8080/health >/dev/null; then
                 echo "PASS: vizier-mcp is alive"
@@ -171,7 +173,7 @@ jobs:
             done
 
             echo ""
-            echo "--- [2/5] Vizier MCP readiness (/readiness) ---"
+            echo "--- [2/7] Vizier MCP readiness (/readiness) ---"
             READINESS=$(curl -s http://localhost:8080/readiness)
             echo "$READINESS" | python3 -m json.tool
             if echo "$READINESS" | python3 -c "import sys,json; r=json.load(sys.stdin); sys.exit(0 if r.get('ready') else 1)"; then
@@ -182,7 +184,16 @@ jobs:
             fi
 
             echo ""
-            echo "--- [3/5] OpenClaw container running ---"
+            echo "--- [3/7] Vizier MCP HTTP transport ---"
+            if docker compose exec -T vizier-mcp curl -sf http://localhost:8001/mcp >/dev/null 2>&1; then
+              echo "PASS: MCP HTTP endpoint responding on port 8001"
+            else
+              echo "WARN: MCP HTTP endpoint not responding (may need different path)"
+              docker compose logs vizier-mcp --tail=10 | grep -i "transport\|8001\|http" || true
+            fi
+
+            echo ""
+            echo "--- [4/7] OpenClaw container running ---"
             OC_STATE=$(docker compose ps openclaw --format '{{.State}}' 2>/dev/null || echo "missing")
             if [ "$OC_STATE" = "running" ]; then
               echo "PASS: openclaw container is running"
@@ -193,7 +204,7 @@ jobs:
             fi
 
             echo ""
-            echo "--- [4/5] OpenClaw health endpoint ---"
+            echo "--- [5/7] OpenClaw health endpoint ---"
             OC_HEALTHY=false
             for i in $(seq 1 20); do
               if docker compose exec -T openclaw curl -sf http://localhost:18789/ >/dev/null 2>&1; then
@@ -211,7 +222,7 @@ jobs:
             fi
 
             echo ""
-            echo "--- [5/5] OpenClaw config validation ---"
+            echo "--- [6/7] OpenClaw config validation ---"
             OC_LOGS=$(docker compose logs openclaw --tail=50 2>&1)
             if echo "$OC_LOGS" | grep -qi "Config invalid"; then
               echo "FAIL: openclaw has config errors:"
@@ -223,6 +234,16 @@ jobs:
               DEPLOY_OK=false
             else
               echo "PASS: no config errors detected"
+            fi
+
+            echo ""
+            echo "--- [7/7] MCP adapter plugin ---"
+            ADAPTER_LOGS=$(docker compose logs openclaw --tail=100 2>&1)
+            if echo "$ADAPTER_LOGS" | grep -qi "mcp-adapter"; then
+              echo "PASS: mcp-adapter plugin detected in logs"
+              echo "$ADAPTER_LOGS" | grep -i "mcp-adapter" | tail -5
+            else
+              echo "WARN: mcp-adapter not detected in openclaw logs (plugin may not be loaded)"
             fi
 
             echo ""

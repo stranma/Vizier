@@ -32,9 +32,11 @@ RUN addgroup --system vizier && adduser --system --home /home/vizier --ingroup v
 USER vizier
 
 ENV VIZIER_ROOT=/data/vizier \
-    HEALTH_PORT=8080
+    HEALTH_PORT=8080 \
+    MCP_TRANSPORT=streamable-http \
+    MCP_PORT=8001
 
-EXPOSE 8080
+EXPOSE 8080 8001
 
 VOLUME ["/data/vizier"]
 

@@ -1608,3 +1608,25 @@ When a command matches a scope's pattern, only those secrets (plus non-secret en
 **Why:** Together: the audit log tells you what happened (objective), the trace log tells you why (subjective), and direct repo access lets Vizier understand what rules govern behavior and propose changes.
 
 **Trade-off:** Audit interception adds marginal overhead per tool call (JSON serialization of kwargs/results). Trace logging requires agent cooperation. Direct repo access costs tokens for LLM code reading. All are negligible compared to the cost of debugging blind.
+
+---
+
+### D85: OpenClaw MCP Connection via openclaw-mcp-adapter
+
+**Context:** The Vizier MCP server (21 tools, v0.12.0) runs as a Docker container alongside OpenClaw, but OpenClaw agents cannot access Vizier's tools. The `mcpServers` top-level config key was removed from `openclaw.json` (commit f4812d0) because the deployed OpenClaw version (v2026.2.19) rejects it as an unrecognized key. Multiple GitHub issues (#4834, #13248, #29053) confirm OpenClaw has no native MCP client support as of March 2026.
+
+**Decision:** Use the `openclaw-mcp-adapter` community plugin (MIT, npm) with Streamable HTTP transport.
+
+**Alternatives considered:**
+
+1. **Native `mcpServers` config** -- Rejected: OpenClaw v2026.2.19 does not support it.
+2. **mcporter skill** -- Rejected: CLI-based, tools not native. Agent must format CLI commands and parse text output.
+3. **Custom OpenClaw plugin** -- Rejected: Unnecessary given the existing adapter plugin does exactly this.
+4. **HTTP bridge via web_fetch** -- Rejected: Agents lose structured tool schemas, massive prompt bloat.
+5. **Wait for native support** -- Rejected: Issue #29053 has no timeline. Can migrate when available.
+
+**Implementation:** Vizier MCP server adds Streamable HTTP transport (`MCP_TRANSPORT=streamable-http`, port 8001) alongside the existing stdio transport (backward compatible). The adapter plugin is installed in the OpenClaw container at deploy time and configured in `openclaw.json` under `plugins.entries.mcp-adapter`. Tools appear as native OpenClaw tools with `vizier_` prefix.
+
+**Why:** The adapter is the only available mechanism that provides native tool integration (proper JSON schemas visible to the LLM) without changes to OpenClaw core. Streamable HTTP is the recommended MCP transport for production deployments.
+
+**Trade-off:** Dependency on a community plugin (v0.1.1). Mitigated by MIT license, thin proxy design (~200 LOC), and ability to fork if abandoned.
