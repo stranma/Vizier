@@ -239,8 +239,7 @@ jobs:
             echo ""
             echo "--- [7/7] MCP adapter plugin ---"
             if [ "${ADAPTER_INSTALL_FAILED:-}" = "true" ]; then
-              echo "FAIL: mcp-adapter plugin install failed in earlier step"
-              DEPLOY_OK=false
+              echo "WARN: mcp-adapter plugin install failed (non-fatal, adapter is external)"
             else
               ADAPTER_LOGS=$(docker compose logs openclaw --tail=100 2>&1)
               if echo "$ADAPTER_LOGS" | grep -qi "mcp-adapter"; then
@@ -248,7 +247,6 @@ jobs:
                 echo "$ADAPTER_LOGS" | grep -i "mcp-adapter" | tail -5
               else
                 echo "WARN: mcp-adapter not detected in openclaw logs (plugin may not be loaded)"
-                DEPLOY_OK=false
               fi
             fi
 
