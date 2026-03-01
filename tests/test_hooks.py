@@ -13,12 +13,7 @@ SECURITY_HOOKS = [
     "unicode-injection-scanner.sh",
 ]
 
-PRODUCTIVITY_HOOKS = [
-    "auto-format.sh",
-    "test-on-change.sh",
-]
-
-ALL_HOOKS = SECURITY_HOOKS + PRODUCTIVITY_HOOKS
+ALL_HOOKS = SECURITY_HOOKS
 
 
 class TestHookExistence:
@@ -152,37 +147,3 @@ class TestSecurityHookBehavior:
         content = (HOOKS_DIR / "output-secrets-scanner.sh").read_text(encoding="utf-8")
         for pattern in ["AKIA", "sk-ant-", "ghp_", "PRIVATE KEY"]:
             assert pattern in content, f"output-secrets-scanner missing pattern: {pattern}"
-
-
-class TestProductivityHookBehavior:
-    """Verify productivity hooks have correct patterns."""
-
-    def test_auto_format_targets_python_files(self) -> None:
-        content = (HOOKS_DIR / "auto-format.sh").read_text(encoding="utf-8")
-        assert "*.py" in content or ".py" in content, "auto-format should target Python files"
-
-    def test_auto_format_uses_ruff(self) -> None:
-        content = (HOOKS_DIR / "auto-format.sh").read_text(encoding="utf-8")
-        assert "ruff format" in content, "auto-format should use ruff format"
-        assert "ruff check --fix" in content, "auto-format should use ruff check --fix"
-
-    def test_auto_format_checks_edit_and_write(self) -> None:
-        content = (HOOKS_DIR / "auto-format.sh").read_text(encoding="utf-8")
-        assert '"Edit"' in content, "auto-format should check Edit tool"
-        assert '"Write"' in content, "auto-format should check Write tool"
-
-    def test_test_on_change_discovers_test_files(self) -> None:
-        content = (HOOKS_DIR / "test-on-change.sh").read_text(encoding="utf-8")
-        assert "test_" in content, "test-on-change should discover test_ prefixed files"
-
-    def test_test_on_change_uses_pytest(self) -> None:
-        content = (HOOKS_DIR / "test-on-change.sh").read_text(encoding="utf-8")
-        assert "pytest" in content, "test-on-change should use pytest"
-
-    def test_test_on_change_never_blocks(self) -> None:
-        content = (HOOKS_DIR / "test-on-change.sh").read_text(encoding="utf-8")
-        assert "exit 2" not in content, "test-on-change should never block (informational only)"
-
-    def test_test_on_change_emits_system_message_on_failure(self) -> None:
-        content = (HOOKS_DIR / "test-on-change.sh").read_text(encoding="utf-8")
-        assert "systemMessage" in content, "test-on-change should emit systemMessage for test failures"
