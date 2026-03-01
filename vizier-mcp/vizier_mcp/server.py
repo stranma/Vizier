@@ -49,7 +49,7 @@ from vizier_mcp.tools.trace import trace_query as _trace_query
 from vizier_mcp.tools.trace import trace_record as _trace_record
 from vizier_mcp.tools.trace import trace_timeline as _trace_timeline
 
-__version__ = "0.13.0"
+__version__ = "0.14.0"
 TOOL_COUNT = 27
 
 

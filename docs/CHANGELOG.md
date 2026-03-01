@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.14.0] - 2026-03-01
+
+Phase 14: OpenClaw MCP Connection (D85). Connects the Vizier MCP server to OpenClaw using the openclaw-mcp-adapter plugin with Streamable HTTP transport so agents can invoke all 27 Vizier tools as native OpenClaw tools without Docker socket access.
+
+### Added
+
+- **Streamable HTTP transport** -- The Vizier MCP server can now run in Streamable HTTP mode (`MCP_TRANSPORT=streamable-http`), binding to port 8001 and accepting MCP requests over HTTP instead of stdio. The transport is selected at startup via the `MCP_TRANSPORT` environment variable; omitting it or setting `stdio` preserves the existing behaviour. Operators deploying the server in Docker no longer need a `docker exec` bridge for agent connections.
+- **openclaw-mcp-adapter plugin config** -- `openclaw/config/openclaw.json` now includes an `mcp_adapter` plugin block pointing at `http://vizier-mcp:8001/mcp`. All 27 Vizier tools are exposed to OpenClaw agents with a `vizier_` prefix (for example, `spec_create` becomes `vizier_spec_create`), making them indistinguishable from natively registered OpenClaw tools from the agent's perspective.
+- **7 transport tests** -- New test module covering `MCP_TRANSPORT` env var routing, port 8001 binding, tool prefix mapping, adapter config schema validation, and stdio fallback behaviour. All pass in CI without an OpenClaw instance.
+- **Deploy workflow: expanded health check sequence** -- `.github/workflows/deploy.yml` health check sequence extended from 5 to 7 steps: the two new steps probe the Streamable HTTP MCP endpoint (`http://localhost:8001/mcp`) and verify the tool count returned matches the expected 27, catching transport misconfiguration before traffic is shifted.
+
+### Changed
+
+- **Dockerfile exposes port 8001** -- The `vizier-mcp` Dockerfile now declares `EXPOSE 8001` alongside the existing `EXPOSE 8080` (health endpoint), so container orchestrators and `docker-compose.yml` port mappings can reach the MCP transport without an override.
+
 ## [0.13.0] - 2026-02-23
 
 Phase 13: Imperial Observability (D84). Three-level debugging for Vizier -- automatic audit interception, agent-reported Golden Trace, and direct repo access for rule introspection.
