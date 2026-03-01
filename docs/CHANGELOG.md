@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.14.1] - 2026-03-02
+
+### Fixed
+
+- **Deploy pipeline no longer fails on mcp-adapter plugin install** -- Check [7/7] in the deploy health-check sequence now treats mcp-adapter failures as warnings instead of fatal errors. The external `openclaw-mcp-adapter` plugin (v0.0.1) is missing `openclaw.extensions` in its `package.json`, which caused every deploy to fail even though all services were healthy. This matches check [3/7] (MCP HTTP transport), which is already warning-only for the same reason.
+
 ## [0.14.0] - 2026-03-01
 
 Phase 14: OpenClaw MCP Connection (D85). Connects the Vizier MCP server to OpenClaw using the openclaw-mcp-adapter plugin with Streamable HTTP transport so agents can invoke all 27 Vizier tools as native OpenClaw tools without Docker socket access.
