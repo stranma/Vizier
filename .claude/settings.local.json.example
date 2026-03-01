@@ -1,0 +1,35 @@
+{
+  "__comment": "Copy to .claude/settings.local.json for machine-specific overrides (gitignored).",
+  "__usage": [
+    "cp .claude/settings.local.json.example .claude/settings.local.json",
+    "Precedence: global < project settings.json < settings.local.json",
+    "Use this for: local hook overrides, extra permissions, MCP server configs"
+  ],
+
+  "hooks": {
+    "PreToolUse": [],
+    "PostToolUse": []
+  },
+
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:docs.openclaw.ai)",
+      "WebFetch(domain:platform.claude.com)",
+      "WebFetch(domain:www.anthropic.com)",
+      "WebFetch(domain:claude.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:gist.github.com)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:openclawwiki.org)",
+      "WebFetch(domain:safeclaw.io)"
+    ],
+    "deny": [
+      "Bash(git -C:*)"
+    ],
+    "ask": []
+  },
+
+  "mcpServers": {}
+}
