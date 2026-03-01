@@ -16,6 +16,7 @@
 | 10 | Budget Tracking (Lite) | Complete | budget_record, budget_summary |
 | 11 | Failure Learnings | Complete | learnings_extract, learnings_list, learnings_inject |
 | 12 | Empire Briefing + Alerts | Complete | AlertData model, BudgetConfig, budget alerts, alerts in status, briefing generator |
+| 13 | Imperial Observability | Complete | audit_query, audit_timeline, audit_stats, trace_record, trace_query, trace_timeline |
 
 ---
 
@@ -356,6 +357,60 @@
 - [x] AC-11.5: Full extract -> list -> inject cycle works end-to-end.
 - [x] AC-11.6: `create_server()` returns FastMCP with 21 tools registered.
 - [x] AC-11.7: Cumulative: all Phase 1-10 acceptance criteria still pass.
+
+---
+
+## Phase 13: Imperial Observability (D84)
+
+**Goal:** Three-level debugging for Vizier -- automatic audit interception, agent-reported Golden Trace, and direct repo access for rule introspection. 6 new MCP tools, total 27.
+
+**v0.13.0**
+
+### Step 1: Models + Storage Infrastructure
+- [x] Create `models/trace.py` (TraceEntry, TraceActionType)
+- [x] Create `models/audit.py` (AuditEntry)
+- [x] Update `models/__init__.py` with new exports
+- [x] Add `audit_dir` and `audit_max_output_chars` to `ServerConfig`
+
+### Step 2: Audit Interceptor (Approach 2 -- Imperial Spymaster)
+- [x] Create `audit_logger.py` (AuditLogger class with dual-write, rotation, truncation)
+- [x] Create `tools/audit.py` (audit_query, audit_timeline, audit_stats)
+- [x] Enhance server.py: `_audited_sync`/`_audited_async` wrappers capture full I/O
+- [x] `_extract_audit_kwargs` uses `inspect.signature` to extract args from positional calls
+
+### Step 3: Golden Trace (Approach 1 -- Imperial Chronicle)
+- [x] Create `tools/trace.py` (trace_record, trace_query, trace_timeline)
+- [x] Per-spec storage at `{spec_dir}/.vizier/trace.jsonl`
+- [x] Register 3 trace tools in server.py
+
+### Step 4: Direct Repo Access (Approach 3 -- Imperial Divan)
+- [x] Add "Imperial Divan" section to Vizier SOUL.md
+- [x] No MCP tools needed -- Vizier reads repo directly
+
+### Step 5: Tests
+- [x] Create `test_trace_tools.py` (17 tests: record, query, timeline, integration)
+- [x] Create `test_audit_tools.py` (15 tests: logger, query, timeline, stats, interception)
+- [x] Update `test_server.py` EXPECTED_TOOLS (27) and TOOL_COUNT (27)
+- [x] Update `test_briefing_generator.py` for 27 tools
+
+### Step 6: Integration
+- [x] Update `generate_briefing.py` TOOL_ROLE_MAP and TOOL_CATEGORIES
+- [x] Update Worker, Pasha, QG, Vizier SOUL.md files
+- [x] Bump version to 0.13.0, TOOL_COUNT to 27
+- [x] Update `health.py` expected_tools default to 27
+
+### Acceptance Criteria
+- [x] AC-13.1: Vizier can reconstruct what any Worker did on any spec (audit_timeline)
+- [x] AC-13.2: Vizier can see agent reasoning and decisions (trace_query)
+- [x] AC-13.3: Vizier can inspect rules by reading the repo directly (SOUL.md instructions)
+- [x] AC-13.4: All audit capture is automatic -- no agent cooperation required
+- [x] AC-13.5: Storage follows existing JSONL patterns -- no new infrastructure
+- [x] AC-13.6: All 27 tools registered and tested
+- [x] AC-13.7: Cumulative: all Phase 1-12 acceptance criteria still pass
+
+### Phase Completion Steps
+
+After implementation, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md).
 
 ---
 

@@ -45,6 +45,20 @@ You may READ any file in the project for context. This includes parent specs,
 sibling specs, and feedback from other specs. Reading is never restricted --
 only writing is controlled by Sentinel.
 
+## Golden Trace (D84)
+
+Log your reasoning and key decisions using trace_record. This helps Vizier
+debug issues and understand what happened during your session.
+
+When to log:
+- `trace_record(project_id, spec_id, "worker", "reasoning", "...")` -- before major decisions
+- `trace_record(project_id, spec_id, "worker", "decision_made", "...")` -- after choosing an approach
+- `trace_record(project_id, spec_id, "worker", "error_encountered", "...")` -- when hitting errors
+- `trace_record(project_id, spec_id, "worker", "file_written", "...")` -- after writing key files
+- `trace_record(project_id, spec_id, "worker", "test_result", "...")` -- after running tests
+
+Keep summaries brief (one line). Use the detail field for longer explanations.
+
 ## Rules
 
 - Write ONLY files listed in the spec's artifact list

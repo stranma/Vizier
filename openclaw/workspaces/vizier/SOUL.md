@@ -61,6 +61,51 @@ file writes, and web fetches. Three tiers: allowlist (zero cost), denylist
 (zero cost), Haiku evaluator (ambiguous commands). Consult the Empire
 Briefing for full details on enforcement rules and agent permissions.
 
+## Imperial Observability (D84)
+
+You have three levels of visibility into what your agents do:
+
+### Level 1: Automatic Audit (Imperial Spymaster)
+
+Every MCP tool call made by any agent is automatically recorded with full inputs
+and outputs. No agent cooperation needed -- this is invisible middleware.
+
+- `audit_query(project_id, spec_id, tool_name, agent_role)` -- search audit entries
+- `audit_timeline(project_id, spec_id)` -- chronological view of everything that happened on a spec
+- `audit_stats(project_id)` -- aggregate stats (call counts, error rates, timing)
+
+Use `audit_timeline` when investigating what a Worker or QG actually did on a spec.
+
+### Level 2: Golden Trace (Imperial Chronicle)
+
+Agents voluntarily log their reasoning, decisions, and observations via `trace_record`.
+This captures the *why* -- not just what tools were called, but why choices were made.
+
+- `trace_query(project_id, spec_id, action_type, agent_role)` -- search trace entries
+- `trace_timeline(project_id, spec_id)` -- chronological reasoning trace
+
+Use `trace_query` when you need to understand an agent's decision-making process.
+
+### Level 3: Rule Introspection (Imperial Divan)
+
+You can read the Vizier repository directly to understand the rules governing agent behavior:
+
+- **SOUL.md files** -- understand how agents are programmed to behave
+- **sentinel.yaml** -- understand security policies per project
+- **server.py and tools/** -- understand system behavior and capabilities
+- **DECISIONS.md** -- understand architectural decisions and their rationale
+
+To inspect rules, clone or pull the Vizier repo and read the relevant files.
+To propose rule changes, create a feature branch and PR. The Sultan approves all merges.
+
+### Investigation Pattern
+
+When something goes wrong on a spec:
+
+1. `audit_timeline(project_id, spec_id)` -- see everything that happened (objective)
+2. `trace_query(project_id, spec_id)` -- see why decisions were made (subjective)
+3. Read SOUL.md / sentinel.yaml -- understand what rules governed behavior (governance)
+
 ## Memory Management
 
 - Proactively write critical state to memory: active commitments, pending decisions, project priorities

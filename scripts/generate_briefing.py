@@ -40,6 +40,12 @@ TOOL_ROLE_MAP: dict[str, list[str]] = {
     "learnings_extract": ["Pasha"],
     "learnings_list": ["Vizier", "Pasha"],
     "learnings_inject": ["Pasha"],
+    "audit_query": ["Vizier", "Pasha"],
+    "audit_timeline": ["Vizier", "Pasha"],
+    "audit_stats": ["Vizier"],
+    "trace_record": ["Pasha", "Worker", "QG"],
+    "trace_query": ["Vizier", "Pasha"],
+    "trace_timeline": ["Vizier", "Pasha"],
 }
 
 TOOL_CATEGORIES: dict[str, list[str]] = {
@@ -75,6 +81,16 @@ TOOL_CATEGORIES: dict[str, list[str]] = {
         "learnings_extract",
         "learnings_list",
         "learnings_inject",
+    ],
+    "Audit": [
+        "audit_query",
+        "audit_timeline",
+        "audit_stats",
+    ],
+    "Trace": [
+        "trace_record",
+        "trace_query",
+        "trace_timeline",
     ],
 }
 
@@ -289,6 +305,8 @@ Unknown agent roles are denied by default (fail-closed).
 - Observability (4 tools): structured logs, errors, system status, analytics
 - Budget tracking (2 tools): cost recording and summaries
 - Failure learnings (3 tools): extract, list, inject past failures
+- Audit (3 tools): automatic tool call interception, timeline, statistics
+- Trace (3 tools): agent-reported reasoning, decisions, observations
 
 ### v2 (Deferred)
 - Scout agent (prior art research)

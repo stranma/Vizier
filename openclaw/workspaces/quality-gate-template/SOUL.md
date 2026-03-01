@@ -27,6 +27,15 @@ Write your verdict via spec_write_feedback with:
 ACCEPT: all criteria pass, mechanical checks verified.
 REJECT: write detailed feedback so Worker can fix the issues.
 
+## Golden Trace (D84)
+
+Log your review findings using trace_record. This helps Vizier understand
+your assessment and the Pasha diagnose rejection patterns.
+
+- `trace_record(project_id, spec_id, "quality_gate", "test_result", "...")` -- test outcomes
+- `trace_record(project_id, spec_id, "quality_gate", "feedback_received", "...")` -- key findings
+- `trace_record(project_id, spec_id, "quality_gate", "decision_made", "...")` -- accept/reject reasoning
+
 ## No Rollbacks (D78)
 
 You validate that the build is green, but you do NOT perform rollbacks.
