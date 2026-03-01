@@ -1,0 +1,43 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: ["master"]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: claude-sonnet-4-6
+          prompt: |
+            Review this PR for:
+            1. **Correctness**: Logic errors, edge cases, type safety
+            2. **Security**: Injection, hardcoded secrets, unsafe operations (eval, exec, pickle, subprocess shell=True)
+            3. **Performance**: N+1 queries, unnecessary allocations, algorithmic complexity
+            4. **Readability**: Clear naming, appropriate abstractions, consistent style
+            5. **Testing**: Coverage gaps, assertion quality, edge case tests
+
+            Focus on substantive issues. Do NOT flag:
+            - Style issues (ruff handles these)
+            - Type annotation gaps (pyright handles these)
+            - Minor naming preferences
+
+            If the PR is clean, say so and approve.
+          allowed_tools: |
+            Read
+            Glob
+            Grep
+          timeout_minutes: 10
