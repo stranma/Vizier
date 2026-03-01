@@ -17,6 +17,7 @@
 | 11 | Failure Learnings | Complete | learnings_extract, learnings_list, learnings_inject |
 | 12 | Empire Briefing + Alerts | Complete | AlertData model, BudgetConfig, budget alerts, alerts in status, briefing generator |
 | 13 | Imperial Observability | Complete | audit_query, audit_timeline, audit_stats, trace_record, trace_query, trace_timeline |
+| 14 | OpenClaw MCP Connection | Complete | openclaw-mcp-adapter plugin config, Streamable HTTP transport, vizier_ tool prefix, 7 transport tests |
 
 ---
 
@@ -411,6 +412,37 @@
 ### Phase Completion Steps
 
 After implementation, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md).
+
+---
+
+## Phase 14: OpenClaw MCP Connection (D85)
+
+**Status: Complete** (2026-03-01)
+
+**Version:** 0.14.0
+
+**Goal:** Connect the Vizier MCP server to OpenClaw using the openclaw-mcp-adapter plugin with Streamable HTTP transport, so all 27 Vizier tools are available to OpenClaw agents as native tools with the `vizier_` prefix.
+
+**Deliverables:**
+- [x] Streamable HTTP transport: `MCP_TRANSPORT` env var selects `streamable-http` (default) or `stdio`; server binds to port 8001 when transport is `streamable-http`
+- [x] Dockerfile updated: exposes port 8001 for Streamable HTTP transport alongside existing port 8080 (health)
+- [x] `openclaw-mcp-adapter` plugin config: `openclaw/config/openclaw.json` updated with `mcp_adapter` plugin block pointing at `http://vizier-mcp:8001/mcp`; tools exposed with `vizier_` prefix
+- [x] Deploy workflow updated: 7-step health check sequence (was 5 steps) -- adds MCP transport probe and tool-count verification after existing Vizier and OpenClaw health checks
+- [x] 7 new transport tests: `MCP_TRANSPORT` env var routing, port binding, tool prefix mapping, adapter config validation
+- [x] Decision D85 documented: Streamable HTTP chosen over stdio `docker exec` to avoid Docker socket dependency and support future horizontal scaling
+
+**Acceptance Criteria:**
+- [x] AC-14.1: Setting `MCP_TRANSPORT=streamable-http` starts the server on port 8001; `MCP_TRANSPORT=stdio` (or unset) falls back to stdio transport.
+- [x] AC-14.2: `openclaw/config/openclaw.json` `mcp_adapter` plugin block references `http://vizier-mcp:8001/mcp` and maps all 27 Vizier tools with `vizier_` prefix.
+- [x] AC-14.3: OpenClaw agents can call any of the 27 `vizier_*` tools via the adapter without additional configuration.
+- [x] AC-14.4: Dockerfile exposes port 8001 in addition to port 8080.
+- [x] AC-14.5: Deploy workflow health check sequence includes MCP transport probe and tool-count verification (7 steps total).
+- [x] AC-14.6: All 7 new transport tests pass.
+- [x] AC-14.7: Cumulative: all Phase 1-13 acceptance criteria still pass.
+
+### Phase Completion Steps
+
+> After this phase, execute the Phase Completion Checklist (steps -2 through 10 from CLAUDE.md).
 
 ---
 
