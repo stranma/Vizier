@@ -90,30 +90,65 @@ EOF
 
 ## 4. Configure OpenClaw
 
-Add the MCP server to your OpenClaw configuration (`openclaw/config/openclaw.json`):
+OpenClaw does not natively support `mcpServers` as a config key (see D84). Instead,
+use the [`openclaw-mcp-adapter`](https://github.com/androidStern-personal/openclaw-mcp-adapter)
+plugin, which connects to MCP servers and registers their tools as native OpenClaw agent tools.
+
+### Install the adapter plugin
+
+```bash
+npx openclaw plugins install mcp-adapter
+```
+
+### Add plugin config to `openclaw/config/openclaw.json`
 
 ```json
 {
-  "mcpServers": {
-    "vizier": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/vizier-mcp", "python", "-m", "vizier_mcp.server"],
-      "env": {
-        "VIZIER_ROOT": "/path/to/vizier-root"
+  "plugins": {
+    "entries": {
+      "mcp-adapter": {
+        "enabled": true,
+        "config": {
+          "toolPrefix": true,
+          "servers": [
+            {
+              "name": "vizier",
+              "transport": "http",
+              "url": "http://vizier-mcp:8001/mcp"
+            }
+          ]
+        }
       }
     }
   }
 }
 ```
 
+With `toolPrefix: true`, tools appear as `vizier_spec_create`, `vizier_budget_summary`, etc.
+
+### Transport options
+
+The Vizier MCP server supports two transports controlled by the `MCP_TRANSPORT` env var:
+
+| Transport | Env var value | Use case |
+|-----------|--------------|----------|
+| stdio | `stdio` (default) | Local development, testing |
+| Streamable HTTP | `streamable-http` | Docker deployment (default in Dockerfile) |
+
+For HTTP transport, `MCP_PORT` (default: `8001`) controls the listen port.
+
 ## 5. Run the MCP Server Standalone (for Testing)
 
 ```bash
+# stdio transport (default)
 cd vizier-mcp
-VIZIER_ROOT=/path/to/vizier-root uv run python -m vizier_mcp.server
+VIZIER_ROOT=/path/to/vizier-root uv run python -m vizier_mcp
+
+# HTTP transport
+MCP_TRANSPORT=streamable-http MCP_PORT=8001 VIZIER_ROOT=/path/to/vizier-root uv run python -m vizier_mcp
 ```
 
-The server exposes 21 tools via the MCP stdio transport.
+The server exposes 21 tools via the configured transport.
 
 ## 6. Agent-to-Tool Mapping
 
