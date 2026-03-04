@@ -6,16 +6,25 @@ IFS=$'\n\t'
 # Restricts egress to: PyPI, GitHub, npm, Anthropic, VS Code, uv/Astral.
 # Uses ipset with aggregated CIDR ranges for reliable filtering.
 
+echo "iptables version: $(iptables --version)"
+echo "iptables backend: $(readlink -f "$(which iptables)")"
+
+if ! iptables -L -n >/dev/null 2>&1; then
+    echo "ERROR: iptables not functional (missing kernel support or capabilities)"
+    echo "Skipping firewall setup - container will run without network restrictions"
+    exit 0
+fi
+
 # 1. Extract Docker DNS info BEFORE any flushing
 DOCKER_DNS_RULES=$(iptables-save -t nat | grep "127\.0\.0\.11" || true)
 
 # Flush existing rules and delete existing ipsets
 iptables -F
-iptables -X
+iptables -X 2>/dev/null || true
 iptables -t nat -F
-iptables -t nat -X
+iptables -t nat -X 2>/dev/null || true
 iptables -t mangle -F
-iptables -t mangle -X
+iptables -t mangle -X 2>/dev/null || true
 ipset destroy allowed-domains 2>/dev/null || true
 
 # 2. Restore Docker DNS resolution
@@ -25,6 +34,7 @@ if [ -n "$DOCKER_DNS_RULES" ]; then
     iptables -t nat -N DOCKER_POSTROUTING 2>/dev/null || true
     while IFS= read -r rule; do
         [ -z "$rule" ] && continue
+        [[ "$rule" =~ ^# ]] && continue
         # shellcheck disable=SC2086
         iptables -t nat $rule || echo "WARNING: Failed to restore rule: $rule"
     done <<< "$DOCKER_DNS_RULES"
@@ -108,11 +118,6 @@ echo "Host network detected as: $HOST_NETWORK"
 iptables -A INPUT -s "$HOST_NETWORK" -j ACCEPT
 iptables -A OUTPUT -d "$HOST_NETWORK" -j ACCEPT
 
-# --- Set default policies ---
-iptables -P INPUT DROP
-iptables -P FORWARD DROP
-iptables -P OUTPUT DROP
-
 # Block all IPv6 traffic (firewall is IPv4-only)
 ip6tables -P INPUT DROP 2>/dev/null || true
 ip6tables -P FORWARD DROP 2>/dev/null || true
@@ -129,6 +134,11 @@ iptables -A OUTPUT -m set --match-set allowed-domains dst -j ACCEPT
 
 # Reject all other outbound traffic (immediate feedback)
 iptables -A OUTPUT -j REJECT --reject-with icmp-admin-prohibited
+
+# Set default policies AFTER all ACCEPT rules (prevents lockout on partial failure)
+iptables -P INPUT DROP
+iptables -P FORWARD DROP
+iptables -P OUTPUT DROP
 
 echo "Firewall configuration complete"
 
