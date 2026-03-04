@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.14.1] - 2026-03-04
+
+Infrastructure fix: devcontainer firewall startup failure and Claude Code installation modernization.
+
+### Fixed
+
+- **Devcontainer firewall startup failure** -- The `init-firewall.sh` script now switches to the `iptables-legacy` backend at image build time (`update-alternatives --set iptables /usr/sbin/iptables-legacy`) and gracefully skips firewall setup when iptables is non-functional (missing kernel support or capabilities). Previously, the devcontainer failed to start on hosts where the nftables backend could not initialize, blocking all development work until the container was manually repaired.
+
+### Changed
+
+- **Claude Code installed via native installer instead of npm** -- The Dockerfile now installs Claude Code using Anthropic's native installer (`curl https://claude.ai/install.sh | bash`) instead of the npm package (`@anthropic-ai/claude-code`). This removes the Node.js runtime dependency from the devcontainer image, reducing image size and eliminating npm-related failure modes during builds.
+- **Node.js removed from devcontainer image** -- The `node_setup_lts.x` install script and Node.js runtime are no longer included in the Dockerfile since Claude Code no longer requires them.
+- **Firewall allowlist updated** -- `registry.npmjs.org` replaced with `claude.ai` in the egress firewall allowlist, reflecting the new Claude Code download source. All other allowed domains (PyPI, GitHub, Anthropic API, VS Code marketplace, Astral/uv) remain unchanged.
+
 ## [0.14.0] - 2026-03-01
 
 Phase 14: OpenClaw MCP Connection (D85). Connects the Vizier MCP server to OpenClaw using the openclaw-mcp-adapter plugin with Streamable HTTP transport so agents can invoke all 27 Vizier tools as native OpenClaw tools without Docker socket access.
