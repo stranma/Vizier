@@ -3,7 +3,7 @@ set -euo pipefail
 IFS=$'\n\t'
 
 # Network security firewall for devcontainer.
-# Restricts egress to: PyPI, GitHub, npm, Anthropic, VS Code, uv/Astral.
+# Restricts egress to: PyPI, GitHub, Anthropic/Claude, VS Code, uv/Astral.
 # Uses ipset with aggregated CIDR ranges for reliable filtering.
 
 echo "iptables version: $(iptables --version)"
@@ -81,7 +81,7 @@ for domain in \
     "pypi.org" \
     "files.pythonhosted.org" \
     "astral.sh" \
-    "registry.npmjs.org" \
+    "claude.ai" \
     "api.anthropic.com" \
     "sentry.io" \
     "statsig.anthropic.com" \

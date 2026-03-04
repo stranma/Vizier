@@ -3,8 +3,6 @@ FROM python:3.11-bookworm
 ARG TZ
 ENV TZ="$TZ"
 
-ARG CLAUDE_CODE_VERSION=latest
-
 # System dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     less \
@@ -39,12 +37,6 @@ ARG USER_GID=$USER_UID
 RUN groupadd --gid $USER_GID $USERNAME \
     && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME -s /usr/bin/zsh
 
-# Install Node.js 20 (required for Claude Code CLI)
-SHELL ["/bin/bash", "-c"]
-RUN set -o pipefail && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/*
-
 # Install uv (Python package manager)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
@@ -56,10 +48,6 @@ RUN ARCH=$(dpkg --print-architecture) && \
     dpkg -i "git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb" && \
     rm "git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb"
 
-# Ensure npm global directory is accessible
-RUN mkdir -p /usr/local/share/npm-global && \
-    chown -R $USERNAME:$USERNAME /usr/local/share/npm-global
-
 # Persist command history
 RUN mkdir /commandhistory && \
     touch /commandhistory/.bash_history && \
@@ -67,8 +55,7 @@ RUN mkdir /commandhistory && \
 
 # Set environment variables
 ENV DEVCONTAINER=true
-ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
-ENV PATH=$PATH:/usr/local/share/npm-global/bin
+ENV PATH=/home/vscode/.local/bin:$PATH
 ENV SHELL=/bin/zsh
 ENV EDITOR=nano
 ENV VISUAL=nano
@@ -92,8 +79,8 @@ RUN sh -c "$(curl -fsSL https://github.com/deluan/zsh-in-docker/releases/downloa
     -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
     -x
 
-# Install Claude Code CLI
-RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
+# Install Claude Code CLI (native installer)
+RUN curl -fsSL https://claude.ai/install.sh | bash
 
 # Copy and configure firewall script (restricted sudo -- firewall only)
 COPY init-firewall.sh /usr/local/bin/
