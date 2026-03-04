@@ -80,7 +80,8 @@ RUN sh -c "$(curl -fsSL https://github.com/deluan/zsh-in-docker/releases/downloa
     -x
 
 # Install Claude Code CLI (native installer)
-RUN curl -fsSL https://claude.ai/install.sh | bash
+RUN curl -fsSL https://claude.ai/install.sh | bash && \
+    echo '{"installMethod":"native"}' > /home/vscode/.claude.json
 
 # Copy and configure firewall script (restricted sudo -- firewall only)
 COPY init-firewall.sh /usr/local/bin/
