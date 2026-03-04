@@ -28,6 +28,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     aggregate \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Use iptables-legacy backend (nftables doesn't work reliably in containers)
+RUN update-alternatives --set iptables /usr/sbin/iptables-legacy && \
+    update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+
 # Create non-root user
 ARG USERNAME=vscode
 ARG USER_UID=1000
@@ -36,6 +40,7 @@ RUN groupadd --gid $USER_GID $USERNAME \
     && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME -s /usr/bin/zsh
 
 # Install Node.js 20 (required for Claude Code CLI)
+SHELL ["/bin/bash", "-c"]
 RUN set -o pipefail && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
