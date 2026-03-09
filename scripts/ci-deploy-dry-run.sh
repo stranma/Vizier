@@ -113,13 +113,7 @@ if ! docker pull "$OPENCLAW_IMAGE" >/dev/null 2>&1; then
 fi
 
 if docker run --rm "$PLUGIN_IMAGE" sh -c "
-    set -e
-    apt-get update -qq && apt-get install -y -qq git >/dev/null 2>&1 || true
-    cd /tmp
-    git clone --depth 1 https://github.com/androidStern/openclaw-mcp-adapter.git
-    cd openclaw-mcp-adapter
-    npm install --omit=dev
-    npx openclaw plugins install .
+    npx openclaw plugins install openclaw-mcp-adapter
 "; then
     pass "mcp-adapter plugin install succeeded"
 else
