@@ -71,14 +71,14 @@ After auto-compact or session continuation, read:
 
 ## Development Process
 
-Classify each task, then follow the matching path in `docs/DEVELOPMENT_PROCESS.md`:
+Three workflow skills drive the development loop (see `docs/DEVELOPMENT_PROCESS.md`):
 
-| Path | When | Examples |
-|------|------|---------|
-| **Q** (Quick) | Trivial, single-location | Typo fix, config tweak, one-liner |
-| **S** (Standard) | One session, clear scope | New feature, multi-file refactor |
-| **P** (Project) | Phased, multi-session | Architectural change, large migration |
+| Skill | When | What it does |
+|-------|------|-------------|
+| `/sync` | Session start, before major work | Pre-flight workspace check (branch, remote, dirty files) |
+| `/design` | After brainstorming, before coding | Crystallizes ideas into a plan, auto-classifies scope (Q/S/P) |
+| `/done` | When work is complete | Validates, ships, and documents -- auto-detects actual scope |
 
 All agents are in `.claude/agents/` and use `subagent_type: "general-purpose"`. Do NOT use `feature-dev:code-reviewer`.
 
-**PCC shorthand**: When "PCC" or "PCC now" is mentioned, execute S.5 through S.7 per `docs/DEVELOPMENT_PROCESS.md`.
+**PCC shorthand**: When "PCC" or "PCC now" is mentioned, run `/done`.
