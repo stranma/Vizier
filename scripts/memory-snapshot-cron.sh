@@ -21,7 +21,7 @@ docker volume inspect vizier-data >/dev/null 2>&1 || {
 docker run --rm \
   -v vizier-data:/data/vizier \
   -v /opt/vizier/vizier-mcp/scripts/memory-snapshot.sh:/snapshot.sh:ro \
-  alpine/git:v2.45.2 \
+  alpine/git:v2.52.0 \
   /bin/sh /snapshot.sh
 
 echo "$(date -Iseconds) Memory snapshot complete."
