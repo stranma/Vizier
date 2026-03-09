@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Reliability fix: MCP server health endpoint now correctly reflects transport task health.
 
+### Added
+
+- **Deploy dry-run CI job** -- New `deploy-dry-run` job in `tests.yml` validates deploy-critical steps on every PR: Docker image build, /health endpoint, openclaw.json structure, and mcp-adapter plugin install. Catches the class of failures that previously only surfaced in production.
+
 ### Fixed
 
 - **MCP server silent failure detection** -- `_run_with_health()` previously awaited only the stop signal, so if the MCP transport task crashed (port conflict, FastMCP error), the health endpoint kept returning 200 OK while the MCP server on port 8001 was dead. The function now uses `asyncio.wait()` with `FIRST_COMPLETED` to detect task failure immediately, logging the exception and propagating it so Docker's restart policy can recover the container.
