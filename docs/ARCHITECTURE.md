@@ -919,7 +919,8 @@ Phase 6 produces the deployment infrastructure for the Vizier MCP server:
 | `docker-compose.yml` | MCP server service + volumes. Langfuse via `observability` profile. |
 | `.env.example` | Local-dev-only env vars. Production uses Azure Key Vault (D60). |
 | `.github/workflows/deploy.yml` | Docker build -> GHCR push -> SSH deploy with health check |
-| `.github/workflows/tests.yml` | Lint + type check + tests for vizier-mcp/ |
+| `.github/workflows/tests.yml` | Lint + type check + tests for vizier-mcp/ + deploy dry-run validation |
+| `scripts/ci-deploy-dry-run.sh` | CI job that validates deploy-critical steps (Docker build, /health, openclaw.json, mcp-adapter install) without real secrets |
 | `docs/DEPLOYMENT.md` | Setup guide: local dev, Docker, Azure Key Vault, OpenClaw connection |
 
 **Secrets model:** Azure Key Vault (`https://vizier.vault.azure.net/`, D60) is the production secret store. The MCP server reads ANTHROPIC_API_KEY (for Sentinel Haiku) from the vault via managed identity. `.env` is the local-dev fallback only. OpenClaw manages secrets for agent sessions independently.
