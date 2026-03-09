@@ -1630,3 +1630,27 @@ When a command matches a scope's pattern, only those secrets (plus non-secret en
 **Why:** The adapter is the only available mechanism that provides native tool integration (proper JSON schemas visible to the LLM) without changes to OpenClaw core. Streamable HTTP is the recommended MCP transport for production deployments.
 
 **Trade-off:** Dependency on a community plugin (v0.1.1). Mitigated by MIT license, thin proxy design (~200 LOC), and ability to fork if abandoned.
+
+---
+
+### D86: Workflow Skills Replacing Rigid Q/S/P Classification
+
+**Context:** The development process required manually classifying every task as Q (Quick), S (Standard), or P (Project) upfront before any work began. This created friction: scope is often unclear at the start and only becomes apparent as work progresses. The upstream template (`stranma/claude-code-python-template`) evolved to use workflow skills that auto-detect scope at completion time.
+
+**Decision:** Replace the rigid upfront Q/S/P classification with three workflow skills:
+
+1. **`/sync`** -- Pre-flight workspace check (read-only). Run at session start.
+2. **`/design`** -- Crystallizes brainstorming into plans. Estimates scope during planning.
+3. **`/done`** -- Universal completion. Auto-detects actual scope from workspace signals (branch, diff size, files changed, plan state), then validates, ships, and documents accordingly.
+
+The `/ship` command is absorbed into `/done` Phase 2 (validation) and Phase 3 (shipping). The 3-tier checklist (Blockers, High Priority, Recommended) is preserved.
+
+**Alternatives considered:**
+
+1. **Keep upfront classification** -- Rejected: scope is often wrong at task start, leading to under- or over-engineering the process.
+2. **Single `/complete` command without scope detection** -- Rejected: different scopes genuinely need different completion steps (Q doesn't need a PR, P needs IMPLEMENTATION_PLAN.md updates).
+3. **Keep `/ship` alongside `/done`** -- Rejected: redundant. `/done` Phase 2 is `/ship` with scope awareness.
+
+**Why:** Scope detection at completion time uses concrete signals (actual diff size, actual files changed) rather than guesswork. This reduces process overhead for quick fixes while ensuring thorough completion for larger work.
+
+**Trade-off:** The auto-detection heuristic may occasionally misjudge scope. Mitigated by using the highest matching scope and explaining the detection to the user.

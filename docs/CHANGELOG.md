@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+Workflow modernization: replaced rigid upfront Q/S/P task classification with three workflow skills that auto-detect scope.
+
+### Added
+
+- **`/sync` skill** -- Pre-flight workspace check (branch state, remote tracking, dirty files, recent commits). Read-only, no modifications. Run at session start or before major work.
+- **`/design` skill** -- Crystallizes brainstorming into structured plans. Reads DECISIONS.md for conflicts, auto-classifies scope (Q/S/P), outputs plan in scope-appropriate format.
+- **`/done` skill** -- Universal completion command that auto-detects scope from workspace signals (branch, diff size, plan state), validates with 3-tier checklist, ships (commit/push/PR/CI), and documents (CHANGELOG/DECISIONS).
+
+### Changed
+
+- **Development workflow** -- Instead of manually classifying tasks as Q/S/P upfront, `/design` estimates scope during planning and `/done` auto-detects actual scope at completion time. See `docs/DEVELOPMENT_PROCESS.md`.
+- **PCC shorthand** -- "PCC" or "PCC now" now means "run `/done`" (previously "execute S.5 through S.7").
+
+### Removed
+
+- **`/ship` command** -- Absorbed into `/done` Phase 2 (validation) and Phase 3 (shipping). The 3-tier checklist (Blockers, High Priority, Recommended) is preserved in `/done`.
+
 ## [0.14.2] - 2026-03-09
 
 Reliability fix: MCP server health endpoint now correctly reflects transport task health.

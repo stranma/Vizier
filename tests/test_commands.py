@@ -9,7 +9,6 @@ COMMANDS_DIR = Path(__file__).parent.parent / ".claude" / "commands"
 ALL_COMMANDS = [
     "catchup.md",
     "security-audit.md",
-    "ship.md",
 ]
 
 
@@ -100,21 +99,3 @@ class TestCommandContent:
         content = (COMMANDS_DIR / "security-audit.md").read_text(encoding="utf-8")
         for pattern in ["eval", "exec", "pickle", "subprocess"]:
             assert pattern in content, f"security-audit missing code pattern: {pattern}"
-
-    def test_ship_has_three_tiers(self) -> None:
-        content = (COMMANDS_DIR / "ship.md").read_text(encoding="utf-8")
-        assert "Blocker" in content, "ship should have Blockers tier"
-        assert "High Priority" in content, "ship should have High Priority tier"
-        assert "Recommended" in content, "ship should have Recommended tier"
-
-    def test_ship_checks_tests(self) -> None:
-        content = (COMMANDS_DIR / "ship.md").read_text(encoding="utf-8")
-        assert "pytest" in content, "ship should run tests"
-
-    def test_ship_checks_lint(self) -> None:
-        content = (COMMANDS_DIR / "ship.md").read_text(encoding="utf-8")
-        assert "ruff" in content, "ship should check linting"
-
-    def test_ship_checks_types(self) -> None:
-        content = (COMMANDS_DIR / "ship.md").read_text(encoding="utf-8")
-        assert "pyright" in content, "ship should check types"
