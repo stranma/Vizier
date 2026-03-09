@@ -169,11 +169,12 @@ async def project_init(
         # Clone or scaffold
         config.repos_dir.mkdir(parents=True, exist_ok=True)
         if source == "clone":
+            assert git_url is not None  # validated above
             proc = await asyncio.create_subprocess_exec(
                 "git",
                 "clone",
                 git_url,
-                str(repo_dir),  # type: ignore[arg-type]
+                str(repo_dir),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
