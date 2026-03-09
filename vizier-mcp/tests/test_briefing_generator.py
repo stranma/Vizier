@@ -23,9 +23,9 @@ from generate_briefing import (  # type: ignore[import-not-found]
 class TestToolExtraction:
     """Tests for extract_tool_registry."""
 
-    def test_extracts_all_27_tools(self) -> None:
+    def test_extracts_all_28_tools(self) -> None:
         tools = extract_tool_registry()
-        assert len(tools) == 27
+        assert len(tools) == 28
 
     def test_each_tool_has_required_fields(self) -> None:
         tools = extract_tool_registry()
@@ -69,6 +69,7 @@ class TestToolExtraction:
             "trace_record",
             "trace_query",
             "trace_timeline",
+            "project_init",
         }
         assert names == expected
 
@@ -131,7 +132,7 @@ class TestStructuredBriefing:
         tools = extract_tool_registry()
         souls = read_agent_souls()
         briefing = build_structured_briefing(tools, souls)
-        assert "27" in briefing
+        assert "28" in briefing
 
     def test_all_tool_names_in_briefing(self) -> None:
         tools = extract_tool_registry()

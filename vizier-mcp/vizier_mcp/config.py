@@ -39,6 +39,7 @@ class ServerConfig(BaseModel):
     alerts_dir: Path | None = None
     audit_dir: Path | None = None
     audit_max_output_chars: int = 4000
+    repos_dir: Path | None = None
     file_locking: bool = True
     startup_recovery: bool = True
     claim_timeout: int = 30
@@ -50,6 +51,8 @@ class ServerConfig(BaseModel):
         """Set projects_dir, log_dir, alerts_dir, and audit_dir defaults based on vizier_root."""
         if self.projects_dir is None:
             self.projects_dir = self.vizier_root / "projects"
+        if self.repos_dir is None:
+            self.repos_dir = self.vizier_root / "repos"
         if self.log_dir is None:
             self.log_dir = self.vizier_root / "logs"
         if self.alerts_dir is None:

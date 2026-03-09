@@ -289,6 +289,12 @@ mindmap
       Pre-commit secret scanning
         Block API keys, tokens, passwords, private keys
         Why: defense in depth, learned from EFM safety server
+      Devcontainer as containment boundary D88
+        Pasha + Workers run inside devcontainer per project
+        Vizier reads from outside, no file writes without Sultan approval
+        Why: defense in depth - Sentinel is policy, container is OS-level isolation
+        Alt rejected: Sentinel-only - single layer, bypassable by prompt injection
+        Alt rejected: VM per project - too heavyweight for single-user MVP
     Infrastructure
       Telegram long polling first
         Why: zero infrastructure, no domain or TLS needed
@@ -1672,3 +1678,29 @@ The `/ship` command is absorbed into `/done` Phase 2 (validation) and Phase 3 (s
 **Why:** A daily cron job is the simplest possible approach. Zero coupling to the MCP server, zero new dependencies, zero performance impact. The git diff itself provides all the "what changed" information needed. Can be upgraded to more frequent snapshots (hourly, on-demand) by changing the cron schedule.
 
 **Trade-off:** Up to 24 hours of state changes between snapshots. Acceptable for current scale where the primary use case is post-incident review and backup, not real-time audit.
+
+---
+
+### D88: Devcontainer as Security Boundary -- Pasha/Workers Inside, Vizier Outside
+
+**Context:** `project_init` (added in this session) copies `.devcontainer/` into project repos, but this is just file scaffolding. The deeper question is: what is the devcontainer *for* in Vizier's security model?
+
+**Decision:** The devcontainer is a **containment boundary**. Pasha and all inner agents (Worker, QG, Scout, Architect, Retrospective) run *inside* the devcontainer for each project. Vizier (the Grand Vizier) operates *outside* all devcontainers and cannot modify project files without explicit Sultan (human) approval.
+
+**Security model:**
+
+- **Inside the container (Pasha, Workers, QG, etc.):** Full development access scoped by Sentinel policy (write-set, command allowlist/denylist, role permissions per D66). The devcontainer provides OS-level isolation -- a compromised Worker cannot escape to the host or affect other projects.
+- **Outside the container (Vizier):** Read-only access to project state (specs, feedback, traces, config). Vizier can *read* project files for cross-project coordination and status but cannot write to repos or run commands in project contexts without Sultan approval. This enforces D18 (least privilege) at the infrastructure level, not just policy level.
+- **Sultan approval gate:** Any Vizier action that would modify project files (e.g., creating specs, updating config) goes through the MCP server which writes to `projects/{id}/` (Vizier metadata), never directly to `repos/{id}/` (project code). Code changes only happen through agents running inside the container.
+
+**Why:** Sentinel (D66, D67) enforces policy via allowlists, but it's still software-level enforcement -- a sufficiently confused agent could be prompted to bypass it. The devcontainer adds a hardware-level boundary (Linux namespaces, filesystem mounts) that cannot be bypassed by prompt injection. Defense in depth: Sentinel is the policy layer, the devcontainer is the containment layer.
+
+**Implications for `project_init`:** The current implementation scaffolds the devcontainer files. Future work must:
+1. Launch Pasha sessions *inside* the devcontainer (OpenClaw sub-session targeting the container runtime)
+2. Mount `projects/{id}/` into the container as the Vizier metadata exchange point
+3. Keep `repos/{id}/` as the container's workspace root
+
+**Alternatives rejected:**
+1. **No container, Sentinel-only** -- Rejected: single layer of defense. A prompt injection that tricks an agent into running `rm -rf /` is only stopped by denylist pattern matching, which is brittle.
+2. **VM per project** -- Rejected: too heavyweight for single-user MVP. Devcontainers provide sufficient isolation with much lower overhead.
+3. **Vizier inside the container too** -- Rejected: Vizier needs cross-project visibility (D18, D21). Running it inside one container would break its ability to coordinate across projects.

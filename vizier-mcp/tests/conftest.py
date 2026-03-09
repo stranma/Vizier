@@ -18,6 +18,7 @@ def tmp_vizier_root(tmp_path: Path) -> Path:
     root = tmp_path / "vizier"
     root.mkdir()
     (root / "projects").mkdir()
+    (root / "repos").mkdir()
     return root
 
 

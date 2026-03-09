@@ -237,5 +237,5 @@ class TestAuditInterception:
         assert data["total"] >= 1
 
     @pytest.mark.anyio
-    async def test_tool_count_is_27(self) -> None:
-        assert TOOL_COUNT == 27
+    async def test_tool_count_is_28(self) -> None:
+        assert TOOL_COUNT == 28
