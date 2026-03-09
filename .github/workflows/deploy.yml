@@ -92,7 +92,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: vizier
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          source: "docker-compose.yml,openclaw/config/,openclaw/workspaces/,scripts/"
+          source: "docker-compose.yml,openclaw/config/,openclaw/workspaces/,scripts/,vizier-mcp/scripts/"
           target: /opt/vizier/
           overwrite: true
 
@@ -272,3 +272,15 @@ jobs:
               exit 1
             fi
             echo "========================================"
+
+      - name: Install memory snapshot cron
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: vizier
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            chmod +x /opt/vizier/scripts/memory-snapshot-cron.sh
+            chmod +x /opt/vizier/vizier-mcp/scripts/memory-snapshot.sh
+            (crontab -l 2>/dev/null | grep -v memory-snapshot; echo "0 2 * * * /opt/vizier/scripts/memory-snapshot-cron.sh >> /opt/vizier/memory-snapshot.log 2>&1") | crontab -
+            echo "Memory snapshot cron installed"
