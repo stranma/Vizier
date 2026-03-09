@@ -330,6 +330,90 @@ deployments this is acceptable. For hardening:
 - Test docker exec manually: `docker exec -i vizier-mcp uv run --directory vizier-mcp python -m vizier_mcp.server`
 - Check Docker socket is mounted: `docker exec openclaw ls /var/run/docker.sock`
 
+## 10. Memory Snapshots (Git Versioning)
+
+Vizier's state files (specs, learnings, feedback, traces, budget) are automatically
+versioned via a daily git snapshot inside the `vizier-data` Docker volume. This provides
+unified change history, rollback capability, and optional backup to a remote.
+
+See `docs/DECISIONS.md` D87 for design rationale.
+
+### How It Works
+
+A host cron job (`scripts/memory-snapshot-cron.sh`) runs daily at 02:00 UTC. It
+launches a one-off `alpine/git` container that mounts the same `vizier-data` volume
+and runs `vizier-mcp/scripts/memory-snapshot.sh`. The production image stays clean
+(no git installed).
+
+The snapshot script is idempotent:
+- First run: initializes a git repo with a `.gitignore`
+- Subsequent runs: commits all changes, or exits cleanly if nothing changed
+- If a remote named `origin` is configured, pushes automatically
+
+### What Gets Tracked
+
+| Tracked | Gitignored |
+|---------|-----------|
+| `projects/*/specs/*/spec.md` | `logs/` (rotated, high volume) |
+| `projects/*/specs/*/feedback/*.json` | `audit/` (rotated, high volume) |
+| `projects/*/specs/*/pings/*.json` | `**/.vizier/audit.jsonl` |
+| `projects/*/.vizier/learnings/*.jsonl` | `*.tmp` (atomic write temps) |
+| `projects/*/.vizier/budget/*.jsonl` | `__pycache__/`, `.DS_Store` |
+| `projects/*/specs/*/.vizier/trace.jsonl` | |
+| `alerts/*.json` | |
+
+### Checking Logs
+
+```bash
+# View recent snapshot log
+tail -20 /opt/vizier/memory-snapshot.log
+
+# View git history inside the volume
+docker run --rm -v vizier-data:/data/vizier alpine/git:latest \
+  -C /data/vizier log --oneline -10
+```
+
+### Configuring a Remote (Optional)
+
+To push snapshots to a remote repository for off-site backup:
+
+```bash
+docker run --rm -v vizier-data:/data/vizier alpine/git:latest \
+  -C /data/vizier remote add origin git@github.com:yourorg/vizier-state-backup.git
+```
+
+Ensure SSH keys are available in the container or use HTTPS with a token.
+
+### Rolling Back
+
+To inspect or restore a previous state:
+
+```bash
+# List snapshots
+docker run --rm -v vizier-data:/data/vizier alpine/git:latest \
+  -C /data/vizier log --oneline
+
+# Show what changed in a specific snapshot
+docker run --rm -v vizier-data:/data/vizier alpine/git:latest \
+  -C /data/vizier show <commit-sha> --stat
+
+# Restore to a previous snapshot (destructive -- backs up current state first)
+docker run --rm -v vizier-data:/data/vizier alpine/git:latest \
+  -C /data/vizier stash
+docker run --rm -v vizier-data:/data/vizier alpine/git:latest \
+  -C /data/vizier checkout <commit-sha> -- .
+```
+
+### Verifying the Cron Job
+
+```bash
+# Check cron is installed
+crontab -l | grep memory-snapshot
+
+# Run manually to test
+/opt/vizier/scripts/memory-snapshot-cron.sh
+```
+
 ## Troubleshooting
 
 **Health check fails:**

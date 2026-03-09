@@ -1654,3 +1654,21 @@ The `/ship` command is absorbed into `/done` Phase 2 (validation) and Phase 3 (s
 **Why:** Scope detection at completion time uses concrete signals (actual diff size, actual files changed) rather than guesswork. This reduces process overhead for quick fixes while ensuring thorough completion for larger work.
 
 **Trade-off:** The auto-detection heuristic may occasionally misjudge scope. Mitigated by using the highest matching scope and explaining the detection to the user.
+
+### D87: Git Versioning for Memory Files (Daily Snapshot)
+
+**Context:** Vizier's state (specs, learnings, feedback, traces, budget) lives as files under VIZIER_ROOT. While append-only JSONL provides some per-file history, there is no unified way to see what changed across the whole system, roll back after a bad run, or back up state to a remote.
+
+**Decision:** Initialize VIZIER_ROOT as a separate git repository (independent from the Vizier source repo). A shell script (`vizier-mcp/scripts/memory-snapshot.sh`) runs as a daily cron job, committing all tracked state changes in a single snapshot commit. The script is idempotent: it initializes the repo on first run and skips commits when nothing has changed.
+
+**What is tracked:** Spec files, feedback, pings, learnings, budget events, traces, alerts. **What is gitignored:** Rotated logs, audit journals, atomic-write temporaries.
+
+**Alternatives considered:**
+
+1. **Real-time commits per MCP tool call** -- Rejected: requires hooking into the audit wrappers, adds coupling, and creates noisy commit history. Over-engineered for current single-user scale.
+2. **Background thread with debounced commits** -- Rejected: adds a Python module, threading complexity, and server lifecycle management. Still over-engineered.
+3. **Filesystem watcher (inotify/watchdog)** -- Rejected: adds a dependency and a daemon. More infrastructure to maintain.
+
+**Why:** A daily cron job is the simplest possible approach. Zero coupling to the MCP server, zero new dependencies, zero performance impact. The git diff itself provides all the "what changed" information needed. Can be upgraded to more frequent snapshots (hourly, on-demand) by changing the cron schedule.
+
+**Trade-off:** Up to 24 hours of state changes between snapshots. Acceptable for current scale where the primary use case is post-incident review and backup, not real-time audit.
