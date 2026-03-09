@@ -1,6 +1,6 @@
 [project]
 name = "vizier-mcp"
-version = "0.6.0"
+version = "0.14.0"
 description = "Vizier MCP Server -- domain logic for the multi-agent work system"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"

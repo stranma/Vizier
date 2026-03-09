@@ -13,6 +13,7 @@ Supports two MCP transports controlled by ``MCP_TRANSPORT`` env var:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import signal
@@ -106,9 +107,22 @@ async def _run_with_health(health_port: int, transport: McpTransport) -> None:
         loop.add_signal_handler(sig, _signal_handler)
 
     try:
-        await stop
+        stop_task = asyncio.ensure_future(stop)
+        done, _pending = await asyncio.wait(
+            [stop_task, mcp_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        if mcp_task in done:
+            exc = mcp_task.exception()
+            if exc is not None:
+                logger.error("MCP server task failed: %s", exc)
+                raise exc
+            else:
+                logger.warning("MCP server task exited unexpectedly")
     finally:
         mcp_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            await mcp_task
         health_srv.close()
         await health_srv.wait_closed()
         logger.info("Health server stopped")
