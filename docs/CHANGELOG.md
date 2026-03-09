@@ -11,6 +11,7 @@ Reliability fix: MCP server health endpoint now correctly reflects transport tas
 ### Fixed
 
 - **MCP server silent failure detection** -- `_run_with_health()` previously awaited only the stop signal, so if the MCP transport task crashed (port conflict, FastMCP error), the health endpoint kept returning 200 OK while the MCP server on port 8001 was dead. The function now uses `asyncio.wait()` with `FIRST_COMPLETED` to detect task failure immediately, logging the exception and propagating it so Docker's restart policy can recover the container.
+- **Deploy pipeline: mcp-adapter installed from git source** -- The npm shorthand `mcp-adapter` resolved to v0.0.1 (missing `openclaw.extensions`), failing every deploy at check [7/7] even though both containers were healthy. The deploy script now clones the adapter from GitHub and installs from source.
 - **MCP task cleanup on shutdown** -- The cancelled `mcp_task` is now properly awaited inside `contextlib.suppress()`, ensuring FastMCP transport resources (open sockets, pending handlers) are cleaned up during graceful shutdown. Previously the task was cancelled but never awaited.
 - **Version string mismatch** -- `vizier-mcp/pyproject.toml` reported version 0.6.0 while `server.py` reported 0.14.0. Both now consistently report 0.14.0.
 
