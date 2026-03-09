@@ -143,13 +143,9 @@ jobs:
             docker exec -u root openclaw chown -R node:node /home/node/.openclaw
             docker cp openclaw/config/openclaw.json openclaw:/home/node/.openclaw/openclaw.json
             docker exec -u root openclaw chown node:node /home/node/.openclaw/openclaw.json
-            echo "Installing openclaw-mcp-adapter plugin from source..."
-            docker exec openclaw sh -c "
-              cd /tmp &&
-              git clone --depth 1 https://github.com/androidStern/openclaw-mcp-adapter.git &&
-              cd openclaw-mcp-adapter && npm install --omit=dev &&
-              npx openclaw plugins install .
-            " || { echo "WARN: mcp-adapter plugin install failed"; ADAPTER_INSTALL_FAILED=true; }
+            echo "Installing openclaw-mcp-adapter plugin from npm registry..."
+            docker exec openclaw npx openclaw plugins install openclaw-mcp-adapter \
+              || { echo "WARN: mcp-adapter plugin install failed"; ADAPTER_INSTALL_FAILED=true; }
             docker compose restart openclaw
             sleep 3
             echo "Container status:"
