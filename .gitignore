@@ -47,5 +47,9 @@ Thumbs.db
 *.tar.gz
 *.whl
 
+# Claude Code
+.claude/settings.local.json
+tmp/
+
 # Ruff
 .ruff_cache/

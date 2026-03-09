@@ -1,0 +1,7 @@
+type: application
+language: python
+test_command: "uv run pytest"
+lint_command: "uv run ruff check --fix . && uv run ruff format ."
+type_command: "uv run pyright"
+settings:
+  project_name: "{{project_name}}"

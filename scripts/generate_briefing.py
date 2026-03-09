@@ -46,6 +46,7 @@ TOOL_ROLE_MAP: dict[str, list[str]] = {
     "trace_record": ["Pasha", "Worker", "QG"],
     "trace_query": ["Vizier", "Pasha"],
     "trace_timeline": ["Vizier", "Pasha"],
+    "project_init": ["Vizier"],
 }
 
 TOOL_CATEGORIES: dict[str, list[str]] = {
@@ -65,6 +66,7 @@ TOOL_CATEGORIES: dict[str, list[str]] = {
     "Orchestration": [
         "orch_write_ping",
         "project_get_config",
+        "project_init",
         "secret_check",
     ],
     "Observability": [

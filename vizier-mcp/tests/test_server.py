@@ -51,6 +51,7 @@ EXPECTED_TOOLS = {
     "trace_record",
     "trace_query",
     "trace_timeline",
+    "project_init",
 }
 
 
@@ -81,7 +82,7 @@ class TestServerToolRegistration:
 
     @pytest.mark.anyio
     async def test_tool_count_constant(self) -> None:
-        assert TOOL_COUNT == 27
+        assert TOOL_COUNT == 28
 
 
 class TestToolCallability:

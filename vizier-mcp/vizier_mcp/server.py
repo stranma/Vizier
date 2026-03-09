@@ -34,6 +34,7 @@ from vizier_mcp.tools.learnings import learnings_list as _learnings_list
 from vizier_mcp.tools.observability import system_get_errors as _system_get_errors
 from vizier_mcp.tools.observability import system_get_logs as _system_get_logs
 from vizier_mcp.tools.orchestration import orch_write_ping as _orch_write_ping
+from vizier_mcp.tools.project import project_init as _project_init
 from vizier_mcp.tools.sentinel import run_command_checked as _run_command_checked
 from vizier_mcp.tools.sentinel import secret_check as _secret_check
 from vizier_mcp.tools.sentinel import sentinel_check_write as _sentinel_check_write
@@ -50,7 +51,7 @@ from vizier_mcp.tools.trace import trace_record as _trace_record
 from vizier_mcp.tools.trace import trace_timeline as _trace_timeline
 
 __version__ = "0.14.0"
-TOOL_COUNT = 27
+TOOL_COUNT = 28
 
 
 def _extract_audit_kwargs(fn: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
@@ -299,6 +300,20 @@ def create_server(config: ServerConfig | None = None) -> FastMCP:
     def project_get_config(project_id: str) -> dict[str, Any]:
         """Get project configuration (write-set, criteria, settings)."""
         return _audited_sync(slog, alog, "project_get_config", _project_get_config)(cfg, project_id)
+
+    @mcp.tool()
+    async def project_init(
+        project_id: str,
+        source: str,
+        language: str,
+        git_url: str | None = None,
+        project_name: str | None = None,
+        devcontainer_repo: str = "stranma/claude-code-python-template",
+    ) -> dict[str, Any]:
+        """Initialize a new project with repo, devcontainer, and Vizier metadata."""
+        return await _audited_async(slog, alog, "project_init", _project_init)(
+            cfg, project_id, source, language, git_url, project_name, devcontainer_repo
+        )
 
     @mcp.tool()
     def secret_check(name: str) -> dict[str, Any]:
