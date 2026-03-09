@@ -12,6 +12,10 @@ set -euo pipefail
 VIZIER_ROOT="${VIZIER_ROOT:-/data/vizier}"
 cd "$VIZIER_ROOT" || exit 1
 
+# Ensure git identity is always set (survives .git/config corruption)
+git config user.name  "vizier-mcp"  2>/dev/null || true
+git config user.email "vizier@localhost" 2>/dev/null || true
+
 # Initialize repo if needed (idempotent)
 if [ ! -d .git ]; then
     git init

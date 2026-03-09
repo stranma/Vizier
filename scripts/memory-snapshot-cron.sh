@@ -11,10 +11,17 @@ set -euo pipefail
 
 echo "$(date -Iseconds) Starting memory snapshot..."
 
+# Fail fast if the volume does not exist (e.g. Compose prefix mismatch)
+docker volume inspect vizier-data >/dev/null 2>&1 || {
+  echo "ERROR: Docker volume 'vizier-data' not found" >&2
+  exit 1
+}
+
+# Pin image version to avoid supply-chain risk in unattended cron (verified 2026-03)
 docker run --rm \
   -v vizier-data:/data/vizier \
   -v /opt/vizier/vizier-mcp/scripts/memory-snapshot.sh:/snapshot.sh:ro \
-  alpine/git:latest \
+  alpine/git:v2.45.2 \
   /bin/sh /snapshot.sh
 
 echo "$(date -Iseconds) Memory snapshot complete."
