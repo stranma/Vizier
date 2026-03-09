@@ -31,7 +31,7 @@ docker run -d --name "$CONTAINER_NAME" \
     -e HEALTH_PORT=8080 \
     -e MCP_TRANSPORT=streamable-http \
     -e MCP_PORT=8001 \
-    "$VIZIER_IMAGE" >/dev/null 2>&1
+    "$VIZIER_IMAGE" >/dev/null
 
 cleanup_container() {
     docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
@@ -58,17 +58,15 @@ else
     docker logs "$CONTAINER_NAME" --tail=30
 fi
 
-docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
-
 # ── [3/4] Validate openclaw.json structure ───────────────────────────────────
 echo ""
 echo "=== [3/4] Validate openclaw.json structure ==="
 CONFIG_FILE="openclaw/config/openclaw.json"
 
-if python3 -c "
+if python3 - "$CONFIG_FILE" <<'PYEOF'
 import json, sys
 
-with open('$CONFIG_FILE') as f:
+with open(sys.argv[1]) as f:
     cfg = json.load(f)
 
 errors = []
@@ -95,7 +93,8 @@ if errors:
     for e in errors:
         print(f'  ERROR: {e}')
     sys.exit(1)
-"; then
+PYEOF
+then
     pass "openclaw.json structure is valid"
 else
     fail "openclaw.json validation failed"
