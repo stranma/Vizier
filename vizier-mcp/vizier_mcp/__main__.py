@@ -107,20 +107,25 @@ async def _run_with_health(health_port: int, transport: McpTransport) -> None:
         loop.add_signal_handler(sig, _signal_handler)
 
     try:
-        stop_task = asyncio.ensure_future(stop)
         done, _pending = await asyncio.wait(
-            [stop_task, mcp_task],
+            [asyncio.ensure_future(stop), mcp_task],
             return_when=asyncio.FIRST_COMPLETED,
         )
         if mcp_task in done:
-            exc = mcp_task.exception()
-            if exc is not None:
-                logger.error("MCP server task failed: %s", exc)
-                raise exc
+            if mcp_task.cancelled():
+                logger.warning("MCP server task was cancelled")
             else:
-                logger.warning("MCP server task exited unexpectedly")
+                exc = mcp_task.exception()
+                if exc is not None:
+                    logger.error("MCP server task failed: %s", exc)
+                    raise exc
+                else:
+                    logger.warning("MCP server task exited unexpectedly")
     finally:
         mcp_task.cancel()
+        # CancelledError: normal shutdown via cancel() above.
+        # Exception: mcp_task already failed; re-raised from try block,
+        # suppress here so health server cleanup proceeds.
         with contextlib.suppress(asyncio.CancelledError, Exception):
             await mcp_task
         health_srv.close()

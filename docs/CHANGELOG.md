@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.14.2] - 2026-03-09
+
+Reliability fix: MCP server health endpoint now correctly reflects transport task health.
+
+### Fixed
+
+- **MCP server silent failure detection** -- `_run_with_health()` previously awaited only the stop signal, so if the MCP transport task crashed (port conflict, FastMCP error), the health endpoint kept returning 200 OK while the MCP server on port 8001 was dead. The function now uses `asyncio.wait()` with `FIRST_COMPLETED` to detect task failure immediately, logging the exception and propagating it so Docker's restart policy can recover the container.
+- **MCP task cleanup on shutdown** -- The cancelled `mcp_task` is now properly awaited inside `contextlib.suppress()`, ensuring FastMCP transport resources (open sockets, pending handlers) are cleaned up during graceful shutdown. Previously the task was cancelled but never awaited.
+- **Version string mismatch** -- `vizier-mcp/pyproject.toml` reported version 0.6.0 while `server.py` reported 0.14.0. Both now consistently report 0.14.0.
+
 ## [0.14.1] - 2026-03-04
 
 Infrastructure fix: devcontainer firewall startup failure and Claude Code installation modernization.
