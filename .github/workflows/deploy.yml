@@ -148,7 +148,7 @@ jobs:
               cd /tmp &&
               git clone --depth 1 https://github.com/androidStern/openclaw-mcp-adapter.git &&
               cd openclaw-mcp-adapter && npm install --omit=dev &&
-              npx openclaw plugins install ./openclaw-mcp-adapter
+              npx openclaw plugins install .
             " || { echo "WARN: mcp-adapter plugin install failed"; ADAPTER_INSTALL_FAILED=true; }
             docker compose restart openclaw
             sleep 3
