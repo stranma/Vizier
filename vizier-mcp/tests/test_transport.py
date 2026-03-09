@@ -94,3 +94,4 @@ class TestRunWithHealthCrashDetection:
             await asyncio.wait_for(_run_with_health(health_port=18080, transport="stdio"), timeout=5.0)
 
         mock_health_srv.close.assert_called_once()
+        mock_health_srv.wait_closed.assert_awaited_once()
