@@ -56,6 +56,14 @@ jobs:
       - name: Run tooling tests
         run: uv run pytest tests/ -v --tb=short
 
+  deploy-dry-run:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy dry-run
+        run: bash scripts/ci-deploy-dry-run.sh
+
   typecheck:
     runs-on: ubuntu-latest
     needs: lint
