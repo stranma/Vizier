@@ -144,6 +144,7 @@ jobs:
             docker cp openclaw/config/openclaw.json openclaw:/home/node/.openclaw/openclaw.json
             docker exec -u root openclaw chown node:node /home/node/.openclaw/openclaw.json
             echo "Installing openclaw-mcp-adapter plugin from npm registry..."
+            docker exec openclaw rm -rf /home/node/.openclaw/extensions/openclaw-mcp-adapter 2>/dev/null || true
             docker exec openclaw npx openclaw plugins install openclaw-mcp-adapter \
               || { echo "WARN: mcp-adapter plugin install failed"; ADAPTER_INSTALL_FAILED=true; }
             docker compose restart openclaw
