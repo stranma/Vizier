@@ -58,7 +58,20 @@ else
     docker logs "$CONTAINER_NAME" --tail=30
 fi
 
-# ── [3/4] Validate openclaw.json structure ───────────────────────────────────
+# ── [3/4] Verify runtime dependencies in container ───────────────────────────
+echo ""
+echo "=== [3/4] Verify runtime dependencies ==="
+DEPS_OK=true
+for dep in curl git; do
+    if docker exec "$CONTAINER_NAME" which "$dep" >/dev/null 2>&1; then
+        pass "$dep is installed"
+    else
+        fail "$dep is NOT installed (required by MCP tools)"
+        DEPS_OK=false
+    fi
+done
+
+# ── [4/5] Validate openclaw.json structure ───────────────────────────────────
 echo ""
 echo "=== [3/4] Validate openclaw.json structure ==="
 CONFIG_FILE="openclaw/config/openclaw.json"
@@ -100,7 +113,7 @@ else
     fail "openclaw.json validation failed"
 fi
 
-# ── [4/4] Plugin install dry-run ─────────────────────────────────────────────
+# ── [5/5] Plugin install dry-run ─────────────────────────────────────────────
 echo ""
 echo "=== [4/4] Plugin install dry-run (mcp-adapter) ==="
 
