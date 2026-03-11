@@ -50,23 +50,27 @@ class RealmManager:
         try:
             data = json.loads(self._realm_path.read_text(encoding="utf-8"))
             return RealmState.model_validate(data)
-        except (json.JSONDecodeError, Exception):
+        except Exception:
             logger.exception("Failed to load realm.json, returning empty state")
             return RealmState()
 
-    def save(self, state: RealmState) -> None:
-        """Atomically save realm state to disk."""
+    def _save_unlocked(self, state: RealmState) -> None:
+        """Atomically save realm state to disk. Caller must hold ``_lock``."""
         data = state.model_dump(mode="json")
         content = json.dumps(data, indent=2) + "\n"
+        fd, tmp_path = tempfile.mkstemp(dir=self._vizier_root, suffix=".tmp")
+        try:
+            with open(fd, "w", encoding="utf-8") as f:
+                f.write(content)
+            Path(tmp_path).replace(self._realm_path)
+        except Exception:
+            Path(tmp_path).unlink(missing_ok=True)
+            raise
+
+    def save(self, state: RealmState) -> None:
+        """Atomically save realm state to disk (acquires lock)."""
         with self._lock:
-            fd, tmp_path = tempfile.mkstemp(dir=self._vizier_root, suffix=".tmp")
-            try:
-                with open(fd, "w", encoding="utf-8") as f:
-                    f.write(content)
-                Path(tmp_path).replace(self._realm_path)
-            except Exception:
-                Path(tmp_path).unlink(missing_ok=True)
-                raise
+            self._save_unlocked(state)
 
     def get_project(self, project_id: str) -> Project | None:
         """Get a project by ID, or None if not found."""
@@ -93,7 +97,7 @@ class RealmManager:
                 msg = f"Project already exists: {project.id}"
                 raise ValueError(msg)
             state.projects[project.id] = project
-        self.save(state)
+            self._save_unlocked(state)
 
     def update_project(self, project_id: str, **updates: Any) -> Project:
         """Update project fields. Raises KeyError if not found."""
@@ -106,7 +110,7 @@ class RealmManager:
             for key, value in updates.items():
                 if hasattr(project, key):
                     setattr(project, key, value)
-        self.save(state)
+            self._save_unlocked(state)
         return project
 
     def update_container_status(
@@ -122,4 +126,4 @@ class RealmManager:
             project.container_status = status
             if container_name is not None:
                 project.container_name = container_name
-        self.save(state)
+            self._save_unlocked(state)
