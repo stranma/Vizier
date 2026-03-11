@@ -4,7 +4,7 @@ Runs alongside the MCP server on a configurable port (default 8080).
 
 - ``GET /health`` -- liveness probe: returns JSON with version, tool count, status.
 - ``GET /readiness`` -- readiness probe: verifies tool registration, data directory
-  access, and Anthropic API key presence.
+  access, and realm.json readability.
 """
 
 from __future__ import annotations
@@ -38,10 +38,9 @@ def build_readiness_payload(version: str, tool_count: int, expected_tools: int) 
     """Build the JSON payload for the /readiness endpoint.
 
     Checks:
-    - Tool count matches expected (28 tools)
+    - Tool count matches expected
     - VIZIER_ROOT directory exists and is writable
-    - projects/ subdirectory exists
-    - ANTHROPIC_API_KEY is set (required for Sentinel Haiku evaluator)
+    - repos/ subdirectory exists (for project repos)
     """
     checks: dict[str, dict[str, Any]] = {}
 
@@ -58,11 +57,11 @@ def build_readiness_payload(version: str, tool_count: int, expected_tools: int) 
     }
 
     if root_exists:
-        projects_dir = vizier_root / "projects"
-        projects_exists = projects_dir.is_dir()
-        checks["projects_dir"] = {
-            "pass": projects_exists,
-            "detail": str(projects_dir),
+        repos_dir = vizier_root / "repos"
+        repos_exists = repos_dir.is_dir()
+        checks["repos_dir"] = {
+            "pass": repos_exists,
+            "detail": str(repos_dir),
         }
         try:
             writable = os.access(vizier_root, os.W_OK)
@@ -73,14 +72,8 @@ def build_readiness_payload(version: str, tool_count: int, expected_tools: int) 
             "detail": "data directory is writable" if writable else "data directory is NOT writable",
         }
     else:
-        checks["projects_dir"] = {"pass": False, "detail": "vizier_root missing"}
+        checks["repos_dir"] = {"pass": False, "detail": "vizier_root missing"}
         checks["writable"] = {"pass": False, "detail": "vizier_root missing"}
-
-    has_api_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
-    checks["anthropic_api_key"] = {
-        "pass": has_api_key,
-        "detail": "set" if has_api_key else "NOT set",
-    }
 
     all_pass = all(c["pass"] for c in checks.values())
 

@@ -1,6 +1,6 @@
 """Entry point for ``python -m vizier_mcp``.
 
-Starts the MCP server with an optional HTTP health endpoint
+Starts the Vizier v2 MCP server with an optional HTTP health endpoint
 for deployment monitoring (enabled when HEALTH_PORT is set or
 when running inside Docker).
 
