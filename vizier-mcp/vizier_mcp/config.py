@@ -1,7 +1,7 @@
-"""Server configuration loader.
+"""Server configuration for Vizier v2.
 
 Loads vizier-mcp server config from YAML or environment variables.
-See ARCHITECTURE.md section 3.3 for the config schema.
+Simplified for v2: realm + container management only.
 """
 
 from __future__ import annotations
@@ -13,52 +13,21 @@ import yaml
 from pydantic import BaseModel, Field
 
 
-class SentinelConfig(BaseModel):
-    """Sentinel subsystem configuration."""
-
-    default_policy: str = "strict"
-    haiku_model: str = "claude-haiku-4-5-20251001"
-    sentinel_learning: bool = False
-    learning_threshold: int = 3
-
-
-class BudgetConfig(BaseModel):
-    """Budget threshold configuration for alerts."""
-
-    soft_limit_usd: float = 5.0
-    hard_limit_usd: float = 20.0
-
-
 class ServerConfig(BaseModel):
     """Top-level MCP server configuration."""
 
     vizier_root: Path = Field(default_factory=lambda: Path(os.environ.get("VIZIER_ROOT", "/data/vizier")))
-    projects_dir: Path | None = None
-    sentinel: SentinelConfig = Field(default_factory=SentinelConfig)
-    budget: BudgetConfig = Field(default_factory=BudgetConfig)
-    alerts_dir: Path | None = None
-    audit_dir: Path | None = None
-    audit_max_output_chars: int = 4000
     repos_dir: Path | None = None
-    file_locking: bool = True
-    startup_recovery: bool = True
-    claim_timeout: int = 30
     log_dir: Path | None = None
     log_max_size_mb: int = 10
     log_max_files: int = 5
 
     def model_post_init(self, __context: object) -> None:
-        """Set projects_dir, log_dir, alerts_dir, and audit_dir defaults based on vizier_root."""
-        if self.projects_dir is None:
-            self.projects_dir = self.vizier_root / "projects"
+        """Set derived directory defaults based on vizier_root."""
         if self.repos_dir is None:
             self.repos_dir = self.vizier_root / "repos"
         if self.log_dir is None:
             self.log_dir = self.vizier_root / "logs"
-        if self.alerts_dir is None:
-            self.alerts_dir = self.vizier_root / "alerts"
-        if self.audit_dir is None:
-            self.audit_dir = self.vizier_root / "audit"
 
 
 def load_config(config_path: Path | None = None) -> ServerConfig:

@@ -162,7 +162,7 @@ def generate_with_haiku(tools: list[dict[str, Any]], souls: dict[str, str]) -> s
         return None
 
     try:
-        import anthropic
+        import anthropic  # pyright: ignore[reportMissingImports]
     except ImportError:
         return None
 

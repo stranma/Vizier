@@ -1,8 +1,9 @@
-"""Project initialization tool.
+"""Realm management tools for Vizier v2.
 
-Creates new projects by cloning or scaffolding a repo, injecting
-devcontainer config from a template repo, and writing Vizier metadata
-(sentinel/config) from bundled templates.
+Provides MCP tools to list, create, and inspect projects in the realm.
+
+Security note: All subprocess calls use create_subprocess_exec (not shell)
+to prevent command injection. Arguments are passed as separate list elements.
 """
 
 from __future__ import annotations
@@ -15,15 +16,15 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from vizier_mcp.models.realm import Project, ProjectType
+
 if TYPE_CHECKING:
-    from vizier_mcp.config import ServerConfig
+    from vizier_mcp.realm import RealmManager
 
 logger = logging.getLogger(__name__)
 
 _PROJECT_ID_RE = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$")
 _PROJECT_ID_MAX_LEN = 63
-_TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
-_SUPPORTED_LANGUAGES = {"python"}
 
 
 def _validate_project_id(project_id: str) -> str | None:
@@ -37,28 +38,10 @@ def _validate_project_id(project_id: str) -> str | None:
     return None
 
 
-def _substitute_template(content: str, variables: dict[str, str]) -> str:
-    """Replace ``{{key}}`` placeholders in template content."""
-    for key, value in variables.items():
-        content = content.replace(f"{{{{{key}}}}}", value)
-    return content
-
-
-def _copy_template_dir(src: Path, dst: Path, variables: dict[str, str]) -> None:
-    """Recursively copy a template directory, substituting variables in text files."""
-    dst.mkdir(parents=True, exist_ok=True)
-    for item in src.iterdir():
-        target = dst / item.name
-        if item.is_dir():
-            _copy_template_dir(item, target, variables)
-        else:
-            content = item.read_text()
-            content = _substitute_template(content, variables)
-            target.write_text(content)
-
-
 async def _fetch_devcontainer(repo: str, dest: Path) -> bool:
     """Sparse-clone a template repo and copy ``.devcontainer/`` into dest.
+
+    Uses create_subprocess_exec (no shell) for safe subprocess execution.
 
     :param repo: GitHub repo in ``owner/name`` format.
     :param dest: Target repo directory to copy ``.devcontainer/`` into.
@@ -113,63 +96,63 @@ async def _fetch_devcontainer(repo: str, dest: Path) -> bool:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
-async def project_init(
-    config: ServerConfig,
-    project_id: str,
-    source: str,
-    language: str,
-    git_url: str | None = None,
-    project_name: str | None = None,
-    devcontainer_repo: str = "stranma/claude-code-python-template",
-) -> dict[str, Any]:
-    """Initialize a new project with repo, devcontainer, and Vizier metadata.
+def realm_list_projects(realm: RealmManager, type_filter: str | None = None) -> dict[str, Any]:
+    """List all projects and knowledge projects in the realm.
 
-    :param config: Server configuration.
-    :param project_id: Unique project identifier (alphanumeric + hyphens, max 63 chars).
-    :param source: "clone" or "scaffold".
-    :param language: Template language ("python" for v1).
-    :param git_url: Git URL to clone (required when source="clone").
-    :param project_name: Display name, defaults to project_id.
-    :param devcontainer_repo: GitHub repo for .devcontainer/ template.
-    :return: Dict with project_id, source, repo_dir, devcontainer, sentinel_config, project_config.
+    :param realm: RealmManager instance.
+    :param type_filter: Optional filter: "project" or "knowledge".
+    :return: Dict with projects list and count.
     """
-    # Validate inputs
+    projects = realm.list_projects(type_filter)
+    return {
+        "projects": projects,
+        "count": len(projects),
+    }
+
+
+async def realm_create_project(
+    realm: RealmManager,
+    project_id: str,
+    project_type: str = "project",
+    git_url: str | None = None,
+    template: str = "stranma/claude-code-python-template",
+) -> dict[str, Any]:
+    """Initialize a project in the realm.
+
+    Creates the project entry, clones or scaffolds the repo, and
+    copies devcontainer config from the template.
+
+    Uses create_subprocess_exec (no shell) for safe subprocess execution.
+
+    :param realm: RealmManager instance.
+    :param project_id: Unique project identifier.
+    :param project_type: "project" or "knowledge".
+    :param git_url: Git URL to clone. If None, scaffolds an empty repo.
+    :param template: GitHub repo for .devcontainer/ template.
+    :return: Dict with project details or error.
+    """
     id_error = _validate_project_id(project_id)
     if id_error:
         return {"error": id_error}
 
-    if source not in ("clone", "scaffold"):
-        return {"error": f"Invalid source: {source}. Must be 'clone' or 'scaffold'"}
+    try:
+        pt = ProjectType(project_type)
+    except ValueError:
+        return {"error": f"Invalid project_type: {project_type}. Must be 'project' or 'knowledge'"}
 
-    if source == "clone" and not git_url:
-        return {"error": "git_url is required when source='clone'"}
+    if realm.get_project(project_id) is not None:
+        return {"error": f"Project already exists: {project_id}"}
 
-    if language not in _SUPPORTED_LANGUAGES:
-        return {"error": f"Unsupported language: {language}. Supported: {sorted(_SUPPORTED_LANGUAGES)}"}
+    repos_dir = realm.repos_dir
+    repo_dir = repos_dir / project_id
 
-    template_dir = _TEMPLATES_DIR / language
-    if not template_dir.exists():
-        return {"error": f"Template directory not found for language: {language}"}
-
-    if project_name is None:
-        project_name = project_id
-
-    assert config.projects_dir is not None
-    assert config.repos_dir is not None
-    project_meta_dir = config.projects_dir / project_id
-    repo_dir = config.repos_dir / project_id
-
-    if project_meta_dir.exists():
-        return {"error": f"Project metadata directory already exists: {project_id}"}
     if repo_dir.exists():
         return {"error": f"Repository directory already exists: {project_id}"}
 
-    created_dirs: list[Path] = []
+    repos_dir.mkdir(parents=True, exist_ok=True)
+
     try:
-        # Clone or scaffold
-        config.repos_dir.mkdir(parents=True, exist_ok=True)
-        if source == "clone":
-            assert git_url is not None  # validated above
+        if git_url:
             proc = await asyncio.create_subprocess_exec(
                 "git",
                 "clone",
@@ -181,10 +164,8 @@ async def project_init(
             _, stderr = await proc.communicate()
             if proc.returncode != 0:
                 return {"error": f"git clone failed: {stderr.decode().strip()}"}
-            created_dirs.append(repo_dir)
         else:
             repo_dir.mkdir(parents=True)
-            created_dirs.append(repo_dir)
             proc = await asyncio.create_subprocess_exec(
                 "git",
                 "init",
@@ -194,33 +175,44 @@ async def project_init(
             )
             _, stderr = await proc.communicate()
             if proc.returncode != 0:
-                raise RuntimeError(f"git init failed: {stderr.decode().strip()}")
+                shutil.rmtree(repo_dir, ignore_errors=True)
+                return {"error": f"git init failed: {stderr.decode().strip()}"}
 
-        # Fetch devcontainer
-        devcontainer_ok = await _fetch_devcontainer(devcontainer_repo, repo_dir)
+        devcontainer_ok = await _fetch_devcontainer(template, repo_dir)
 
-        # Write Vizier metadata
-        project_meta_dir.mkdir(parents=True)
-        created_dirs.append(project_meta_dir)
-        (project_meta_dir / "specs").mkdir()
-
-        variables = {"project_name": project_name, "project_id": project_id}
-        _copy_template_dir(template_dir, project_meta_dir, variables)
-
-        sentinel_path = project_meta_dir / "sentinel.yaml"
-        config_path = project_meta_dir / "config.yaml"
+        project = Project(
+            id=project_id,
+            type=pt,
+            git_url=git_url,
+            template=template,
+        )
+        realm.add_project(project)
 
         return {
             "project_id": project_id,
-            "source": source,
+            "type": pt.value,
             "repo_dir": str(repo_dir),
             "devcontainer": devcontainer_ok,
-            "sentinel_config": str(sentinel_path),
-            "project_config": str(config_path),
+            "git_url": git_url,
+            "template": template,
         }
 
     except Exception:
-        # Cleanup on failure
-        for d in reversed(created_dirs):
-            shutil.rmtree(d, ignore_errors=True)
+        shutil.rmtree(repo_dir, ignore_errors=True)
         raise
+
+
+def realm_get_project(realm: RealmManager, project_id: str) -> dict[str, Any]:
+    """Get project config, status, and details.
+
+    :param realm: RealmManager instance.
+    :param project_id: Project identifier.
+    :return: Project details dict or error.
+    """
+    project = realm.get_project(project_id)
+    if project is None:
+        return {"error": f"Project not found: {project_id}"}
+
+    result = project.to_summary()
+    result["repo_dir"] = str(realm.repos_dir / project_id)
+    return result
