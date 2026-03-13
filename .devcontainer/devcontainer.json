@@ -39,6 +39,11 @@
       }
     }
   },
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    }
+  },
   "remoteUser": "vscode",
   "mounts": [
     "source=vizier-bashhistory-${devcontainerId},target=/commandhistory,type=volume",
