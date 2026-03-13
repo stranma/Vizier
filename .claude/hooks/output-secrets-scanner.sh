@@ -63,7 +63,7 @@ if echo "$OUTPUT" | grep -qE 'eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-
 fi
 
 # Private Key markers
-if echo "$OUTPUT" | grep -qE '-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----'; then
+if echo "$OUTPUT" | grep -qE -- '-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----'; then
     WARNINGS="${WARNINGS}[!] Private key material detected in output.\n"
 fi
 
