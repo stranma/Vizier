@@ -127,3 +127,16 @@ class RealmManager:
             if container_name is not None:
                 project.container_name = container_name
             self._save_unlocked(state)
+
+    def update_pasha_state(self, project_id: str, **pasha_updates: Any) -> None:
+        """Update a project's Pasha state fields. Raises KeyError if not found."""
+        with self._lock:
+            state = self.load()
+            if project_id not in state.projects:
+                msg = f"Project not found: {project_id}"
+                raise KeyError(msg)
+            pasha = state.projects[project_id].pasha
+            for key, value in pasha_updates.items():
+                if hasattr(pasha, key):
+                    setattr(pasha, key, value)
+            self._save_unlocked(state)

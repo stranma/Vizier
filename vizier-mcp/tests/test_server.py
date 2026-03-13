@@ -24,6 +24,10 @@ EXPECTED_TOOLS = {
     "container_start",
     "container_stop",
     "container_status",
+    "pasha_launch",
+    "pasha_status",
+    "agent_kill",
+    "knowledge_link",
 }
 
 
@@ -52,7 +56,7 @@ class TestServerToolRegistration:
 
     @pytest.mark.anyio
     async def test_tool_count_constant(self) -> None:
-        assert TOOL_COUNT == 6
+        assert TOOL_COUNT == 10
 
 
 class TestRealmToolCallability:

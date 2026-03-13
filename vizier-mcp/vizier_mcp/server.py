@@ -18,6 +18,10 @@ from fastmcp import FastMCP
 from vizier_mcp.config import ServerConfig
 from vizier_mcp.logging_structured import StructuredLogger
 from vizier_mcp.realm import RealmManager
+from vizier_mcp.tools.agent import agent_kill as _agent_kill
+from vizier_mcp.tools.agent import knowledge_link as _knowledge_link
+from vizier_mcp.tools.agent import pasha_launch as _pasha_launch
+from vizier_mcp.tools.agent import pasha_status as _pasha_status
 from vizier_mcp.tools.container import container_start as _container_start
 from vizier_mcp.tools.container import container_status as _container_status
 from vizier_mcp.tools.container import container_stop as _container_stop
@@ -26,7 +30,7 @@ from vizier_mcp.tools.realm import realm_get_project as _realm_get_project
 from vizier_mcp.tools.realm import realm_list_projects as _realm_list_projects
 
 __version__ = "1.0.0"
-TOOL_COUNT = 6
+TOOL_COUNT = 10
 
 
 def _logged_sync(slog: StructuredLogger, tool_name: str, fn: Callable[..., Any]) -> Callable[..., Any]:
@@ -131,6 +135,37 @@ def create_server(config: ServerConfig | None = None) -> FastMCP:
     async def container_status(project_id: str) -> dict[str, Any]:
         """Check container state for a project."""
         return await _logged_async(slog, "container_status", _container_status)(realm, project_id)
+
+    # -- Agent tools --
+
+    @mcp.tool()
+    async def pasha_launch(
+        project_id: str,
+        task: str,
+        acceptance_criteria: list[str] | None = None,
+        cost_limit: float | None = None,
+    ) -> dict[str, Any]:
+        """Launch a Pasha agent inside a project's devcontainer using its manifest."""
+        return await _logged_async(slog, "pasha_launch", _pasha_launch)(
+            realm, project_id, task, acceptance_criteria, cost_limit
+        )
+
+    @mcp.tool()
+    async def pasha_status(project_id: str) -> dict[str, Any]:
+        """Check the status of a Pasha agent in a project."""
+        return await _logged_async(slog, "pasha_status", _pasha_status)(realm, project_id)
+
+    @mcp.tool()
+    async def agent_kill(project_id: str) -> dict[str, Any]:
+        """Kill a running Pasha agent in a project's container."""
+        return await _logged_async(slog, "agent_kill", _agent_kill)(realm, project_id)
+
+    # -- Knowledge tools --
+
+    @mcp.tool()
+    async def knowledge_link(project_id: str, knowledge_project_id: str) -> dict[str, Any]:
+        """Link a knowledge project to a work project for shared context."""
+        return await _logged_async(slog, "knowledge_link", _knowledge_link)(realm, project_id, knowledge_project_id)
 
     return mcp
 
