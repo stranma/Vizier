@@ -60,23 +60,14 @@ jobs:
       - name: Checkout (for docker-compose.yml and config)
         uses: actions/checkout@v4
 
-      - name: Azure Login
-        uses: Azure/login@v2
+      - name: Fetch secrets from Infisical
+        uses: Infisical/secrets-action@v1.0.9
+        id: infisical
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Fetch secrets from Key Vault
-        uses: Azure/cli@v2
-        id: keyvault
-        with:
-          inlineScript: |
-            for secret in anthropic-api-key telegram-bot-token telegram-allowed-users github-pat; do
-              value=$(az keyvault secret show --vault-name vizier --name "$secret" --query value -o tsv)
-              echo "::add-mask::$value"
-              echo "${secret}=${value}" >> "$GITHUB_OUTPUT"
-            done
+          method: "oidc"
+          identity-id: ${{ secrets.INFISICAL_IDENTITY_ID }}
+          project-slug: "vizier"
+          env-slug: "prod"
 
       - name: Clean deployment dirs before SCP
         uses: appleboy/ssh-action@v1
@@ -118,10 +109,10 @@ jobs:
             done
             echo "Secrets written to .env"
         env:
-          ANTHROPIC_API_KEY: ${{ steps.keyvault.outputs.anthropic-api-key }}
-          TELEGRAM_BOT_TOKEN: ${{ steps.keyvault.outputs.telegram-bot-token }}
-          TELEGRAM_ALLOWED_USERS: ${{ steps.keyvault.outputs.telegram-allowed-users }}
-          GITHUB_TOKEN: ${{ steps.keyvault.outputs.github-pat }}
+          ANTHROPIC_API_KEY: ${{ env.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ env.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ALLOWED_USERS: ${{ env.TELEGRAM_ALLOWED_USERS }}
+          GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1

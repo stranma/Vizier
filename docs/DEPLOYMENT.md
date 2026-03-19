@@ -159,21 +159,19 @@ The Hermes container healthcheck verifies the `hermes gateway` process is runnin
 | `HERMES_AUTH_JSON` | No | `./hermes/auth.json` | Path to subscription auth credentials |
 | `VIZIER_ROOT` | No | `/data/vizier` | Root directory for project data |
 | `HEALTH_PORT` | No | `8080` | HTTP health endpoint port (vizier-mcp) |
-| `AZURE_KEY_VAULT_URL` | No | -- | Azure Key Vault URL for production secrets |
+## 6. Infisical (Production Secrets)
 
-## 6. Azure Key Vault (Production)
-
-Secrets are stored in Azure Key Vault (`https://vizier.vault.azure.net/`) and
-fetched automatically by the deploy pipeline.
+Secrets are stored in [Infisical](https://infisical.com) and fetched automatically
+by the deploy pipeline via OIDC authentication.
 
 ### Secret Mapping
 
-| Env Variable | Key Vault Secret Name | Used By |
-|---|---|---|
-| `ANTHROPIC_API_KEY` | `anthropic-api-key` | Hermes (Vizier agent LLM), vizier-mcp (Sentinel, later) |
-| `TELEGRAM_BOT_TOKEN` | `telegram-bot-token` | Hermes (Telegram gateway) |
-| `TELEGRAM_ALLOWED_USERS` | `telegram-allowed-users` | Hermes (gateway access control) |
-| `GITHUB_TOKEN` | `github-pat` | Province-scoped repo access (later phases) |
+| Infisical Secret Name | Used By |
+|---|---|
+| `ANTHROPIC_API_KEY` | Hermes (Vizier agent LLM), vizier-mcp (Sentinel, later) |
+| `TELEGRAM_BOT_TOKEN` | Hermes (Telegram gateway) |
+| `TELEGRAM_ALLOWED_USERS` | Hermes (gateway access control) |
+| `GITHUB_TOKEN` | Province-scoped repo access (later phases) |
 
 **Note**: For subscription auth in production, place `auth.json` on the server
 at `/opt/vizier/hermes/auth.json` (one-time setup). The deploy pipeline does not
@@ -183,19 +181,31 @@ manage subscription credentials -- they are authenticated locally and copied onc
 
 | GitHub Secret | Value | Where to Find |
 |---|---|---|
-| `AZURE_CLIENT_ID` | App registration client ID | Azure Portal > App registrations > Vizier Deploy |
-| `AZURE_TENANT_ID` | Directory tenant ID | Azure Portal > Entra ID > Overview |
-| `AZURE_SUBSCRIPTION_ID` | Subscription ID | Azure Portal > Subscriptions |
+| `INFISICAL_IDENTITY_ID` | Machine identity ID | Infisical > Project > Access Control > Machine Identities |
 | `DEPLOY_HOST` | Production server hostname | Your infrastructure |
 | `DEPLOY_SSH_KEY` | SSH private key for deploy user | Generated for the `vizier` user |
 
-### One-Time Azure Setup
+### One-Time Infisical Setup
 
-1. **Create an App Registration** in Azure Entra ID
-2. **Add a federated credential** for GitHub Actions OIDC (environment: `production`)
-3. **Grant Key Vault access** (Secret permissions: Get, List)
-4. **Add `telegram-allowed-users`** to Key Vault with your Telegram user ID
-5. **Add GitHub secrets** to the repository's `production` environment
+1. **Create a project** named `vizier` in Infisical
+2. **Add secrets** (`ANTHROPIC_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USERS`,
+   `GITHUB_TOKEN`) to the `prod` environment
+3. **Create a Machine Identity** (Project > Access Control > Machine Identities)
+4. **Configure OIDC Auth** on the identity:
+   - OIDC Discovery URL: `https://token.actions.githubusercontent.com`
+   - Issuer: `https://token.actions.githubusercontent.com`
+   - Subject: `repo:stranma/Vizier:environment:production`
+   - Audiences: `https://github.com/stranma`
+5. **Copy the Identity ID** and add it as `INFISICAL_IDENTITY_ID` in GitHub repository
+   secrets (Settings > Secrets > Actions > `production` environment)
+
+### Manual Fetch (with Infisical CLI)
+
+```bash
+# Install: https://infisical.com/docs/cli/overview
+infisical login
+bash scripts/fetch-secrets.sh /opt/vizier/.env
+```
 
 ## 7. Telegram Setup
 

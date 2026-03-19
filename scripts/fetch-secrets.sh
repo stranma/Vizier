@@ -1,15 +1,9 @@
 #!/usr/bin/env bash
-# Fetch secrets from Azure Key Vault and write them to .env for Docker Compose.
-#
-# OpenClaw is a pre-built container that reads secrets from environment variables.
-# vizier-mcp has built-in Key Vault support, but OpenClaw does not. This script
-# bridges the gap by pulling secrets from Key Vault into the shared .env file
-# before docker compose up.
+# Fetch secrets from Infisical and write them to .env for Docker Compose.
 #
 # Prerequisites:
-#   - Azure CLI installed and logged in (az login), OR
-#   - Managed Identity configured on the VM
-#   - AZURE_KEY_VAULT_URL set in .env or environment
+#   - Infisical CLI installed (https://infisical.com/docs/cli/overview)
+#   - Logged in via `infisical login` or machine identity configured
 #
 # Usage: bash scripts/fetch-secrets.sh [env-file]
 #   env-file defaults to /opt/vizier/.env
@@ -19,31 +13,28 @@ set -euo pipefail
 ENV_FILE="${1:-/opt/vizier/.env}"
 
 if [ ! -f "$ENV_FILE" ]; then
-    echo "ERROR: $ENV_FILE not found"
+    touch "$ENV_FILE"
+fi
+
+# Infisical project and environment
+PROJECT_SLUG="${INFISICAL_PROJECT_SLUG:-vizier}"
+ENV_SLUG="${INFISICAL_ENV_SLUG:-prod}"
+
+echo "Fetching secrets from Infisical (project: $PROJECT_SLUG, env: $ENV_SLUG)"
+
+if ! command -v infisical &> /dev/null; then
+    echo "ERROR: infisical CLI not installed"
+    echo "  Install: https://infisical.com/docs/cli/overview"
     exit 1
 fi
 
-# Read vault URL from .env or environment
-VAULT_URL="${AZURE_KEY_VAULT_URL:-}"
-if [ -z "$VAULT_URL" ]; then
-    VAULT_URL=$(grep "^AZURE_KEY_VAULT_URL=" "$ENV_FILE" 2>/dev/null | cut -d= -f2- || true)
-fi
-
-if [ -z "$VAULT_URL" ]; then
-    echo "AZURE_KEY_VAULT_URL not set -- skipping Key Vault fetch"
-    exit 0
-fi
-
-echo "Fetching secrets from Key Vault: $VAULT_URL"
-
-# Extract vault name from URL (https://myvault.vault.azure.net/ -> myvault)
-VAULT_NAME=$(echo "$VAULT_URL" | sed 's|https://||;s|\.vault\.azure\.net.*||')
-
-# Secret mapping: env-var-name -> key-vault-secret-name
-declare -A SECRETS=(
-    ["ANTHROPIC_API_KEY"]="anthropic-api-key"
-    ["TELEGRAM_BOT_TOKEN"]="telegram-bot-token"
-    ["TELEGRAM_SULTAN_CHAT_ID"]="telegram-sultan-chat-id"
+# Secret mapping: Infisical secret name -> env var name
+# Infisical stores secrets as KEY=VALUE; we fetch specific ones.
+SECRETS=(
+    "ANTHROPIC_API_KEY"
+    "TELEGRAM_BOT_TOKEN"
+    "TELEGRAM_ALLOWED_USERS"
+    "GITHUB_TOKEN"
 )
 
 update_env_var() {
@@ -51,29 +42,31 @@ update_env_var() {
     local value="$2"
     local file="$3"
 
-    # Remove existing line (if any) and append new value
     grep -v "^${key}=" "$file" > "${file}.tmp" || true
     echo "${key}=${value}" >> "${file}.tmp"
     mv "${file}.tmp" "$file"
 }
 
 FETCHED=0
-FAILED=0
+SKIPPED=0
 
-for env_var in "${!SECRETS[@]}"; do
-    kv_name="${SECRETS[$env_var]}"
-    echo -n "  $env_var ($kv_name): "
+for secret_name in "${SECRETS[@]}"; do
+    echo -n "  $secret_name: "
 
-    value=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "$kv_name" --query value -o tsv 2>/dev/null) || true
+    value=$(infisical secrets get "$secret_name" \
+        --projectSlug "$PROJECT_SLUG" \
+        --env "$ENV_SLUG" \
+        --plain 2>/dev/null) || true
 
     if [ -n "$value" ]; then
-        update_env_var "$env_var" "$value" "$ENV_FILE"
+        update_env_var "$secret_name" "$value" "$ENV_FILE"
         echo "OK"
         FETCHED=$((FETCHED + 1))
     else
         echo "not found (skipped)"
-        FAILED=$((FAILED + 1))
+        SKIPPED=$((SKIPPED + 1))
     fi
 done
 
-echo "Done: $FETCHED fetched, $FAILED skipped"
+chmod 600 "$ENV_FILE"
+echo "Done: $FETCHED fetched, $SKIPPED skipped"
