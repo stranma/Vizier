@@ -13,7 +13,7 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Context
 
-**Vizier** is an autonomous multi-agent work system using the Ottoman court metaphor, built on **OpenClaw** as its runtime.
+**Vizier** is an autonomous multi-agent work system using the Ottoman court metaphor, built on **Hermes Agent** (Nous Research) as its runtime.
 
 | Role | Description |
 |------|-------------|
@@ -29,7 +29,7 @@ This file provides guidance to Claude Code when working with this repository.
 
 Core principles: fresh context per task, filesystem is the message bus (via MCP server), specs are the contract, human approval at boundaries, plugin extensibility.
 
-**Architecture:** Vizier's domain intelligence is exposed as a **FastMCP server** (`vizier-mcp/`) that OpenClaw agents call via tool use. See `docs/ARCHITECTURE.md` and `docs/DECISIONS.md`.
+**Architecture:** Vizier's domain intelligence is exposed as a **FastMCP server** (`vizier-mcp/`) that Hermes connects to via native MCP HTTP transport. See `docs/ARCHITECTURE.md` and `docs/DECISIONS.md`.
 
 ---
 

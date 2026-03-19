@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+Hermes Phase 1, Step 1: Replace OpenClaw with Hermes Agent as the Vizier runtime substrate.
+
+### Added
+
+- **Hermes-hosted Vizier operator shell** -- Vizier now runs as a Hermes Agent (Nous Research) instead of an OpenClaw agent. Hermes provides agent runtime, Telegram gateway, MCP integration, and sub-agent delegation.
+- **`hermes/` directory** -- Dockerfile, config.yaml, SOUL.md, AGENTS.md, entrypoint and healthcheck scripts defining the Hermes-hosted Vizier agent.
+- **Hermes MCP integration** -- Vizier's domain tools (realm management, container lifecycle) are exposed to Hermes via native `mcp_servers` config connecting to the vizier-mcp HTTP transport.
+- **`docs/HERMES_REFERENCE.md`** -- Reference document covering Hermes installation, configuration, MCP integration, CLI commands, and security model.
+- **40 Hermes integration tests** -- Validate config structure, SOUL.md identity, AGENTS.md tool references, Dockerfile structure, docker-compose wiring, and .env.example variables.
+
+### Changed
+
+- **docker-compose.yml** -- `openclaw` service replaced with `hermes` service (builds from `hermes/`, depends on vizier-mcp healthy).
+- **`.env.example`** -- `TELEGRAM_SULTAN_CHAT_ID` replaced with `TELEGRAM_ALLOWED_USERS` (Hermes gateway auth model).
+- **`deploy.yml`** -- Builds and pushes hermes-vizier Docker image, deploys Hermes instead of OpenClaw, health checks reduced from 7 to 4.
+- **`ci-deploy-dry-run.sh`** -- Validates Hermes `config.yaml` instead of `openclaw.json`.
+- **`pyproject.toml`** -- Description updated from "OpenClaw" to "Hermes", `pyyaml` added to dev dependencies.
+
+### Removed
+
+- **OpenClaw from active runtime path** -- OpenClaw service, config validation, and deploy health checks removed from docker-compose, CI, and deploy workflow. The `openclaw/` directory is retained as reference material.
+
+## [0.15.0] - 2026-03-19
+
 Workflow modernization: replaced rigid upfront Q/S/P task classification with three workflow skills that auto-detect scope.
 
 ### Added

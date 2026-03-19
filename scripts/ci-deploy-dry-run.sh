@@ -7,12 +7,11 @@ set -euo pipefail
 PASS=0
 FAIL=0
 VIZIER_IMAGE="vizier-mcp-dryrun"
-OPENCLAW_IMAGE="ghcr.io/openclaw/openclaw:latest"
 
 fail() { echo "FAIL: $1"; FAIL=$((FAIL + 1)); }
 pass() { echo "PASS: $1"; PASS=$((PASS + 1)); }
 
-# ── [1/4] Build vizier-mcp Docker image ──────────────────────────────────────
+# -- [1/4] Build vizier-mcp Docker image ──────────────────────────────────────
 echo ""
 echo "=== [1/4] Build vizier-mcp Docker image ==="
 if docker build -t "$VIZIER_IMAGE" -f Dockerfile . ; then
@@ -21,7 +20,7 @@ else
     fail "Docker image build failed"
 fi
 
-# ── [2/4] Start vizier-mcp, wait for /health ─────────────────────────────────
+# -- [2/4] Start vizier-mcp, wait for /health ─────────────────────────────────
 echo ""
 echo "=== [2/4] Start vizier-mcp and check /health ==="
 CONTAINER_NAME="vizier-mcp-dryrun-$$"
@@ -58,82 +57,64 @@ else
     docker logs "$CONTAINER_NAME" --tail=30
 fi
 
-# ── [3/4] Verify runtime dependencies in container ───────────────────────────
+# -- [3/4] Verify runtime dependencies in container ───────────────────────────
 echo ""
 echo "=== [3/4] Verify runtime dependencies ==="
-DEPS_OK=true
 for dep in curl git; do
     if docker exec "$CONTAINER_NAME" which "$dep" >/dev/null 2>&1; then
         pass "$dep is installed"
     else
         fail "$dep is NOT installed (required by MCP tools)"
-        DEPS_OK=false
     fi
 done
 
-# ── [4/5] Validate openclaw.json structure ───────────────────────────────────
+# -- [4/4] Validate Hermes configuration ──────────────────────────────────────
 echo ""
-echo "=== [3/4] Validate openclaw.json structure ==="
-CONFIG_FILE="openclaw/config/openclaw.json"
+echo "=== [4/4] Validate Hermes config.yaml ==="
+CONFIG_FILE="hermes/config.yaml"
 
 if python3 - "$CONFIG_FILE" <<'PYEOF'
-import json, sys
+import sys
+import yaml
 
 with open(sys.argv[1]) as f:
-    cfg = json.load(f)
+    cfg = yaml.safe_load(f)
 
 errors = []
 
-if 'agents' not in cfg:
-    errors.append('missing top-level key: agents')
-if 'gateway' not in cfg:
-    errors.append('missing top-level key: gateway')
-if 'plugins' not in cfg:
-    errors.append('missing top-level key: plugins')
+# Model configuration
+model = cfg.get("model", {})
+if model.get("provider") != "anthropic":
+    errors.append("model.provider must be 'anthropic'")
+if "opus" not in model.get("default", ""):
+    errors.append("model.default must be an Opus-tier model")
 
-plugins = cfg.get('plugins', {}).get('entries', {})
-adapter = plugins.get('mcp-adapter')
-if adapter is None:
-    errors.append('missing plugins.entries.mcp-adapter')
+# MCP server configuration
+mcp = cfg.get("mcp_servers", {})
+if "vizier" not in mcp:
+    errors.append("missing mcp_servers.vizier")
 else:
-    if not adapter.get('enabled'):
-        errors.append('mcp-adapter is not enabled')
-    servers = adapter.get('config', {}).get('servers', [])
-    if len(servers) == 0:
-        errors.append('mcp-adapter has no servers configured')
+    vizier = mcp["vizier"]
+    if "url" not in vizier:
+        errors.append("mcp_servers.vizier missing 'url'")
+
+# Fallback model
+fallback = cfg.get("fallback_model", {})
+if not fallback:
+    errors.append("missing fallback_model")
 
 if errors:
     for e in errors:
-        print(f'  ERROR: {e}')
+        print(f"  ERROR: {e}")
     sys.exit(1)
 PYEOF
 then
-    pass "openclaw.json structure is valid"
+    pass "Hermes config.yaml is valid"
 else
-    fail "openclaw.json validation failed"
+    fail "Hermes config.yaml validation failed"
 fi
 
-# ── [5/5] Plugin install dry-run ─────────────────────────────────────────────
-echo ""
-echo "=== [4/4] Plugin install dry-run (mcp-adapter) ==="
-
-# Use openclaw image if available, fall back to node:20-slim
-PLUGIN_IMAGE="$OPENCLAW_IMAGE"
-if ! docker pull "$OPENCLAW_IMAGE" >/dev/null 2>&1; then
-    echo "  openclaw image not available, falling back to node:20-slim"
-    PLUGIN_IMAGE="node:20-slim"
-    docker pull "$PLUGIN_IMAGE" >/dev/null 2>&1
-fi
-
-if docker run --rm "$PLUGIN_IMAGE" sh -c "
-    npx openclaw plugins install openclaw-mcp-adapter
-"; then
-    pass "mcp-adapter plugin install succeeded"
-else
-    fail "mcp-adapter plugin install failed"
-fi
-
-# ── Summary ──────────────────────────────────────────────────────────────────
+# -- Summary ──────────────────────────────────────────────────────────────────
 echo ""
 echo "========================================"
 echo "  DRY-RUN RESULT: $PASS passed, $FAIL failed"

@@ -45,6 +45,32 @@ Vizier reads manifest, writes task.json, executes entrypoint, polls status_file.
 
 v1 docs (ARCHITECTURE.md, IMPLEMENTATION_PLAN.md, DECISIONS.md) moved to `docs/v1/`. Fresh v2 versions created from PRD v2 discussion.
 
+## DV2-8: Hermes Replaces OpenClaw as Runtime
+
+Hermes Agent (Nous Research, MIT) replaces OpenClaw as the Vizier runtime substrate.
+Hermes provides agent sessions, Telegram gateway, MCP integration, sub-agent delegation,
+and persistent memory. See `docs/HERMES_REFERENCE.md` for integration details.
+
+Key wiring: Hermes connects to vizier-mcp via native `mcp_servers` config (HTTP transport).
+OpenClaw's mcp-adapter plugin approach is no longer used.
+
+## DV2-9: Subscription Auth over API Keys
+
+Hermes authentication prefers subscription-based OAuth (Claude Max/Pro or GitHub Copilot)
+over raw API keys. Flow: `hermes login` locally -> `auth.json` -> mounted into Docker
+container. API key auth is supported as fallback. The entrypoint validates that at least
+one auth method is present before starting.
+
+Rationale: subscription auth avoids per-token API billing, uses existing Claude Max/Pro
+credits, and avoids committing API keys to Key Vault for the common case.
+
+## DV2-10: Compression Uses Anthropic Haiku
+
+Context compression in Hermes is configured to use `claude-haiku-4-5-20251001` via the
+Anthropic provider rather than the Hermes default (Google Gemini Flash via OpenRouter).
+This avoids requiring a separate OpenRouter API key -- compression reuses the same
+Anthropic credentials as the main agent.
+
 ## DV2-7: Phase 2 -- Agent Control Tools
 
 Four new MCP tools for Pasha lifecycle and knowledge linking:

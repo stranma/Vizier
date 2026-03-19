@@ -1,12 +1,47 @@
-# Vizier MCP Server -- Deployment Guide
+# Vizier -- Deployment Guide
 
 ## Prerequisites
 
 - Docker 24+ and Docker Compose v2
-- Anthropic API key (for Sentinel Haiku evaluator)
+- Hermes Agent credentials (subscription auth or Anthropic API key)
+- Telegram bot token from @BotFather
 - Git access to `ghcr.io/stranma/vizier` (for pre-built images)
 
-## 1. Local Development
+## 1. Authentication
+
+Hermes supports two authentication methods. Choose one:
+
+### Option A: Subscription Auth (Recommended)
+
+Use your existing Claude Max/Pro or GitHub Copilot subscription. No API keys.
+
+```bash
+# Install Hermes locally (one-time)
+curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
+
+# Authenticate (pick one):
+hermes login              # Anthropic (Claude Max/Pro)
+hermes login copilot      # GitHub Copilot (OpenAI models)
+
+# Copy credentials to project
+cp ~/.hermes/auth.json hermes/auth.json
+```
+
+The `auth.json` is mounted read-only into the Docker container at startup.
+
+### Option B: API Key Auth
+
+Set `ANTHROPIC_API_KEY` in `.env`:
+
+```bash
+cp .env.example .env
+# Edit .env and uncomment/set ANTHROPIC_API_KEY
+```
+
+For GitHub Copilot via token, set `COPILOT_GITHUB_TOKEN` in `.env` and change
+`model.provider` to `"copilot"` in `hermes/config.yaml`.
+
+## 2. Local Development
 
 Run the MCP server directly (stdio transport, no Docker):
 
@@ -23,23 +58,23 @@ VIZIER_ROOT=/path/to/data HEALTH_PORT=8080 uv run python -m vizier_mcp
 curl http://localhost:8080/health
 ```
 
-## 2. Docker Deployment
+## 3. Docker Deployment
 
 ### Quick Start
 
 ```bash
-# Copy and configure environment
+# Configure environment
 cp .env.example .env
-# Edit .env and set ANTHROPIC_API_KEY
+# Edit .env: set TELEGRAM_BOT_TOKEN and TELEGRAM_ALLOWED_USERS
+# For API key auth: also set ANTHROPIC_API_KEY
+# For subscription auth: ensure hermes/auth.json exists (see Section 1)
 
-# Create data directory
-mkdir -p /data/vizier/projects
-
-# Start the server
+# Start the stack
 docker compose up -d
 
 # Verify health
 curl http://localhost:8080/health
+docker compose logs hermes --tail=10
 ```
 
 ### Build from Source
@@ -49,17 +84,37 @@ docker compose build
 docker compose up -d
 ```
 
-### Pre-built Image (CI/CD)
+### Pre-built Images (CI/CD)
 
 The GitHub Actions deploy workflow builds and pushes to GHCR on every merge to master:
 
 ```bash
-docker pull ghcr.io/stranma/vizier:latest
+docker pull ghcr.io/stranma/vizier:latest          # vizier-mcp
+docker pull ghcr.io/stranma/vizier-hermes:latest    # hermes-vizier
 ```
 
-## 3. Health and Readiness Endpoints
+### Architecture
 
-Both endpoints are automatically enabled inside Docker (port 8080).
+```
+Sultan (Telegram)
+  --> Hermes Gateway (hermes-vizier container)
+        |-- Anthropic API (Claude Opus for Vizier agent)
+        |-- MCP HTTP --> vizier-mcp container (port 8001)
+        |                   |-- Realm tools (list, create, get projects)
+        |                   |-- Container tools (start, stop, status)
+        |                   |-- Health endpoints (port 8080)
+        |                   |-- /data/vizier/ (realm state)
+        |-- Sessions, memories (Docker volumes)
+```
+
+- **hermes-vizier**: Hermes Agent running the Vizier Grand Vizier personality
+- **vizier-mcp**: FastMCP server providing domain tools via HTTP transport
+- Hermes connects to vizier-mcp via native MCP HTTP (`mcp_servers.vizier.url`)
+- Agent config files (SOUL.md, AGENTS.md) are baked into the Hermes image
+
+## 4. Health and Readiness Endpoints
+
+Both endpoints run on vizier-mcp (port 8080), auto-enabled inside Docker.
 
 ### Liveness: `GET /health`
 
@@ -68,363 +123,161 @@ Quick liveness check for load balancers and Docker healthcheck:
 ```json
 {
   "status": "ok",
-  "version": "0.6.0",
-  "tool_count": 11
+  "version": "1.0.0",
+  "tool_count": 6
 }
 ```
 
 ### Readiness: `GET /readiness`
 
-Deep readiness check that verifies tool registration, data directory,
-and API key configuration. Returns 200 when ready, 503 when not:
+Deep readiness check. Returns 200 when ready, 503 when not:
 
 ```json
 {
   "ready": true,
-  "version": "0.6.0",
+  "version": "1.0.0",
   "checks": {
-    "tools": {"pass": true, "detail": "11/11 tools registered"},
+    "tools": {"pass": true, "detail": "6/6 tools registered"},
     "vizier_root": {"pass": true, "detail": "/data/vizier"},
-    "projects_dir": {"pass": true, "detail": "/data/vizier/projects"},
-    "writable": {"pass": true, "detail": "data directory is writable"},
-    "anthropic_api_key": {"pass": true, "detail": "set"}
+    "repos_dir": {"pass": true, "detail": "/data/vizier/repos"},
+    "writable": {"pass": true, "detail": "data directory is writable"}
   }
 }
 ```
 
-The Docker healthcheck uses `/health` (liveness). The deploy workflow
-uses `/readiness` (deep check) after deployment to verify the server
-is fully operational.
+The Hermes container healthcheck verifies the `hermes gateway` process is running.
 
-## 4. Environment Variables
+## 5. Environment Variables
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `ANTHROPIC_API_KEY` | Yes | -- | Anthropic API key for Sentinel Haiku and OpenClaw agents |
-| `TELEGRAM_BOT_TOKEN` | For Telegram | -- | Telegram bot token from @BotFather |
-| `TELEGRAM_SULTAN_CHAT_ID` | For Telegram | -- | Sultan's Telegram chat ID (restricts bot access) |
+| `ANTHROPIC_API_KEY` | If no auth.json | -- | Anthropic API key (subscription auth preferred) |
+| `COPILOT_GITHUB_TOKEN` | If using Copilot | -- | GitHub Copilot token |
+| `TELEGRAM_BOT_TOKEN` | Yes | -- | Telegram bot token from @BotFather |
+| `TELEGRAM_ALLOWED_USERS` | Yes | -- | Sultan's Telegram user ID (comma-separated for multiple) |
+| `GITHUB_TOKEN` | No | -- | GitHub PAT for province-scoped repo access (later phases) |
+| `HERMES_AUTH_JSON` | No | `./hermes/auth.json` | Path to subscription auth credentials |
 | `VIZIER_ROOT` | No | `/data/vizier` | Root directory for project data |
-| `HEALTH_PORT` | No | `8080` (Docker) | HTTP health endpoint port; auto-enabled in Docker |
+| `HEALTH_PORT` | No | `8080` | HTTP health endpoint port (vizier-mcp) |
 | `AZURE_KEY_VAULT_URL` | No | -- | Azure Key Vault URL for production secrets |
 
-## 5. Azure Key Vault (Production)
+## 6. Azure Key Vault (Production)
 
 Secrets are stored in Azure Key Vault (`https://vizier.vault.azure.net/`) and
-fetched automatically by the deploy pipeline. No secrets need to be stored on
-the server or in GitHub -- the pipeline pulls them from Key Vault at deploy time
-and writes them to the server's `.env` file.
-
-### How It Works
-
-1. The deploy workflow authenticates to Azure via OIDC (federated identity)
-2. `Azure/get-keyvault-secrets` fetches all three secrets from Key Vault
-3. An SSH step writes them to `/opt/vizier/.env` on the server
-4. `docker compose up` reads `.env` and passes values to both containers
+fetched automatically by the deploy pipeline.
 
 ### Secret Mapping
 
 | Env Variable | Key Vault Secret Name | Used By |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | `anthropic-api-key` | vizier-mcp (Sentinel Haiku), OpenClaw (agent LLM) |
-| `TELEGRAM_BOT_TOKEN` | `telegram-bot-token` | OpenClaw (Telegram channel) |
-| `TELEGRAM_SULTAN_CHAT_ID` | `telegram-sultan-chat-id` | OpenClaw (restricts bot to Sultan's chat) |
+| `ANTHROPIC_API_KEY` | `anthropic-api-key` | Hermes (Vizier agent LLM), vizier-mcp (Sentinel, later) |
+| `TELEGRAM_BOT_TOKEN` | `telegram-bot-token` | Hermes (Telegram gateway) |
+| `TELEGRAM_ALLOWED_USERS` | `telegram-allowed-users` | Hermes (gateway access control) |
+| `GITHUB_TOKEN` | `github-pat` | Province-scoped repo access (later phases) |
+
+**Note**: For subscription auth in production, place `auth.json` on the server
+at `/opt/vizier/hermes/auth.json` (one-time setup). The deploy pipeline does not
+manage subscription credentials -- they are authenticated locally and copied once.
 
 ### GitHub Actions Secrets Required
-
-The deploy workflow needs these GitHub secrets to authenticate to Azure:
 
 | GitHub Secret | Value | Where to Find |
 |---|---|---|
 | `AZURE_CLIENT_ID` | App registration client ID | Azure Portal > App registrations > Vizier Deploy |
-| `AZURE_TENANT_ID` | `02a093aa-d995-4447-8f47-7bc3b9ff538b` | Azure Portal > Entra ID > Overview |
-| `AZURE_SUBSCRIPTION_ID` | `b3922654-5cf3-436e-bb34-ef3d8a4334dd` | Azure Portal > Subscriptions |
+| `AZURE_TENANT_ID` | Directory tenant ID | Azure Portal > Entra ID > Overview |
+| `AZURE_SUBSCRIPTION_ID` | Subscription ID | Azure Portal > Subscriptions |
+| `DEPLOY_HOST` | Production server hostname | Your infrastructure |
+| `DEPLOY_SSH_KEY` | SSH private key for deploy user | Generated for the `vizier` user |
 
 ### One-Time Azure Setup
 
-1. **Create an App Registration** in Azure Entra ID:
-   ```
-   Azure Portal > Entra ID > App registrations > New registration
-   Name: "Vizier Deploy (GitHub Actions)"
-   ```
+1. **Create an App Registration** in Azure Entra ID
+2. **Add a federated credential** for GitHub Actions OIDC (environment: `production`)
+3. **Grant Key Vault access** (Secret permissions: Get, List)
+4. **Add `telegram-allowed-users`** to Key Vault with your Telegram user ID
+5. **Add GitHub secrets** to the repository's `production` environment
 
-2. **Add a federated credential** for GitHub Actions OIDC:
-   ```
-   App registration > Certificates & secrets > Federated credentials > Add credential
-   Scenario: GitHub Actions deploying Azure resources
-   Organization: stranma
-   Repository: Vizier
-   Entity type: Environment
-   Environment: production
-   ```
+## 7. Telegram Setup
 
-3. **Grant Key Vault access**:
-   ```
-   Key Vault > Access policies > Add access policy
-   Secret permissions: Get, List
-   Principal: "Vizier Deploy (GitHub Actions)"
-   ```
+### Create a Bot
 
-4. **Add GitHub secrets** (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`)
-   to the repository's `production` environment.
+1. Message [@BotFather](https://t.me/BotFather) on Telegram
+2. Send `/newbot` and follow the prompts
+3. Copy the bot token (format: `123456:ABC-DEF...`)
+4. Set `TELEGRAM_BOT_TOKEN` in `.env`
 
-### Manual Fetch (with Azure CLI)
+### Find Your User ID
 
-If `az` CLI is installed on the server, you can also fetch secrets manually:
+1. Message [@userinfobot](https://t.me/userinfobot) on Telegram
+2. It replies with your user ID (a number like `123456789`)
+3. Set `TELEGRAM_ALLOWED_USERS` in `.env`
 
-```bash
-cd /opt/vizier
-bash scripts/fetch-secrets.sh .env
-```
+### Hermes Gateway Access Control
 
-Requires Azure CLI (`az`) with an active login or VM Managed Identity.
-
-## 6. Volume Mounts
-
-The server stores all project data under `VIZIER_ROOT`:
+Hermes denies access by default. Only user IDs in `TELEGRAM_ALLOWED_USERS` can
+interact with the bot. Multiple users can be comma-separated:
 
 ```
-/data/vizier/
-  projects/
-    my-project/
-      specs/           # Spec files (managed by spec_* tools)
-      sentinel.yaml    # Sentinel security policy
-      config.yaml      # Project configuration
+TELEGRAM_ALLOWED_USERS=123456789,987654321
 ```
 
-In Docker Compose, this is a named volume (`vizier-data`). For production, consider:
-- Bind mount to a persistent disk: `volumes: ["/opt/vizier-data:/data/vizier"]`
-- Use a cloud-managed volume (EBS, Azure Disk, etc.)
+## 8. Volume Mounts
 
-## 7. CI/CD Pipeline
+| Volume | Container | Purpose |
+|--------|-----------|---------|
+| `vizier-data` | vizier-mcp | Realm state (`/data/vizier/`) |
+| `hermes-data` | hermes-vizier | Gateway sessions |
+| `hermes-memories` | hermes-vizier | Agent persistent memory |
+| `auth.json` (bind) | hermes-vizier | Subscription auth credentials (read-only) |
+
+For production, consider bind-mounting `vizier-data` to a persistent disk.
+
+## 9. CI/CD Pipeline
 
 ### Tests (`.github/workflows/tests.yml`)
 
 Runs on every push and PR:
 - Lint: `ruff check` + `ruff format --check`
-- Tests: `pytest vizier-mcp/tests/`
+- Tests: `pytest vizier-mcp/tests/` + `pytest tests/`
 - Type check: `pyright`
+- Deploy dry-run: Docker build + health check + Hermes config validation
 
 ### Deploy (`.github/workflows/deploy.yml`)
 
 Triggered after Tests workflow succeeds on master:
-1. Builds Docker image and pushes to GHCR
-2. SSHs to production server
-3. Pulls image and runs `docker compose up -d`
-4. Verifies health endpoint (30 retries, 2s interval)
-
-### Publish (`.github/workflows/publish.yml`)
-
-Manual or release-triggered PyPI publish for the `vizier-mcp` package.
-
-## 8. Connecting to OpenClaw
-
-OpenClaw runs as a co-located Docker container alongside vizier-mcp. It
-connects to the MCP server via `docker exec` stdio transport. See
-[OPENCLAW_SETUP.md](OPENCLAW_SETUP.md) for the standalone setup guide.
-
-## 9. OpenClaw + Telegram Deployment
-
-**WARNING -- Docker Socket Access:** OpenClaw mounts `/var/run/docker.sock` to
-spawn MCP sessions via `docker exec`. This grants the container full Docker daemon
-access, which is equivalent to root on the host. A compromised OpenClaw container
-(e.g., prompt injection via Telegram) could execute arbitrary Docker commands.
-For production use, deploy [docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy)
-to restrict API access to `exec` operations only. See "Docker Socket Security" below.
-
-### Prerequisites
-
-1. **Telegram bot token** from [@BotFather](https://t.me/BotFather):
-   - Message @BotFather on Telegram
-   - Send `/newbot` and follow the prompts
-   - Copy the bot token (format: `123456:ABC-DEF...`)
-
-2. **Anthropic API key** (already required for Sentinel)
-
-### Configuration
-
-Add the Telegram bot token to your server `.env`:
-
-```bash
-ssh vizier@your-server
-cd /opt/vizier
-# Edit .env and add/update the token line:
-# TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
-nano .env
-```
-
-### Deployment
-
-The CI/CD pipeline deploys both containers automatically. On first deploy
-with OpenClaw, ensure the `.env` file has `TELEGRAM_BOT_TOKEN` set before
-running `docker compose up -d`.
-
-```bash
-# Verify both containers are running
-docker compose ps
-
-# Check vizier-mcp health
-curl -s http://localhost:8080/health | python3 -m json.tool
-
-# Check OpenClaw health
-curl -s http://localhost:18789/ | python3 -m json.tool
-```
-
-### Telegram Pairing
-
-OpenClaw uses pairing-based DM access for security. New users must pair
-before they can interact with Vizier:
-
-1. Find your bot in Telegram (search by the name you gave @BotFather)
-2. Send `/start` to the bot
-3. The bot replies with a time-limited pairing code
-4. Approve the pairing on the server:
-   ```bash
-   docker exec openclaw node /app/openclaw.mjs pairing approve telegram <code>
-   ```
-5. After pairing, message the bot to interact with Vizier
-
-A first-time setup script is provided:
-
-```bash
-bash scripts/openclaw-setup.sh
-```
-
-### Architecture
-
-```
-Telegram --> OpenClaw (port 18789) --docker exec--> vizier-mcp (port 8080)
-                |                                        |
-                v                                        v
-         Agent sessions                           MCP tools (11)
-         SOUL.md workspaces                       /data/vizier/projects/
-```
-
-- **OpenClaw** handles messaging, agent sessions, and tool routing
-- **vizier-mcp** provides the 11 Vizier domain tools via MCP stdio
-- OpenClaw connects via `docker exec -i vizier-mcp ...` (requires Docker socket)
-- Agent workspace files (SOUL.md) are mounted read-only from `openclaw/workspaces/`
-
-### Docker Socket Security
-
-The OpenClaw container mounts `/var/run/docker.sock` to spawn MCP sessions
-via `docker exec`. This gives it full Docker API access. For single-user
-deployments this is acceptable. For hardening:
-
-- Use [docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy) to restrict API access
-- Restrict to `exec` operations only
-
-### Troubleshooting
-
-**OpenClaw container won't start:**
-- Check `TELEGRAM_BOT_TOKEN` is set in `.env`
-- Check logs: `docker compose logs openclaw`
-- Verify vizier-mcp is healthy first (OpenClaw depends on it)
-
-**Bot doesn't respond in Telegram:**
-- Verify the bot token is correct: `docker compose logs openclaw | grep -i telegram`
-- Check that pairing was completed: `docker exec openclaw node /app/openclaw.mjs pairing list`
-- Restart: `docker compose restart openclaw`
-
-**MCP tools fail:**
-- Check vizier-mcp is running: `curl http://localhost:8080/health`
-- Test docker exec manually: `docker exec -i vizier-mcp uv run --directory vizier-mcp python -m vizier_mcp.server`
-- Check Docker socket is mounted: `docker exec openclaw ls /var/run/docker.sock`
+1. Builds Docker images (vizier-mcp + hermes-vizier) and pushes to GHCR
+2. Fetches secrets from Azure Key Vault
+3. SCPs config files to production server
+4. Writes secrets to server `.env`
+5. Pulls images and runs `docker compose up -d`
+6. Runs 4-point health check (MCP liveness, readiness, HTTP transport, Hermes running)
 
 ## 10. Memory Snapshots (Git Versioning)
 
-Vizier's state files (specs, learnings, feedback, traces, budget) are automatically
-versioned via a daily git snapshot inside the `vizier-data` Docker volume. This provides
-unified change history, rollback capability, and optional backup to a remote.
-
-See `docs/DECISIONS.md` D87 for design rationale.
-
-### How It Works
-
-A host cron job (`scripts/memory-snapshot-cron.sh`) runs daily at 02:00 UTC. It
-launches a one-off `alpine/git` container that mounts the same `vizier-data` volume
-and runs `vizier-mcp/scripts/memory-snapshot.sh`. The production image stays clean
-(no git installed).
-
-The snapshot script is idempotent:
-- First run: initializes a git repo with a `.gitignore`
-- Subsequent runs: commits all changes, or exits cleanly if nothing changed
-- If a remote named `origin` is configured, pushes automatically
-
-### What Gets Tracked
-
-| Tracked | Gitignored |
-|---------|-----------|
-| `projects/*/specs/*/spec.md` | `logs/` (rotated, high volume) |
-| `projects/*/specs/*/feedback/*.json` | `audit/` (rotated, high volume) |
-| `projects/*/specs/*/pings/*.json` | `**/.vizier/audit.jsonl` |
-| `projects/*/.vizier/learnings/*.jsonl` | `*.tmp` (atomic write temps) |
-| `projects/*/.vizier/budget/*.jsonl` | `__pycache__/`, `.DS_Store` |
-| `projects/*/specs/*/.vizier/trace.jsonl` | |
-| `alerts/*.json` | |
-
-### Checking Logs
-
-```bash
-# View recent snapshot log
-tail -20 /opt/vizier/memory-snapshot.log
-
-# View git history inside the volume
-docker run --rm -v vizier-data:/data/vizier alpine/git:latest \
-  -C /data/vizier log --oneline -10
-```
-
-### Configuring a Remote (Optional)
-
-To push snapshots to a remote repository for off-site backup:
-
-```bash
-docker run --rm -v vizier-data:/data/vizier alpine/git:latest \
-  -C /data/vizier remote add origin git@github.com:yourorg/vizier-state-backup.git
-```
-
-Ensure SSH keys are available in the container or use HTTPS with a token.
-
-### Rolling Back
-
-To inspect or restore a previous state:
-
-```bash
-# List snapshots
-docker run --rm -v vizier-data:/data/vizier alpine/git:latest \
-  -C /data/vizier log --oneline
-
-# Show what changed in a specific snapshot
-docker run --rm -v vizier-data:/data/vizier alpine/git:latest \
-  -C /data/vizier show <commit-sha> --stat
-
-# Restore to a previous snapshot (destructive -- backs up current state first)
-docker run --rm -v vizier-data:/data/vizier alpine/git:latest \
-  -C /data/vizier stash
-docker run --rm -v vizier-data:/data/vizier alpine/git:latest \
-  -C /data/vizier checkout <commit-sha> -- .
-```
-
-### Verifying the Cron Job
-
-```bash
-# Check cron is installed
-crontab -l | grep memory-snapshot
-
-# Run manually to test
-/opt/vizier/scripts/memory-snapshot-cron.sh
-```
+Vizier's state files are automatically versioned via a daily git snapshot inside
+the `vizier-data` Docker volume. See `scripts/memory-snapshot-cron.sh`.
 
 ## Troubleshooting
+
+**Hermes won't start:**
+- Check auth: `docker compose logs hermes | head -5` (look for "Auth:" line)
+- If "No authentication found": either set `ANTHROPIC_API_KEY` in `.env` or mount `auth.json`
+- If "TELEGRAM_ALLOWED_USERS is not set": add it to `.env`
+
+**Bot doesn't respond in Telegram:**
+- Verify bot token: `docker compose logs hermes | grep -i telegram`
+- Verify user ID is in `TELEGRAM_ALLOWED_USERS`
+- Check Hermes is running: `docker compose ps hermes`
+
+**MCP tools fail:**
+- Check vizier-mcp health: `curl http://localhost:8080/health`
+- Check MCP connectivity: `docker compose logs hermes | grep -i mcp`
+- Verify vizier-mcp started first (hermes depends on it being healthy)
 
 **Health check fails:**
 - Check container logs: `docker compose logs vizier-mcp`
 - Verify port 8080 is exposed: `docker compose ps`
-- Ensure `HEALTH_PORT` is set (auto-enabled in Docker)
-
-**"No such secret" from Key Vault:**
-- Check secret name mapping (see Section 5)
-- Verify Managed Identity has `Get` permission on the Key Vault
 
 **Container exits immediately:**
 - Check `VIZIER_ROOT` directory exists and is writable
-- Verify `ANTHROPIC_API_KEY` is set (check `.env` file)
+- Check entrypoint validation: `docker compose logs hermes | head -10`
