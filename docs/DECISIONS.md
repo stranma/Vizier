@@ -45,6 +45,18 @@ Vizier reads manifest, writes task.json, executes entrypoint, polls status_file.
 
 v1 docs (ARCHITECTURE.md, IMPLEMENTATION_PLAN.md, DECISIONS.md) moved to `docs/v1/`. Fresh v2 versions created from PRD v2 discussion.
 
+## DV2-11: Infisical Replaces Azure Key Vault
+
+Secret management moved from Azure Key Vault to Infisical. The deploy pipeline
+authenticates via OIDC (same pattern as before -- short-lived tokens, no stored
+credentials). Infisical secrets are injected as environment variables by
+`Infisical/secrets-action@v1.0.9`.
+
+Rationale: the Azure subscription hosting the Key Vault was disabled. Infisical
+is open-source, has a generous free tier, native GitHub Actions OIDC support,
+and will also serve as the secret backend for Sentinel's credential brokerage
+in later phases.
+
 ## DV2-8: Hermes Replaces OpenClaw as Runtime
 
 Hermes Agent (Nous Research, MIT) replaces OpenClaw as the Vizier runtime substrate.
