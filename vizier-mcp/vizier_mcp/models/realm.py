@@ -29,6 +29,41 @@ class ContainerStatus(StrEnum):
     ERROR = "error"
 
 
+class PashaStatus(StrEnum):
+    """Pasha agent lifecycle states."""
+
+    IDLE = "idle"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    KILLED = "killed"
+
+
+class PashaManifest(BaseModel):
+    """Schema for .pasha/manifest.json in project templates."""
+
+    name: str
+    version: str = "1.0.0"
+    runtime: str = "openclaw"
+    entrypoint: str = ".pasha/launch.sh"
+    soul: str = ".pasha/SOUL.md"
+    status_file: str = ".pasha/status.json"
+    capabilities: list[str] = Field(default_factory=list)
+    env_requires: list[str] = Field(default_factory=list)
+
+
+class PashaState(BaseModel):
+    """Tracked state of a Pasha agent within a project."""
+
+    status: PashaStatus = PashaStatus.IDLE
+    task: str | None = None
+    acceptance_criteria: list[str] = Field(default_factory=list)
+    cost_limit: float | None = None
+    cost_spent: float = 0.0
+    launched_at: str | None = None
+    pid: int | None = None
+
+
 class Project(BaseModel):
     """A project in the realm -- a code repository inside a devcontainer."""
 
@@ -41,6 +76,7 @@ class Project(BaseModel):
     container_name: str | None = None
     container_status: ContainerStatus = ContainerStatus.STOPPED
     knowledge_links: list[str] = Field(default_factory=list)
+    pasha: PashaState = Field(default_factory=PashaState)
 
     def to_summary(self) -> dict[str, Any]:
         """Return a summary dict suitable for API responses."""
@@ -53,6 +89,8 @@ class Project(BaseModel):
             "status": self.status,
             "container_status": self.container_status.value,
             "knowledge_links": self.knowledge_links,
+            "pasha_status": self.pasha.status.value,
+            "pasha_task": self.pasha.task,
         }
 
 

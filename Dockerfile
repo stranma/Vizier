@@ -4,7 +4,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     UV_COMPILE_BYTECODE=1
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl git && \
+RUN apt-get update && apt-get install -y --no-install-recommends curl git docker.io && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
@@ -27,6 +27,7 @@ COPY vizier-mcp/ vizier-mcp/
 RUN uv sync --directory vizier-mcp --no-dev
 
 RUN addgroup --system vizier && adduser --system --home /home/vizier --ingroup vizier vizier && \
+    usermod -aG docker vizier && \
     mkdir -p /data/vizier/projects && chown -R vizier:vizier /data/vizier
 
 USER vizier
