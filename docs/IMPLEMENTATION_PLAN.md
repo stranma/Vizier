@@ -2,56 +2,114 @@
 
 ## Summary
 
-Phase 1 implements the smallest production slice of the new PRD:
+Phase 1 starts by making **Vizier itself run correctly on Hermes** before
+building provinces, firmans, or Pasha runtime behavior.
 
-- Hermes is the runtime substrate for Vizier and Pasha
-- provinces are long-lived and instantiated from `hermes-firman`
-- Telegram is the operator surface and GitHub is the review surface
-- Sentinel and proxy sidecars enforce the security boundary
-- the visible workflow is task -> province -> PR
+The Phase 1 sequence is:
 
-This plan replaces the previous OpenClaw/spec-centric roadmap as the active
-implementation source of truth.
+- Hermes-hosted Vizier operator shell comes first
+- Sentinel is added next as Vizier's initial control-plane security boundary
+- province modeling and province APIs come after Hermes + Sentinel are working
+- firman bootstrap and province lifecycle come after the province model exists
+- Hermes-native Pasha runtime comes after the province and firman foundations
+- local-development and GitHub Actions integration testing are required from the
+  first Hermes-Vizier milestone onward
+
+This plan replaces the previous OpenClaw-first and province-first sequencing as
+the active implementation source of truth.
 
 ## Existing Assets To Reuse
 
 The current codebase already contains useful Phase 1 foundations:
 
-- `realm.json` persistence and realm manager patterns
-- container lifecycle tooling around devcontainers and Docker
+- FastMCP server structure and test setup in `vizier-mcp`
+- `realm.json` persistence patterns that can be adapted to provinces later
 - structured logging and health checks
-- MCP server structure and test setup
-- deployment packaging and Docker Compose patterns
+- Docker packaging and Docker Compose patterns
+- deployment workflow structure in GitHub Actions
 
-These should be adapted, not discarded blindly.
+These should be reused where they save time.
+
+OpenClaw-specific runtime configuration is not an active Phase 1 foundation. It
+may be used as reference material only while Hermes replaces it.
 
 ## Phase 1 Deliverables
 
-### 1. Province Domain Model
+### 1. Hermes-Hosted Vizier Operator Shell
 
-**Goal:** replace project-centric realm state with province-centric state.
+**Goal:** deploy Vizier as a Hermes agent with the correct minimal
+control-plane privileges.
 
 **Deliverables:**
-- Province model replacing or superseding the current project model
+- Hermes installation/provisioning contract for local development, CI, and deployment
+- Vizier Hermes agent definition, SOUL/instructions, and runtime configuration
+- Deployment wiring that starts Hermes-hosted Vizier instead of OpenClaw-hosted Vizier
+- Minimal control-plane privilege configuration for Vizier
+- Integration test suite for local development and GitHub Actions
+- Removal of OpenClaw from the active Phase 1 deploy/test path
+
+**Required behavior:**
+- Hermes can start Vizier successfully
+- an operator can send Vizier a basic message through Hermes and receive a valid response
+- Vizier can access the MCP/tool surface needed for health, help, and status behavior
+- Vizier runs with only the control-plane privileges needed to operate itself
+- Pasha-on-Hermes is not required in this milestone
+
+**Acceptance criteria:**
+- local development can run a Hermes-Vizier integration suite without production secrets
+- GitHub Actions can install/provision Hermes and run the same Hermes-Vizier integration suite
+- the packaged Phase 1 stack boots with Hermes-hosted Vizier and passes smoke checks
+- OpenClaw is no longer part of the active Phase 1 runtime validation path
+
+### 2. Sentinel Baseline For Vizier Control Plane
+
+**Goal:** establish the first deterministic security boundary around Vizier
+before province runtime work begins.
+
+**Deliverables:**
+- Sentinel policy contract for Vizier's control-plane privileges
+- deterministic allow/deny path for Vizier control-plane actions
+- audit entries for allow, deny, and revoke events relevant to Vizier
+- integration tests proving privilege enforcement
+
+**Required behavior:**
+- explicitly allowed Vizier control-plane actions succeed
+- broader host or network actions outside Vizier's granted scope are denied
+- denials are deterministic and auditable
+- missing permission defaults fail closed
+
+**Acceptance criteria:**
+- integration tests prove allowed actions succeed and denied actions fail
+- denied actions produce auditable records
+- Hermes-hosted Vizier remains operational under the enforced privilege model
+
+### 3. Province Domain Model
+
+**Goal:** replace project-centric realm state with province-centric state after
+Hermes-hosted Vizier and Sentinel are working.
+
+**Deliverables:**
+- Province model replacing the current project model
 - Province lifecycle enum with exactly:
   `creating`, `running`, `stopped`, `failed`, `destroying`
 - Realm state updated to store provinces, firman reference, workspace path,
   runtime metadata, and security metadata
-- Realm tool surface rewritten around provinces rather than specs/projects
+- Public tool surface rewritten around provinces rather than projects
 
 **Required behavior:**
 - province lifecycle is infrastructure state only
 - task status and PR status are not encoded into province state
 - a province can remain `running` across multiple tasks and PRs
+- project-era realm state is not migrated forward
 
 **Acceptance criteria:**
 - realm persistence can create, read, list, and update province lifecycle state
 - invalid province state transitions return structured errors
-- existing `realm.json` loading fails safely when older data is missing fields
+- old project-era state is left behind rather than migrated
 
-### 2. Firman Contract + `hermes-firman`
+### 4. Firman Contract + `hermes-firman`
 
-**Goal:** make firmans concrete and testable in Phase 1.
+**Goal:** make firmans concrete and testable once provinces exist.
 
 **Deliverables:**
 - Firman contract definition in code and docs
@@ -67,35 +125,14 @@ These should be adapted, not discarded blindly.
 - GitHub repo, branch, and PR behavior
 
 **Required behavior:**
-- Vizier can create a province from `hermes-firman` without any manual setup
-- firman version/reference used for province creation is recorded in realm state
+- Vizier can create a province from `hermes-firman` without manual setup
+- the firman version/reference used for province creation is recorded in realm state
 
 **Acceptance criteria:**
 - province creation from `hermes-firman` produces a bootable workspace
 - missing or malformed firman artifacts fail during `creating` with clear errors
 
-### 3. Hermes Runtime Integration
-
-**Goal:** replace OpenClaw-specific execution assumptions with Hermes-native ones.
-
-**Deliverables:**
-- Hermes runtime configuration for Vizier
-- Hermes-native Pasha launch model inside a province workspace
-- Telegram thread mapping for Vizier and Pasha
-- Minimal operator workflow for:
-  task assignment, direct Pasha clarification, PR notification, province stop
-
-**Required behavior:**
-- Vizier owns province creation and stop operations
-- Pasha has a direct Sultan communication line
-- a running province means Pasha is reachable and the workspace is active
-
-**Acceptance criteria:**
-- Sultan can assign a task to Vizier through Telegram
-- Vizier can launch a Pasha for a newly created province
-- Sultan can send a direct clarification to that Pasha
-
-### 4. Province Workspace + Container Lifecycle
+### 5. Province Workspace + Container Lifecycle
 
 **Goal:** adapt the existing container lifecycle code to long-lived provinces.
 
@@ -117,28 +154,29 @@ These should be adapted, not discarded blindly.
 - failed startup leaves province in `failed`
 - destroy flow removes runtime resources and finalizes state cleanly
 
-### 5. Sentinel Core + Proxy Sidecar
+### 6. Hermes Runtime Integration For Pasha
 
-**Goal:** implement the deterministic Phase 1 security boundary.
+**Goal:** add Hermes-native execution inside provinces after the Hermes-hosted
+Vizier control plane, Sentinel baseline, province model, and firman bootstrap
+are in place.
 
 **Deliverables:**
-- per-province outbound allowlist model
-- proxy-sidecar integration per province
-- Sentinel Core service contract for:
-  allowlist updates, repo grants, API grants, revocation, audit entries
-- wiring between province metadata, firman defaults, and Sentinel grants
+- Hermes-native Pasha launch model inside a province workspace
+- Telegram thread mapping for Vizier and Pasha
+- Minimal operator workflow for:
+  task assignment, direct Pasha clarification, PR notification, province stop
 
 **Required behavior:**
-- all province outbound HTTP/HTTPS traffic goes through the proxy sidecar
-- firman defaults apply automatically at province creation
-- province-specific grants extend policy only after operator approval
+- Vizier owns province creation and stop operations
+- Pasha has a direct Sultan communication line
+- a running province means Pasha is reachable and the workspace is active
 
 **Acceptance criteria:**
-- blocked domain requests are denied deterministically
-- approved domain requests succeed after grant application
-- grant and revoke operations are recorded in an audit trail
+- Sultan can assign a task to Vizier through Telegram
+- Vizier can launch a Pasha for a newly created province
+- Sultan can send a direct clarification to that Pasha
 
-### 6. Secret Brokerage + GitHub Access
+### 7. Secret Brokerage + GitHub Access
 
 **Goal:** enforce the "use but not read" credential model in Phase 1.
 
@@ -160,7 +198,7 @@ These should be adapted, not discarded blindly.
 - API access works only after Sentinel grant
 - revoking access prevents further use without destroying the province
 
-### 7. Appeals, Alerts, and Operator Actions
+### 8. Appeals, Alerts, and Operator Actions
 
 **Goal:** make the security-first workflow usable by Sultan.
 
@@ -181,11 +219,24 @@ These should be adapted, not discarded blindly.
 - Sentinel can surface an alert tied to a specific province
 - Sultan can terminate the alerted province through Vizier
 
-### 8. Verification Path
+### 9. Verification Path
 
-**Goal:** prove the Phase 1 contract end to end.
+**Goal:** prove the Phase 1 contract end to end with layered automated testing
+that works in local development and GitHub Actions.
+
+**Required automated test layers:**
+- unit tests for models, manager logic, validation, and server behavior
+- Hermes-Vizier integration tests using Hermes local test mode and no production secrets
+- packaged stack smoke tests validating the deployed Hermes-hosted Vizier shape
+- later end-to-end tests covering province, firman, and Pasha flows as those
+  deliverables land
 
 **Required end-to-end scenarios:**
+- Hermes-Vizier shell path:
+  Hermes starts Vizier -> operator sends a basic message -> Vizier responds ->
+  health/status path succeeds
+- Sentinel baseline path:
+  allowed control-plane action succeeds -> denied action fails -> audit entry recorded
 - happy path:
   task -> province from `hermes-firman` -> running Pasha -> direct clarification
   -> PR opened -> province stopped
@@ -195,26 +246,33 @@ These should be adapted, not discarded blindly.
   anomalous outbound activity -> alert -> Sultan decision -> province stop
 
 **Acceptance criteria:**
-- each scenario is covered by automated tests where possible and by one
-  documented manual runtime validation flow where external systems are required
+- the Hermes-Vizier integration suite runs locally and in GitHub Actions
+- the packaged stack smoke suite runs locally and in GitHub Actions
+- each later end-to-end scenario is covered by automated tests where possible
+  and by one documented manual runtime validation flow where external systems
+  are required
 
 ## Delivery Order
 
 Implement in this order:
 
-1. Province model and realm state migration
-2. Firman contract and `hermes-firman`
-3. Province workspace/container lifecycle
-4. Hermes runtime integration for Vizier and Pasha
-5. Sentinel Core and proxy-sidecar policy wiring
-6. Secret brokerage and GitHub credential flow
-7. Appeals, alerts, and operator actions
-8. End-to-end verification and deployment updates
+1. Hermes-hosted Vizier operator shell
+2. Sentinel baseline for Vizier control plane
+3. Province model and province API cutover
+4. Firman contract and `hermes-firman`
+5. Province workspace/container lifecycle
+6. Hermes runtime integration for Pasha
+7. Secret brokerage and GitHub credential flow
+8. Appeals, alerts, and operator actions
+9. End-to-end verification and deployment simplification
 
 ## Explicit Non-Goals For This Plan
 
 Do not implement as part of Phase 1:
 
+- OpenClaw as an active runtime dependency for the target architecture
+- Pasha-on-Hermes before Hermes-hosted Vizier and Sentinel are stable
+- migration of old project-era realm state into province state
 - cross-province coordination or ad-hoc group channels
 - root daemon or privileged host execution
 - broad cost reporting
@@ -224,11 +282,11 @@ Do not implement as part of Phase 1:
 
 ## Notes On Migration
 
-- Existing OpenClaw-specific configuration, SOUL files, and spec-lifecycle
-  assumptions should be treated as legacy and removed or isolated only when the
-  Hermes path fully replaces them.
+- Existing OpenClaw-specific configuration can be removed from the active
+  runtime and deployment path once Hermes-hosted Vizier replaces it.
 - Existing realm/container code should be refactored toward provinces where it
   saves time, rather than rewritten from zero without reason.
+- Project-era realm state is left behind rather than migrated.
 - Documentation and deployment configuration must be updated in the same phase
-  as the runtime switch so the repo does not advertise OpenClaw as the active
+  as the Hermes cutover so the repo does not advertise OpenClaw as the active
   architecture once implementation starts.
