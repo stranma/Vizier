@@ -22,26 +22,28 @@ services:
       start_period: 5s
       retries: 3
 
-  openclaw:
-    image: ghcr.io/openclaw/openclaw:latest
-    container_name: openclaw
+  hermes:
+    build: hermes/
+    container_name: hermes-vizier
     restart: unless-stopped
     depends_on:
       vizier-mcp:
         condition: service_healthy
     volumes:
-      - openclaw-data:/home/node/.openclaw
-      - ./openclaw/workspaces:/home/node/.openclaw/workspace
-      - /var/run/docker.sock:/var/run/docker.sock
+      - hermes-data:/home/hermes/.hermes/sessions
+      - hermes-memories:/home/hermes/.hermes/memories
     env_file:
       - .env
+    environment:
+      - HERMES_HOME=/home/hermes/.hermes
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:18789/"]
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
       interval: 15s
       timeout: 5s
-      start_period: 15s
+      start_period: 30s
       retries: 3
 
 volumes:
   vizier-data:
-  openclaw-data:
+  hermes-data:
+  hermes-memories:

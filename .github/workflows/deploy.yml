@@ -29,7 +29,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image
+      - name: Build and push vizier-mcp image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -37,6 +37,15 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Build and push hermes-vizier image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./hermes
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-hermes:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-hermes:latest
 
   deploy:
     runs-on: ubuntu-latest
@@ -48,7 +57,7 @@ jobs:
       id-token: write
 
     steps:
-      - name: Checkout (for docker-compose.yml)
+      - name: Checkout (for docker-compose.yml and config)
         uses: actions/checkout@v4
 
       - name: Azure Login
@@ -63,19 +72,11 @@ jobs:
         id: keyvault
         with:
           inlineScript: |
-            for secret in anthropic-api-key telegram-bot-token telegram-sultan-chat-id github-pat; do
+            for secret in anthropic-api-key telegram-bot-token telegram-allowed-users github-pat; do
               value=$(az keyvault secret show --vault-name vizier --name "$secret" --query value -o tsv)
               echo "::add-mask::$value"
               echo "${secret}=${value}" >> "$GITHUB_OUTPUT"
             done
-
-      - name: Generate Empire Briefing
-        env:
-          ANTHROPIC_API_KEY: ${{ steps.keyvault.outputs.anthropic-api-key }}
-        run: |
-          pip install uv
-          uv sync --all-packages --no-dev
-          PYTHONPATH=vizier-mcp uv run python scripts/generate_briefing.py
 
       - name: Clean deployment dirs before SCP
         uses: appleboy/ssh-action@v1
@@ -84,7 +85,7 @@ jobs:
           username: vizier
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            docker run --rm -v /opt/vizier:/mnt busybox:1.37 sh -c "rm -rf /mnt/openclaw/ /mnt/scripts/ /mnt/vizier-mcp/scripts/"
+            docker run --rm -v /opt/vizier:/mnt busybox:1.37 sh -c "rm -rf /mnt/hermes/ /mnt/scripts/ /mnt/vizier-mcp/scripts/"
 
       - name: Copy config files to server
         uses: appleboy/scp-action@v0.1.7
@@ -92,7 +93,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: vizier
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          source: "docker-compose.yml,openclaw/config/,openclaw/workspaces/,scripts/,vizier-mcp/scripts/"
+          source: "docker-compose.yml,hermes/,scripts/,vizier-mcp/scripts/"
           target: /opt/vizier/
           overwrite: true
 
@@ -102,11 +103,11 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: vizier
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: ANTHROPIC_API_KEY,TELEGRAM_BOT_TOKEN,TELEGRAM_SULTAN_CHAT_ID,GITHUB_TOKEN
+          envs: ANTHROPIC_API_KEY,TELEGRAM_BOT_TOKEN,TELEGRAM_ALLOWED_USERS,GITHUB_TOKEN
           script: |
             cd /opt/vizier
             touch .env
-            for key in ANTHROPIC_API_KEY TELEGRAM_BOT_TOKEN TELEGRAM_SULTAN_CHAT_ID GITHUB_TOKEN; do
+            for key in ANTHROPIC_API_KEY TELEGRAM_BOT_TOKEN TELEGRAM_ALLOWED_USERS GITHUB_TOKEN; do
               val=$(eval echo "\$$key")
               if [ -n "$val" ]; then
                 grep -v "^${key}=" .env > .env.tmp || true
@@ -119,7 +120,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ steps.keyvault.outputs.anthropic-api-key }}
           TELEGRAM_BOT_TOKEN: ${{ steps.keyvault.outputs.telegram-bot-token }}
-          TELEGRAM_SULTAN_CHAT_ID: ${{ steps.keyvault.outputs.telegram-sultan-chat-id }}
+          TELEGRAM_ALLOWED_USERS: ${{ steps.keyvault.outputs.telegram-allowed-users }}
           GITHUB_TOKEN: ${{ steps.keyvault.outputs.github-pat }}
 
       - name: Deploy via SSH
@@ -133,21 +134,10 @@ jobs:
             docker login ghcr.io -u "${{ github.actor }}" --password-stdin <<< "${{ secrets.GITHUB_TOKEN }}"
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
             docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            docker pull ghcr.io/openclaw/openclaw:latest || echo "OpenClaw image pull failed (may not exist yet)"
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-hermes:${{ github.sha }}
+            docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-hermes:${{ github.sha }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-hermes:latest
             cd /opt/vizier
-            echo "Verifying config files..."
-            ls -la openclaw/config/openclaw.json || { echo "ERROR: OpenClaw config file missing after SCP"; exit 1; }
-            ls -d openclaw/workspaces/vizier openclaw/workspaces/worker-template || { echo "ERROR: OpenClaw workspace dirs missing after SCP"; exit 1; }
             docker compose up -d --force-recreate 2>&1 || { echo "docker compose up failed"; docker compose logs; exit 1; }
-            echo "Fixing OpenClaw ownership and injecting config..."
-            docker exec -u root openclaw chown -R node:node /home/node/.openclaw
-            docker cp openclaw/config/openclaw.json openclaw:/home/node/.openclaw/openclaw.json
-            docker exec -u root openclaw chown node:node /home/node/.openclaw/openclaw.json
-            echo "Installing openclaw-mcp-adapter plugin from npm registry..."
-            docker exec openclaw rm -rf /home/node/.openclaw/extensions/openclaw-mcp-adapter 2>/dev/null || true
-            docker exec openclaw npx openclaw plugins install openclaw-mcp-adapter \
-              || { echo "WARN: mcp-adapter plugin install failed"; ADAPTER_INSTALL_FAILED=true; }
-            docker compose restart openclaw
             sleep 3
             echo "Container status:"
             docker compose ps
@@ -158,7 +148,7 @@ jobs:
             DEPLOY_OK=true
 
             echo ""
-            echo "--- [1/7] Vizier MCP liveness (/health) ---"
+            echo "--- [1/4] Vizier MCP liveness (/health) ---"
             for i in $(seq 1 30); do
               if curl -sf http://localhost:8080/health >/dev/null; then
                 echo "PASS: vizier-mcp is alive"
@@ -175,7 +165,7 @@ jobs:
             done
 
             echo ""
-            echo "--- [2/7] Vizier MCP readiness (/readiness) ---"
+            echo "--- [2/4] Vizier MCP readiness (/readiness) ---"
             READINESS=$(curl -s http://localhost:8080/readiness)
             echo "$READINESS" | python3 -m json.tool
             if echo "$READINESS" | python3 -c "import sys,json; r=json.load(sys.stdin); sys.exit(0 if r.get('ready') else 1)"; then
@@ -186,7 +176,7 @@ jobs:
             fi
 
             echo ""
-            echo "--- [3/7] Vizier MCP HTTP transport ---"
+            echo "--- [3/4] Vizier MCP HTTP transport ---"
             if docker compose exec -T vizier-mcp curl -sf http://localhost:8001/mcp >/dev/null 2>&1; then
               echo "PASS: MCP HTTP endpoint responding on port 8001"
             else
@@ -195,63 +185,14 @@ jobs:
             fi
 
             echo ""
-            echo "--- [4/7] OpenClaw container running ---"
-            OC_STATE=$(docker compose ps openclaw --format '{{.State}}' 2>/dev/null || echo "missing")
-            if [ "$OC_STATE" = "running" ]; then
-              echo "PASS: openclaw container is running"
+            echo "--- [4/4] Hermes container running ---"
+            HERMES_STATE=$(docker compose ps hermes --format '{{.State}}' 2>/dev/null || echo "missing")
+            if [ "$HERMES_STATE" = "running" ]; then
+              echo "PASS: hermes-vizier container is running"
             else
-              echo "FAIL: openclaw container state: $OC_STATE"
-              docker compose logs openclaw --tail=30
+              echo "FAIL: hermes-vizier container state: $HERMES_STATE"
+              docker compose logs hermes --tail=30
               DEPLOY_OK=false
-            fi
-
-            echo ""
-            echo "--- [5/7] OpenClaw health endpoint ---"
-            OC_HEALTHY=false
-            for i in $(seq 1 20); do
-              if docker compose exec -T openclaw curl -sf http://localhost:18789/ >/dev/null 2>&1; then
-                echo "PASS: openclaw gateway responding"
-                OC_HEALTHY=true
-                break
-              fi
-              echo "  waiting (attempt $i/20)..."
-              sleep 3
-            done
-            if [ "$OC_HEALTHY" = "false" ]; then
-              echo "FAIL: openclaw gateway not responding after 60s"
-              docker compose logs openclaw --tail=40
-              DEPLOY_OK=false
-            fi
-
-            echo ""
-            echo "--- [6/7] OpenClaw config validation ---"
-            OC_LOGS=$(docker compose logs openclaw --tail=50 2>&1)
-            if echo "$OC_LOGS" | grep -qi "Config invalid"; then
-              echo "FAIL: openclaw has config errors:"
-              echo "$OC_LOGS" | grep -A5 -i "config invalid\|Unrecognized\|Problem"
-              DEPLOY_OK=false
-            elif echo "$OC_LOGS" | grep -qi "Restarting"; then
-              echo "WARN: openclaw is restart-looping"
-              echo "$OC_LOGS" | tail -20
-              DEPLOY_OK=false
-            else
-              echo "PASS: no config errors detected"
-            fi
-
-            echo ""
-            echo "--- [7/7] MCP adapter plugin ---"
-            if [ "${ADAPTER_INSTALL_FAILED:-}" = "true" ]; then
-              echo "FAIL: mcp-adapter plugin install failed in earlier step"
-              DEPLOY_OK=false
-            else
-              ADAPTER_LOGS=$(docker compose logs openclaw --tail=100 2>&1)
-              if echo "$ADAPTER_LOGS" | grep -qi "mcp-adapter"; then
-                echo "PASS: mcp-adapter plugin detected in logs"
-                echo "$ADAPTER_LOGS" | grep -i "mcp-adapter" | tail -5
-              else
-                echo "WARN: mcp-adapter not detected in openclaw logs (plugin may not be loaded)"
-                DEPLOY_OK=false
-              fi
             fi
 
             echo ""
@@ -264,20 +205,8 @@ jobs:
               echo "  Container status:"
               docker compose ps
               echo ""
-              echo "  Full openclaw logs:"
-              docker compose logs openclaw --tail=50
+              echo "  Full hermes logs:"
+              docker compose logs hermes --tail=50
               exit 1
             fi
             echo "========================================"
-
-      - name: Install memory snapshot cron
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: vizier
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            chmod +x /opt/vizier/scripts/memory-snapshot-cron.sh
-            chmod +x /opt/vizier/vizier-mcp/scripts/memory-snapshot.sh
-            (crontab -l 2>/dev/null | grep -v memory-snapshot; echo "0 2 * * * /opt/vizier/scripts/memory-snapshot-cron.sh >> /opt/vizier/memory-snapshot.log 2>&1") | crontab -
-            echo "Memory snapshot cron installed"

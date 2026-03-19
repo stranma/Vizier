@@ -1,0 +1,52 @@
+# Hermes Agent configuration for Vizier (Grand Vizier)
+# Secrets (API keys, bot tokens) go in .env, not here.
+# See docs/HERMES_REFERENCE.md for full option reference.
+
+model:
+  provider: "anthropic"
+  default: "claude-opus-4-6"
+  context_length: 200000
+
+fallback_model:
+  provider: "anthropic"
+  model: "claude-sonnet-4-6"
+
+# Vizier MCP server -- provides realm management and container lifecycle tools.
+# In Docker Compose, vizier-mcp resolves to the companion container.
+# For local development, use http://localhost:8001/mcp instead.
+mcp_servers:
+  vizier:
+    url: "http://vizier-mcp:8001/mcp"
+    timeout: 30
+    connect_timeout: 10
+
+terminal:
+  backend: "local"
+  cwd: "/workspace"
+  timeout: 300
+
+agent:
+  max_turns: 90
+
+memory:
+  memory_enabled: true
+  user_profile_enabled: true
+  memory_char_limit: 2200
+
+compression:
+  enabled: true
+  threshold: 0.50
+
+# Approval mode is off inside the controlled container environment.
+# The container itself is the security boundary.
+approval_mode: "off"
+
+delegation:
+  max_iterations: 50
+  default_toolsets:
+    - terminal
+    - file
+
+display:
+  tool_progress: "all"
+  compact: true
