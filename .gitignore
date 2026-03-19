@@ -38,10 +38,12 @@ pyrightconfig.json
 .DS_Store
 Thumbs.db
 
-# Environment variables
+# Environment variables and auth credentials
 .env
 .env.*
 !.env.example
+# Note: hermes/auth.json is committed as an empty placeholder {}.
+# Real credentials are written at runtime or mounted from the host.
 
 # Distribution
 *.tar.gz

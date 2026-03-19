@@ -44,7 +44,7 @@ class PashaManifest(BaseModel):
 
     name: str
     version: str = "1.0.0"
-    runtime: str = "openclaw"
+    runtime: str = "hermes"
     entrypoint: str = ".pasha/launch.sh"
     soul: str = ".pasha/SOUL.md"
     status_file: str = ".pasha/status.json"

@@ -1,40 +1,48 @@
 # Vizier
 
-Autonomous multi-agent work system, built on OpenClaw.
+Autonomous multi-agent work system, built on Hermes.
 
-Vizier receives high-level tasks from humans, decomposes them into actionable specs, executes them through specialized agents, and reports back. It uses the **Ottoman court metaphor**: the Sultan (human) speaks to the Vizier (main agent), who delegates to Pashas (per-project orchestrators), who manage inner agents (Scout, Architect, Worker, Quality Gate, Retrospective).
+Vizier manages **provinces** -- isolated work domains created from reusable **firmans** (templates). Each province has its own Pasha, workspace, credentials, outbound access policy, and GitHub output. The Sultan (human operator) steers via Telegram; work output is a GitHub pull request.
 
 ## Architecture
 
-**OpenClaw** provides the runtime: multi-channel messaging (Telegram, WhatsApp, Discord, Web UI, mobile), session management, tool infrastructure, and memory. **Vizier's MCP server** provides the domain intelligence: spec lifecycle, Sentinel security, DAG scheduling, quality gates, and plugin extensibility.
+**Hermes Agent** (Nous Research) provides the runtime: agent sessions, Telegram gateway, tool calling, sub-agent delegation, and MCP integration. **Vizier's MCP server** provides the domain intelligence: realm management, container lifecycle, and (in later phases) province orchestration, Sentinel security, and secret brokerage.
 
 ```
-Sultan (any channel)
-  -> OpenClaw Gateway
-    -> Vizier (main agent, Opus, persistent session)
-      -> Pasha-{project} (sub-session per project)
-        -> Scout, Architect, Worker, Quality Gate, Retrospective
-      -> Vizier MCP Server (FastMCP, Python)
-        -> Spec tools, Sentinel, Orchestration, DAG, Evidence, Plugins, Budget
+Sultan (Telegram + GitHub)
+  -> Vizier (Hermes agent, Opus, reactive realm manager)
+    -> Provinces (isolated work domains from firmans)
+      -> Pasha (Hermes agent per province)
+        -> Tools, workspace, scoped credentials, security boundary
+    -> Vizier MCP Server (FastMCP, Python)
+      -> Realm tools, Container tools, Health endpoints
+  -> Sentinel Core (deterministic security enforcement)
 ```
 
-See `docs/ARCHITECTURE.md` for the full specification.
+See `docs/ARCHITECTURE.md` and `docs/PRD_V2.md` for the full specification.
 
 ## Project Structure
 
 | Directory | Purpose |
 |-----------|---------|
-| `vizier-mcp/` | FastMCP server -- all Vizier domain logic |
-| `openclaw/` | OpenClaw workspace config (SOUL.md files, agent definitions) |
-| `docs/` | Architecture spec, decision log, changelog |
+| `vizier-mcp/` | FastMCP server -- Vizier domain logic (realm, containers, health) |
+| `hermes/` | Hermes Agent config -- Dockerfile, config.yaml, SOUL.md, AGENTS.md |
+| `docs/` | Architecture, PRD, implementation plan, decision log, changelog |
+| `tests/` | Root-level tests (agents, hooks, permissions, Hermes config) |
 
-## Development
+## Quick Start
 
 ```bash
+# Development
 uv sync --all-packages --group dev    # Install dependencies
 uv run pytest vizier-mcp/ -v          # Run MCP server tests
+uv run pytest tests/ -v               # Run tooling + Hermes config tests
 uv run ruff check . && uv run ruff format --check .  # Lint
 uv run pyright                        # Type check
+
+# Deployment (Docker Compose)
+cp .env.example .env                  # Fill in API keys and Telegram config
+docker compose up -d                  # Starts vizier-mcp + hermes-vizier
 ```
 
 ## License

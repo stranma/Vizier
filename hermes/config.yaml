@@ -1,6 +1,12 @@
 # Hermes Agent configuration for Vizier (Grand Vizier)
 # Secrets (API keys, bot tokens) go in .env, not here.
 # See docs/HERMES_REFERENCE.md for full option reference.
+#
+# Authentication: Hermes supports subscription-based auth (no API keys needed).
+# Run `hermes login` or `hermes model` locally to authenticate with your
+# Anthropic (Claude Max/Pro) or GitHub Copilot subscription. Credentials are
+# saved to ~/.hermes/auth.json and mounted into the Docker container.
+# See .env.example for details.
 
 model:
   provider: "anthropic"
@@ -33,9 +39,12 @@ memory:
   user_profile_enabled: true
   memory_char_limit: 2200
 
+# Use Anthropic Haiku for compression so no extra API key is needed.
 compression:
   enabled: true
   threshold: 0.50
+  summary_provider: "anthropic"
+  summary_model: "claude-haiku-4-5-20251001"
 
 # Approval mode is off inside the controlled container environment.
 # The container itself is the security boundary.

@@ -47,6 +47,38 @@ Post-install directories:
 
 Verify: `hermes doctor`, `hermes model`, `hermes chat -q "Hello!"`
 
+## Authentication
+
+Hermes supports subscription-based auth (preferred) and API key auth (fallback).
+
+### Subscription Auth (Recommended)
+
+Uses existing Claude Max/Pro or GitHub Copilot subscription. No API keys needed.
+
+```bash
+hermes login              # Anthropic (Claude Max/Pro) -- saves to ~/.hermes/auth.json
+hermes login copilot      # GitHub Copilot (OpenAI models)
+```
+
+Credentials are saved to `~/.hermes/auth.json`. For Docker deployment, mount this
+file into the container. See `docs/DEPLOYMENT.md` for details.
+
+### API Key Auth
+
+Set in `~/.hermes/.env`:
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-...          # Anthropic direct
+COPILOT_GITHUB_TOKEN=gho_...          # GitHub Copilot
+```
+
+### Vizier Docker Entrypoint Auth Logic
+
+The entrypoint checks in order:
+1. `auth.json` exists and is non-empty -> subscription auth
+2. `ANTHROPIC_API_KEY` env var is set -> API key auth
+3. Neither found -> fatal error with setup instructions
+
 ## Configuration (config.yaml)
 
 Precedence: CLI args > config.yaml > .env > built-in defaults.

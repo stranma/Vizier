@@ -18,7 +18,7 @@ MOCK_MANIFEST = json.dumps(
     {
         "name": "test-pasha",
         "version": "1.0.0",
-        "runtime": "openclaw",
+        "runtime": "hermes",
         "entrypoint": ".pasha/launch.sh",
         "status_file": ".pasha/status.json",
     }

@@ -33,6 +33,9 @@ services:
     volumes:
       - hermes-data:/home/hermes/.hermes/sessions
       - hermes-memories:/home/hermes/.hermes/memories
+      # Mount subscription auth credentials from host (created by `hermes login`).
+      # Comment out if using API key auth instead.
+      - ${HERMES_AUTH_JSON:-./hermes/auth.json}:/home/hermes/.hermes/auth.json:ro
     env_file:
       - .env
     environment:

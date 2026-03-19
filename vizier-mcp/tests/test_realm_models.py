@@ -55,7 +55,7 @@ class TestPashaManifest:
     def test_default_values(self) -> None:
         m = PashaManifest(name="test-pasha")
         assert m.version == "1.0.0"
-        assert m.runtime == "openclaw"
+        assert m.runtime == "hermes"
         assert m.entrypoint == ".pasha/launch.sh"
         assert m.status_file == ".pasha/status.json"
         assert m.capabilities == []
