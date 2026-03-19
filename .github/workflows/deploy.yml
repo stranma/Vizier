@@ -108,7 +108,7 @@ jobs:
             cd /opt/vizier
             touch .env
             for key in ANTHROPIC_API_KEY TELEGRAM_BOT_TOKEN TELEGRAM_ALLOWED_USERS GITHUB_TOKEN; do
-              val=$(eval echo "\$$key")
+              val="${!key}"
               if [ -n "$val" ]; then
                 grep -v "^${key}=" .env > .env.tmp || true
                 echo "${key}=${val}" >> .env.tmp

@@ -4,23 +4,24 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git curl ca-certificates gnupg \
+    git curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Node.js 22 (required by Hermes for MCP npx servers)
-RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/*
+# Node.js 22 via official image (avoids piping remote scripts to bash)
+COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:22-bookworm-slim /usr/local/bin/npx /usr/local/bin/npx
+COPY --from=node:22-bookworm-slim /usr/local/bin/npm /usr/local/bin/npm
+COPY --from=node:22-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
 
 # uv (Python package manager)
-COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.5.31 /uv /usr/local/bin/uv
 
 # ---------- install hermes-agent ----------
 FROM base AS hermes-install
 
-# Pin to a specific version for reproducible builds.
+# Pinned to a release tag for reproducible builds.
 # Update this when upgrading Hermes.
-ARG HERMES_VERSION=main
+ARG HERMES_VERSION=v2026.3.17
 
 RUN git clone --recurse-submodules --depth 1 \
     -b ${HERMES_VERSION} \

@@ -74,7 +74,7 @@ class TestHermesConfigStructure:
         content = CONFIG_PATH.read_text(encoding="utf-8")
         assert "sk-ant-" not in content, "API key found in config"
         assert "sk-or-" not in content, "API key found in config"
-        assert "BOT_TOKEN" not in content or "TELEGRAM_BOT_TOKEN" not in content, "Token found in config"
+        assert "BOT_TOKEN" not in content, "Bot token reference found in config"
 
 
 class TestSoulMd:

@@ -3,7 +3,14 @@
 # then starts the requested command (default: hermes gateway).
 set -euo pipefail
 
-HERMES_ENV="${HERMES_HOME:=$HOME/.hermes}/.env"
+# Validate required security config
+if [ -z "${TELEGRAM_ALLOWED_USERS:-}" ]; then
+    echo "FATAL: TELEGRAM_ALLOWED_USERS is not set -- gateway would be open to all users"
+    exit 1
+fi
+
+export HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+HERMES_ENV="${HERMES_HOME}/.env"
 
 # Write secrets from environment into Hermes .env (never committed to image).
 {

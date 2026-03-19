@@ -3,4 +3,4 @@
 # Verifies the hermes gateway process is running.
 set -euo pipefail
 
-pgrep -f "hermes" > /dev/null 2>&1 || exit 1
+pgrep -f "hermes gateway" > /dev/null 2>&1 || exit 1
