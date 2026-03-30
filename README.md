@@ -1,9 +1,10 @@
 # Vizier
 
-Province orchestration CLI for [Sultanate](../EFM/sultan/SULTANATE.md) -- a secure
+Province orchestration CLI for [Sultanate](https://github.com/stranma/sultanate) -- a secure
 multi-agent deployment platform.
 
 Vizier creates provinces (isolated Docker containers) from firmans (container templates)
+
 and berats (agent profiles), manages their lifecycle, and writes all state to Divan.
 
 ## Quick Start
