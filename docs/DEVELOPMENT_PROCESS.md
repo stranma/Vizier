@@ -8,11 +8,10 @@ Detailed development workflow for this repository. Referenced from `CLAUDE.md`.
 
 **After auto-compact or session continuation, ALWAYS read the relevant documentation files before continuing work:**
 
-1. Read `docs/ARCHITECTURE.md` for system topology, MCP server design, agent definitions, Sentinel, communication model
-2. Read `docs/DECISIONS.md` for the decision log (D1-D62+ and the decision map update in ARCHITECTURE.md section 7)
+1. Read `docs/ARCHITECTURE.md` for system topology and design
+2. Read `docs/DECISIONS.md` for the decision log
 3. Read `docs/IMPLEMENTATION_PLAN.md` for current progress
-4. Read `docs/CHANGELOG.md` for recent changes
-5. Check git log and branch status to determine where you left off
+4. Check git log and branch status to determine where you left off
 
 This ensures continuity and prevents duplicated or missed work.
 
@@ -22,8 +21,7 @@ This ensures continuity and prevents duplicated or missed work.
 
 Before proposing any implementation approach, scan for conflicts with prior decisions:
 
-1. Read `docs/DECISIONS.md` -- check resolved decisions and their rationale (D1-D62+)
-2. Read `docs/ARCHITECTURE.md` -- check the decision map update (section 7) for kept/modified/replaced/reversed/dropped status
+1. Read `docs/DECISIONS.md` -- check resolved decisions and their rationale
 
 If a conflict is found, present it to the user before proceeding. Do NOT silently override a documented decision.
 
@@ -143,15 +141,13 @@ Skills in `.claude/skills/`:
 
 ## Hooks
 
-5 hook scripts in `.claude/hooks/` run automatically via settings.json:
+Hook scripts in `.claude/hooks/` run automatically via settings.json:
 
 | Hook | Event | Matcher | Behavior |
 |------|-------|---------|----------|
 | `dangerous-actions-blocker.sh` | PreToolUse | Bash | Blocks `rm -rf`, `sudo`, `DROP DATABASE`, `git push --force`, secrets in args. Exit 2 = block. |
 | `unicode-injection-scanner.sh` | PreToolUse | Edit\|Write | Blocks zero-width chars, RTL overrides, ANSI escapes, null bytes, tag chars. Exit 2 = block. |
 | `output-secrets-scanner.sh` | PostToolUse | Bash | Scans output for AWS/Anthropic/OpenAI/GitHub keys, JWTs, private keys, DB URLs. Warns via systemMessage. |
-| `auto-format.sh` | PostToolUse | Edit\|Write | Runs `uv run ruff format` and `uv run ruff check --fix` on edited .py files. Synchronous. |
-| `test-on-change.sh` | PostToolUse | Edit\|Write | Discovers and runs associated test file. Informational (systemMessage on failure). |
 
 All hooks require `jq` for JSON parsing and degrade gracefully if jq is missing.
 

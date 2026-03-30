@@ -18,7 +18,6 @@ Transforms brainstorming output into a structured, actionable plan.
 
 Read `docs/DECISIONS.md` and scan for conflicts with the proposed approach:
 - Check resolved decisions and their rationale
-- Read `docs/ARCHITECTURE.md` section 7 (decision map) for kept/modified/replaced/reversed/dropped status
 - If a conflict is found, **present it to the user before proceeding**. Do NOT silently override a documented decision.
 
 ### 2. Classify scope

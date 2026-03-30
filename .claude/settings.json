@@ -29,7 +29,6 @@
       "Bash(pwd *)", "Bash(which *)", "Bash(echo *)", "Bash(dir *)",
       "Bash(sleep *)", "Bash(sort *)", "Bash(uniq *)", "Bash(diff *)",
       "Bash(mkdir *)",
-      "Bash(python scripts/check_versions.py *)",
       "Bash(ruff check *)",
       "WebSearch"
     ],

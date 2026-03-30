@@ -1,12 +1,19 @@
 [project]
 name = "vizier"
 version = "0.1.0"
-description = "Autonomous multi-agent work system, built on Hermes"
+description = "Province orchestration CLI for Sultanate"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 license = "MIT"
 authors = [{ name = "Sultan", email = "" }]
-dependencies = []
+dependencies = [
+    "click>=8.1.0",
+    "httpx>=0.27.0",
+    "pydantic>=2.0.0",
+]
+
+[project.scripts]
+vizier = "vizier.cli:main"
 
 [dependency-groups]
 dev = [
@@ -16,9 +23,6 @@ dev = [
     "pyyaml>=6.0",
     "ruff>=0.8.0",
 ]
-
-[tool.uv.workspace]
-members = ["vizier-mcp"]
 
 [tool.ruff]
 line-length = 120
@@ -42,7 +46,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["vizier_mcp"]
+known-first-party = ["vizier"]
 
 [tool.pyright]
 pythonVersion = "3.11"
@@ -51,7 +55,7 @@ venvPath = "."
 venv = ".venv"
 
 [tool.pytest.ini_options]
-testpaths = ["vizier-mcp/tests", "tests"]
+testpaths = ["tests"]
 markers = [
     "slow: marks tests as slow",
     "integration: marks integration tests",
