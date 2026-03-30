@@ -5,7 +5,7 @@ This file provides guidance to Claude Code when working with this repository.
 ## Security
 
 - **Real-time scanning**: The `security-guidance` plugin warns about command injection, unsafe deserialization, XSS, and dangerous shell usage
-- **Hooks**: 5 security/productivity hooks in `.claude/hooks/` run automatically (see `docs/DEVELOPMENT_PROCESS.md`)
+- **Hooks**: Security hooks in `.claude/hooks/` run automatically (see `docs/DEVELOPMENT_PROCESS.md`)
 - **Secrets handling**: Never commit API keys, tokens, passwords, or private keys -- use environment variables or `.env` files (gitignored)
 - **Unsafe operations**: Avoid unsafe deserialization, shell injection, `yaml.load` without SafeLoader in production code
 
@@ -13,34 +13,37 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Context
 
-**Vizier** is an autonomous multi-agent work system using the Ottoman court metaphor, built on **Hermes Agent** (Nous Research) as its runtime.
+**Vizier** is the province orchestration CLI for **Sultanate** -- a secure multi-agent
+deployment platform using the Ottoman court metaphor. See
+[SULTANATE.md](../EFM/sultan/SULTANATE.md) and
+[VIZIER_PRD_V3.md](../EFM/sultan/VIZIER_PRD_V3.md) for full product specs.
 
-| Role | Description |
-|------|-------------|
-| **Sultan** | Human operator (CEO/CTO) |
-| **Vizier** | Grand Vizier -- main agent, singleton, Opus-tier |
-| **Pasha** | Per-project orchestrator |
-| **Scout** | Prior art researcher |
-| **Architect** | Decomposes tasks into specs |
-| **Worker** | Fresh-context, one-spec-at-a-time executor |
-| **Quality Gate** | Validates completed work |
-| **Retrospective** | Analyzes failures, updates learnings |
-| **Sentinel** | Deterministic security service (not an LLM agent) |
+| Term | Role |
+|------|------|
+| **Sultan** | Human operator -- decides, approves, overrides |
+| **Vizier** | Province orchestration CLI -- creates provinces, manages realm, writes to Divan |
+| **Janissary** | Security infrastructure -- egress proxy, credential injection (separate repo) |
+| **Sentinel** | Security advisory agent -- secret management, alerts (ships with Janissary) |
+| **Divan** | Shared state store -- province registry, grants, audit log (ships with Janissary) |
+| **Province** | Isolated Docker container -- one agent per province |
+| **Pasha** | Agent inside a province -- runs tasks, reports to Sultan |
+| **Firman** | Container template -- Docker image, workspace bootstrap, runtime startup |
+| **Berat** | Agent profile -- soul, instructions, tools, security policy |
 
-Core principles: fresh context per task, filesystem is the message bus (via MCP server), specs are the contract, human approval at boundaries, plugin extensibility.
-
-**Architecture:** Vizier's domain intelligence is exposed as a **FastMCP server** (`vizier-mcp/`) that Hermes connects to via native MCP HTTP transport. See `docs/ARCHITECTURE.md` and `docs/DECISIONS.md`.
+**Architecture:** Vizier is a CLI tool running on the host as a dedicated `vizier` user
+with Docker group access. It creates provinces (Docker containers) from firmans + berats,
+manages their lifecycle, and writes all state to Divan (HTTP API). Vizier does NOT handle
+security (Janissary), secrets (Sentinel), or agent runtime (Hermes/other).
 
 ---
 
 ## Development Commands
 
 ```bash
-uv venv && uv sync --all-packages --group dev   # Setup
-uv run pytest                                    # All tests
-uv run pytest vizier-mcp/ -v                     # MCP server tests
+uv venv && uv sync --group dev              # Setup
+uv run pytest                                # All tests
 uv run ruff check --fix . && uv run ruff format .  # Lint + format
-uv run pyright                                   # Type check
+uv run pyright                               # Type check
 ```
 
 ---
@@ -54,7 +57,6 @@ Configuration lives in root `pyproject.toml`:
 - **Docstrings**: reStructuredText format, PEP 257
 - **No special Unicode characters** -- use plain ASCII (`[x]`, `[OK]`, `PASS`, `FAIL`)
 - Use types everywhere; no obvious inline comments
-- **LLM mocking**: Mock Anthropic client for Sentinel Haiku calls in all automated tests. No API credits in CI.
 
 ---
 
@@ -62,8 +64,8 @@ Configuration lives in root `pyproject.toml`:
 
 After auto-compact or session continuation, read:
 
-1. `docs/ARCHITECTURE.md` -- system topology, MCP server design, Sentinel
-2. `docs/DECISIONS.md` -- decision log (D1-D62+)
+1. `docs/ARCHITECTURE.md` -- system topology and design
+2. `docs/DECISIONS.md` -- decision log
 3. `docs/IMPLEMENTATION_PLAN.md` -- current progress
 4. Check `git log` and branch status to determine where you left off
 

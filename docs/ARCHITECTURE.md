@@ -1,82 +1,90 @@
-# Vizier v2 Architecture
+# Vizier v3 Architecture
 
-## System Topology
+> For shared glossary, deployment model, and component overview see
+> [SULTANATE.md](../../EFM/sultan/SULTANATE.md).
 
-```
-Sultan (Telegram -- talks to both Vizier and Sentinel)
+## System Position
+
+Vizier is one component in the Sultanate system:
+
+```text
+Sultan (human)
   |
-  +---> Vizier (OpenClaw agent, host, persistent, Opus)
-  |       |
-  |       +---> SentinelGate (MCP proxy, deterministic)
-  |               |
-  |               +---> Vizier MCP Server (realm, containers, agents)
+  +-- Vizier CLI (this repo) -- province lifecycle, realm management
+  |     |
+  |     +-- writes to --> Divan (shared state store, ships with Janissary)
+  |     +-- creates   --> Provinces (Docker containers)
   |
-  +---> Sentinel (OpenClaw agent, host, persistent)
-          |-- reads SentinelGate audit log
-          |-- LLM-based cost/data-leak reasoning
-          |-- alerts Sultan on violations
-          |-- can update SentinelGate policies
+  +-- Janissary (separate repo) -- egress proxy, credential injection
+  |     +-- Sentinel -- secret management, alert contextualization
+  |     +-- Divan -- province registry, grants, audit log
+  |
+  +-- Provinces
+        +-- Pasha (agent inside province)
+        +-- Firman (container template)
+        +-- Berat (agent profile)
 ```
 
-## Components
+## Vizier Internals
 
-### Vizier MCP Server (`vizier-mcp/`)
-
-FastMCP server exposing domain tools. Runs as a container with streamable-http transport (port 8001) and a health endpoint (port 8080).
-
-**Tool groups (10 tools):**
-
-| Group | Tools | Purpose |
-|-------|-------|---------|
-| Realm | `realm_list_projects`, `realm_create_project`, `realm_get_project` | Project CRUD in realm.json |
-| Container | `container_start`, `container_stop`, `container_status` | Devcontainer lifecycle |
-| Agent | `pasha_launch`, `pasha_status`, `agent_kill` | Manifest-based Pasha control |
-| Knowledge | `knowledge_link` | Cross-project knowledge linking |
-
-### RealmManager
-
-Manages persistent state in `realm.json` with atomic file writes (`tempfile` + `os.replace`) and a threading lock. Stores project metadata, container status, and Pasha state.
-
-### Pasha (per-project agent)
-
-Pashas run inside devcontainers. Vizier does not control Pasha internals -- it interacts via a manifest contract:
-
-```
-.pasha/
-  manifest.json    # Name, runtime, entrypoint, status_file, capabilities
-  SOUL.md          # Pasha personality (template-provided)
-  launch.sh        # Start script (template-provided)
-  task.json        # Written by Vizier at launch time
-  status.json      # Written by Pasha, polled by Vizier
+```text
+vizier CLI
+  |
+  +-- cli.py          Click CLI entry point
+  +-- province.py     Province lifecycle (create, start, stop, destroy)
+  +-- divan.py        Divan HTTP client (read/write province state)
+  +-- docker.py       Docker container management (subprocess-based)
+  +-- models.py       Pydantic models (Province, Firman, Berat)
+  +-- config.py       Configuration (Divan URL, Docker network settings)
 ```
 
-Vizier reads the manifest, writes the task, executes the entrypoint, and polls status.
+### Key Design Decisions
 
-### SentinelGate (Phase 3)
+1. **CLI, not MCP server.** Vizier is invoked directly by Sultan or scripts.
+   No agent runtime dependency.
 
-Deterministic MCP proxy (Go binary) between Vizier and the MCP server. CEL-based policies for cost limits, rate limiting, and RBAC. Full audit log of all tool calls.
+2. **Divan is the state store.** Vizier writes province state to Divan via HTTP.
+   No local state files (no realm.json).
 
-### Sentinel Agent (Phase 4)
+3. **Docker via subprocess.** Container management uses `docker` CLI commands
+   via subprocess (no Docker SDK dependency). Safe execution via
+   `subprocess.run()` with list args (no shell).
 
-OpenClaw agent that reads SentinelGate audit logs, evaluates cost reasonableness, detects data leak patterns, and alerts Sultan on violations. Can update SentinelGate policies dynamically.
+4. **Internal-only Docker network.** Provinces have no direct internet access.
+   All egress through Janissary's HTTP proxy.
 
-## Data Flow
+5. **Firman + Berat = Province.** A province is created from the combination
+   of a container template (firman) and an agent profile (berat).
 
-1. Sultan sends task to Vizier via Telegram
-2. Vizier creates project (`realm_create_project`) and starts container (`container_start`)
-3. Vizier launches Pasha (`pasha_launch`) with task + acceptance criteria
-4. Vizier polls Pasha status (`pasha_status`) for progress
-5. On completion/failure, Vizier reports to Sultan
-6. SentinelGate logs all tool calls; Sentinel agent reviews for anomalies
+## Province Creation Flow
 
-## State Management
+```text
+1. Sultan: vizier create <firman> --berat <berat> --name <name>
+2. Vizier reads firman spec (Docker image, bootstrap, runtime)
+3. Vizier reads berat spec (soul, tools, security policy)
+4. Vizier creates Docker container:
+   --> internal Docker network only (no external route)
+   --> HTTP_PROXY / HTTPS_PROXY pointing to Janissary
+   --> workspace bootstrapped per firman
+   --> agent runtime started per firman
+5. Vizier writes to Divan:
+   --> province ID, container IP, status=creating, firman, berat
+6. Sentinel reads new province from Divan:
+   --> provisions grants from berat security policy
+   --> sets up whitelist from berat defaults
+7. Vizier updates Divan: status=running
+```
 
-- **realm.json**: Single source of truth for all project/container/Pasha state
-- **Atomic writes**: `tempfile` + `os.replace` under threading lock
-- **Reconciliation**: Container and Pasha status reconciled against Docker on read
+## Province Lifecycle States
 
-## Security Boundaries
+```text
+creating --> running --> stopped --> destroying
+    |           |           |
+    +-- failed  +-- failed  +-- failed
+```
 
-- **Devcontainer**: Each project runs in an isolated container
-- **SentinelGate**: All Vizier tool calls pass through deterministic policy checks
-- **Docker socket**: Mounted read-write for container management; Vizier runs as non-root user in docker group
+- **creating**: container being instantiated from firman
+- **running**: container up, agent reachable
+- **stopped**: container exists but not running
+- **failed**: error state, operator attention required
+- **destroying**: teardown in progress
